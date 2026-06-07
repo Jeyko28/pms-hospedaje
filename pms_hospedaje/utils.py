@@ -1,15 +1,28 @@
 """
 utils.py
-Funciones auxiliares: cambio de tema, formateo de moneda, generación de facturas PDF.
+Funciones auxiliares: cambio de tema (app de escritorio), formateo de moneda
+y generación de facturas PDF.
+
+Nota: tkinter solo existe en la app de escritorio. En el servidor web (la API
+en la nube) no está disponible, así que su importación es OPCIONAL: si falla,
+las funciones de tema quedan inactivas, pero el resto (moneda, PDF) funciona.
 """
 
-import tkinter as tk
-from tkinter import ttk
 import os
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
+
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    _HAY_TKINTER = True
+except ImportError:
+    # Entorno sin interfaz gráfica (servidor). Las funciones de tema no se usan.
+    tk = None
+    ttk = None
+    _HAY_TKINTER = False
 
 # Paletas de colores
 TEMA_CLARO = {
