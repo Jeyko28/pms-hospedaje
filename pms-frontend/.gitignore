@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+.DS_Store
+
+# Entorno / secretos
+.env
+.env.local
+.env.*.local

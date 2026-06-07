@@ -1,0 +1,102 @@
+/* ========================================================================== *
+ *  ESTILOS GLOBALES — reset minimo + tipografia base del sistema.
+ *  Importa primero los tokens para que las variables esten disponibles.
+ * ========================================================================== */
+
+@import "../theme/tokens.css";
+
+/* --- Reset moderno y sobrio --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Jerarquia tipografica por defecto --- */
+h1,
+h2,
+h3 {
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+  font-weight: var(--weight-bold);
+}
+
+h1 {
+  font-size: var(--text-2xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+p {
+  color: var(--text-secondary);
+}
+
+img,
+picture,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* --- Accesibilidad: foco visible y consistente en todo elemento interactivo.
+       Nunca eliminamos el outline sin reemplazarlo (heuristica de control). --- */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Respeta a quien prefiere menos movimiento (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Utilidad: texto solo para lectores de pantalla. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

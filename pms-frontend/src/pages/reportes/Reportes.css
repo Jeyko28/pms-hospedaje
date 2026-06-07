@@ -1,0 +1,167 @@
+.reportes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.reportes__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Selector de periodo: mes + anio. */
+.reportes__filtros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  max-width: 360px;
+}
+
+.reportes__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.reportes__grafico-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+/* Leyenda de colores. */
+.reportes__leyenda {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.reportes__leyenda li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.punto {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+.punto--baja {
+  background-color: var(--color-success-600);
+}
+.punto--media {
+  background-color: var(--color-warning-600);
+}
+.punto--alta {
+  background-color: var(--color-danger-600);
+}
+
+/* ---------- Grafico de barras (CSS puro) ---------- */
+.grafico {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 240px;
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.grafico__col {
+  flex: 1 1 0;
+  min-width: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Zona que reserva la altura completa; la barra crece desde abajo. */
+.grafico__barra-zona {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: linear-gradient(
+    to top,
+    var(--color-neutral-100) 0,
+    transparent 1px
+  );
+}
+
+.grafico__barra {
+  width: 100%;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  min-height: 2px;
+  transition: height var(--transition-base);
+}
+
+.grafico__barra--baja {
+  background-color: var(--color-success-600);
+}
+.grafico__barra--media {
+  background-color: var(--color-warning-600);
+}
+.grafico__barra--alta {
+  background-color: var(--color-danger-600);
+}
+.grafico__barra--cero {
+  background-color: var(--color-neutral-200);
+}
+
+.grafico__dia {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tabla de datos (desplegable) ---------- */
+.reportes__tabla-toggle {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-700);
+  cursor: pointer;
+  user-select: none;
+}
+
+.reportes__tabla-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-default);
+}
+
+.reportes__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.reportes__tabla th,
+.reportes__tabla td {
+  padding: var(--space-2) var(--space-6);
+  text-align: left;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.reportes__tabla th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+}
+
+.reportes__tabla td {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

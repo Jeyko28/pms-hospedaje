@@ -1,0 +1,164 @@
+/* ========================================================================== *
+ *  Estilos compartidos por las pantallas de entidades (Habitaciones, Huespedes).
+ *  Misma estructura visual = consistencia (Ley de uniformidad / Nielsen).
+ * ========================================================================== */
+
+.entidad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.entidad__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.entidad__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Grid de tarjetas responsive. */
+.entidad__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.entidad-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.entidad-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.entidad-card__titulo {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+}
+
+.entidad-card__sub {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.entidad-card__precio {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+
+.entidad-card__precio-unit {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+.entidad-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Acciones al pie de la tarjeta, separadas del contenido. */
+.entidad-card__acciones {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-default);
+}
+
+/* ---------- Tarjeta de huesped ---------- */
+.huesped-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.huesped-card__avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-brand-50);
+  color: var(--color-brand-700);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.huesped-card__datos {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.huesped-card__datos li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.huesped-card__sin-datos {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ========================================================================== *
+ *  Formularios de entidad (compartidos por Habitacion/Huesped form).
+ * ========================================================================== */
+.entidad-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.entidad-form__fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .entidad-form__fila {
+    grid-template-columns: 1fr;
+  }
+}
+
+.entidad-form__error {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-danger-700);
+  background-color: var(--color-danger-50);
+  border: 1px solid var(--color-danger-600);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.entidad-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

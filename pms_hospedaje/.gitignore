@@ -1,0 +1,31 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Base de datos local (NO subir datos) ---
+*.db
+pms_prueba.db
+
+# --- Secretos / entorno ---
+.env
+.env.local
+*.local
+
+# --- Facturas generadas ---
+facturas/
+
+# --- Archivos temporales de pruebas ---
+_test_*.py
+_test_*.json
+_check_*.py
+_check_*.json
+
+# --- Editor / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

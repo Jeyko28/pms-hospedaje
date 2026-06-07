@@ -1,0 +1,59 @@
+.statcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Fila superior: icono + etiqueta juntos. */
+.statcard__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.statcard__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xl);
+}
+
+.statcard__icon--brand {
+  background-color: var(--color-brand-50);
+}
+.statcard__icon--success {
+  background-color: var(--color-success-50);
+}
+.statcard__icon--warning {
+  background-color: var(--color-warning-50);
+}
+.statcard__icon--danger {
+  background-color: var(--color-danger-50);
+}
+
+.statcard__label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+}
+
+/* La cifra ocupa todo el ancho de la tarjeta y NO se parte: si por algun
+   motivo no cabe, se reduce su tamano (clamp) en vez de romperse en lineas. */
+.statcard__value {
+  font-size: clamp(1.5rem, 1rem + 1.8vw, var(--text-3xl));
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.statcard__hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}

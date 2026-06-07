@@ -1,0 +1,37 @@
+/**
+ * estados.js
+ * Mapeo central de los estados del dominio -> presentacion accesible.
+ *
+ * Aqui vive la "traduccion" de cada estado tecnico (lo que guarda la BD)
+ * a: tono de color + icono + etiqueta legible. Tenerlo en un solo sitio
+ * garantiza consistencia (misma palabra y color en TODA la app) y facilita
+ * traducir o cambiar la marca despues.
+ */
+
+// Estado de ocupacion de una habitacion.
+export const ESTADO_HABITACION = {
+  disponible: { tone: "success", icon: "✓", label: "Disponible" },
+  ocupada: { tone: "danger", icon: "●", label: "Ocupada" },
+  mantenimiento: { tone: "warning", icon: "⚙", label: "Mantenimiento" },
+};
+
+// Estado de limpieza de una habitacion.
+export const ESTADO_LIMPIEZA = {
+  Limpia: { tone: "success", icon: "✓", label: "Limpia" },
+  Sucia: { tone: "danger", icon: "✗", label: "Sucia" },
+  "Revisión": { tone: "warning", icon: "⌕", label: "Revisión" },
+  Revision: { tone: "warning", icon: "⌕", label: "Revisión" },
+};
+
+// Estado de una reserva.
+export const ESTADO_RESERVA = {
+  Confirmada: { tone: "info", icon: "✓", label: "Confirmada" },
+  "Check-in": { tone: "success", icon: "→", label: "Check-in" },
+  "Check-out": { tone: "neutral", icon: "←", label: "Check-out" },
+  Cancelada: { tone: "danger", icon: "✗", label: "Cancelada" },
+};
+
+/** Devuelve la config de presentacion o un neutro seguro si no existe. */
+export function presentar(mapa, clave) {
+  return mapa[clave] || { tone: "neutral", icon: "•", label: String(clave ?? "—") };
+}

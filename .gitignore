@@ -1,0 +1,49 @@
+# ============================================================ #
+#  Monorepo PMS Hospedaje
+#  Contiene: pms_hospedaje (backend FastAPI) + pms-frontend (React)
+# ============================================================ #
+
+# --- Viejo intento en Node/Express (descartado, no se sube) ---
+pms-backend/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Base de datos local (NO subir datos) ---
+*.db
+pms_prueba.db
+
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+
+# --- Secretos / entorno ---
+.env
+.env.local
+.env.*.local
+
+# --- Facturas generadas ---
+facturas/
+
+# --- Temporales de pruebas ---
+_test_*.py
+_test_*.json
+_check_*.py
+_check_*.json
+
+# --- Editor / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Otros proyectos / archivos sueltos (no son del PMS)
+pos-bodega/
+Bali-Lodge-offline.html

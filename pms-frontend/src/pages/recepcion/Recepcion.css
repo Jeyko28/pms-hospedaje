@@ -1,0 +1,133 @@
+.recepcion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.recepcion__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Dos columnas: llegadas (check-in) | alojados (check-out). */
+.recepcion__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .recepcion__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recepcion__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.recepcion__col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+/* Tarjeta de item (reserva pendiente o estancia activa). */
+.recep-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.recep-item__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.recep-item__nombre {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.recep-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.recep-item__total {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+}
+
+.recep-item__pago {
+  margin-top: var(--space-1);
+}
+
+.recep-item__acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .recep-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .recep-item__acciones {
+    flex-direction: row;
+    width: 100%;
+  }
+}
+
+/* ---------- Formulario de pago ---------- */
+.pago-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.pago-form__saldo {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background-color: var(--color-warning-50);
+  border: 1px solid var(--color-warning-600);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.pago-form__saldo strong {
+  color: var(--color-warning-700);
+}
+
+.pago-form__error {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-danger-700);
+  background-color: var(--color-danger-50);
+  border: 1px solid var(--color-danger-600);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.pago-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

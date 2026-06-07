@@ -1,0 +1,22 @@
+# Configuracion de despliegue del BACKEND en Render (https://render.com).
+# Al conectar el repo, Render lee este archivo y crea el servicio solo.
+services:
+  - type: web
+    name: pms-hospedaje-api
+    runtime: python
+    plan: free
+    # Si el codigo del backend esta en una subcarpeta del repo, ajusta rootDir.
+    rootDir: pms_hospedaje
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PMS_ENV
+        value: production
+      - key: PMS_SECRET_KEY
+        generateValue: true   # Render genera una clave segura automaticamente
+      - key: DATABASE_URL
+        sync: false           # la pegas tu manualmente (la cadena de Neon)
+      - key: CORS_ORIGINS
+        sync: false           # la URL de tu frontend en Vercel
+      - key: PMS_ADMIN_PASSWORD
+        sync: false           # contrasena inicial del admin (opcional)
