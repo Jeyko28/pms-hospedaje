@@ -1,0 +1,131 @@
+/* Resumen superior (3 tarjetas compactas). */
+.facturas__resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.facturas__resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.facturas__resumen-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.facturas__resumen-valor {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.facturas__resumen-valor--ok {
+  color: var(--color-success-700);
+}
+
+.facturas__resumen-valor--warn {
+  color: var(--color-warning-700);
+}
+
+/* Filtros: busqueda ancha + selector de estado. */
+.facturas__filtros {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+@media (max-width: 560px) {
+  .facturas__filtros {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Lista de facturas. */
+.facturas__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.factura-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.factura-item__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.factura-item__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.factura-item__num {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+}
+
+.factura-item__huesped {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.factura-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.factura-item__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.factura-item__total {
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.factura-item__saldo {
+  font-size: var(--text-xs);
+  color: var(--color-warning-700);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .factura-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .factura-item__lado {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

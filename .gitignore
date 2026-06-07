@@ -29,8 +29,9 @@ dist-ssr/
 .env.local
 .env.*.local
 
-# --- Facturas generadas ---
-facturas/
+# --- Facturas PDF generadas por el backend (NO el codigo del frontend) ---
+# Ruta especifica para no excluir por error src/pages/facturas/ del frontend.
+/pms_hospedaje/facturas/
 
 # --- Temporales de pruebas ---
 _test_*.py
