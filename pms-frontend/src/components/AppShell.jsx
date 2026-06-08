@@ -9,8 +9,8 @@ import {
   BarChart3,
   ShieldCheck,
   Menu,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Moon,
   Sun,
   Hotel,
@@ -125,20 +125,26 @@ export default function AppShell({ children }) {
       />
 
       <aside className="shell__sidebar">
+        {/* Cabecera: logo + nombre, y un botón pequeño y discreto para
+            colapsar/expandir (icono integrado, sin recuadro grande). */}
         <div className="shell__brand">
           <span className="shell__brand-mark" aria-hidden="true">
             <Hotel size={26} strokeWidth={2} />
           </span>
           <span className="shell__brand-name">PMS Hospedaje</span>
-          {/* Boton colapsar/expandir (escritorio). */}
           <button
             type="button"
             className="shell__collapse-btn"
             aria-label={colapsado ? "Expandir menú" : "Colapsar menú"}
+            aria-expanded={!colapsado}
             title={colapsado ? "Expandir menú" : "Colapsar menú"}
             onClick={() => setColapsado((c) => !c)}
           >
-            {colapsado ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {colapsado ? (
+              <PanelLeftOpen size={20} />
+            ) : (
+              <PanelLeftClose size={20} />
+            )}
           </button>
         </div>
 
@@ -156,9 +162,10 @@ export default function AppShell({ children }) {
                       (activo ? " shell__nav-link--active" : "")
                     }
                     aria-current={activo ? "page" : undefined}
-                    // En modo rail, el texto se oculta visualmente; el title
-                    // da el nombre al pasar el cursor.
+                    // En modo rail (colapsado) el texto se oculta; el tooltip
+                    // (data-tooltip + title) muestra el nombre al pasar el cursor.
                     title={item.label}
+                    data-tooltip={item.label}
                     onClick={(e) => {
                       e.preventDefault();
                       irA(item.id);
@@ -195,31 +202,31 @@ export default function AppShell({ children }) {
             </span>
           </div>
 
-          <button
-            type="button"
-            className="shell__theme-btn"
-            onClick={toggleTema}
-            title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-          >
-            <span className="shell__nav-icon">
-              {theme === "dark" ? <Sun {...ICON_PROPS} /> : <Moon {...ICON_PROPS} />}
-            </span>
-            <span className="shell__nav-label">
-              {theme === "dark" ? "Modo claro" : "Modo oscuro"}
-            </span>
-          </button>
+          {/* Fila de acciones: Cerrar sesión (con texto, ocupa el ancho) +
+              botón de tema (solo icono, al lado). */}
+          <div className="shell__footer-acciones">
+            <button
+              type="button"
+              className="shell__logout-btn"
+              onClick={logout}
+              title="Cerrar sesión"
+            >
+              <span className="shell__nav-icon">
+                <LogOut {...ICON_PROPS} />
+              </span>
+              <span className="shell__nav-label">Cerrar sesión</span>
+            </button>
 
-          <button
-            type="button"
-            className="shell__theme-btn"
-            onClick={logout}
-            title="Cerrar sesión"
-          >
-            <span className="shell__nav-icon">
-              <LogOut {...ICON_PROPS} />
-            </span>
-            <span className="shell__nav-label">Cerrar sesión</span>
-          </button>
+            <button
+              type="button"
+              className="shell__theme-icon-btn"
+              onClick={toggleTema}
+              aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+              title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            >
+              {theme === "dark" ? <Sun {...ICON_PROPS} /> : <Moon {...ICON_PROPS} />}
+            </button>
+          </div>
         </div>
       </aside>
 
