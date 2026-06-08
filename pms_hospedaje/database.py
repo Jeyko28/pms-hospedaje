@@ -24,7 +24,7 @@ def crear_tablas():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS habitaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero TEXT UNIQUE NOT NULL,
+            numero TEXT NOT NULL,
             tipo TEXT NOT NULL,
             precio_base REAL NOT NULL,
             estado_limpieza TEXT DEFAULT 'Limpia',
@@ -161,6 +161,17 @@ def crear_tablas():
 
     conn.commit()
     conn.close()
+
+    # Migración multi-tenant (Etapa 4.1): añade la tabla `hospedajes` y la
+    # columna hospedaje_id a las tablas. Es idempotente y no rompe nada;
+    # si falla por cualquier motivo, no debe impedir que la app arranque.
+    try:
+        import migracion_multitenant
+        conn2 = get_connection()
+        migracion_multitenant.migrar(conn2)
+        conn2.close()
+    except Exception as e:
+        print(f"[aviso] migracion multi-tenant no aplicada: {e}")
 
 if __name__ != "__main__":
     crear_tablas()

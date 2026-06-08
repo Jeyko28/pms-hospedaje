@@ -66,8 +66,9 @@ def crear_tabla_usuarios():
                 usuario TEXT UNIQUE NOT NULL,
                 nombre TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
-                rol TEXT NOT NULL DEFAULT 'recepcion',  -- 'admin' | 'recepcion'
+                rol TEXT NOT NULL DEFAULT 'recepcion',  -- 'superadmin'|'admin'|'recepcion'
                 activo INTEGER DEFAULT 1,
+                hospedaje_id INTEGER DEFAULT 1,         -- a qué hospedaje pertenece
                 creado_en TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -76,8 +77,8 @@ def crear_tabla_usuarios():
         cursor.execute("SELECT COUNT(*) AS n FROM usuarios")
         if cursor.fetchone()["n"] == 0:
             cursor.execute(
-                "INSERT INTO usuarios (usuario, nombre, password_hash, rol) VALUES (?, ?, ?, ?)",
-                ("admin", "Administrador", hashear_password(ADMIN_PASSWORD_INICIAL), "admin"),
+                "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id) VALUES (?, ?, ?, ?, ?)",
+                ("admin", "Administrador", hashear_password(ADMIN_PASSWORD_INICIAL), "admin", 1),
             )
         conn.commit()
     finally:
@@ -108,6 +109,9 @@ def crear_token(usuario: dict) -> str:
         "usuario": usuario["usuario"],
         "nombre": usuario["nombre"],
         "rol": usuario["rol"],
+        # A qué hospedaje pertenece el usuario (multi-tenant). El superadmin
+        # puede no tener uno fijo (None).
+        "hospedaje_id": usuario.get("hospedaje_id"),
         "exp": expira,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -172,12 +176,27 @@ def usuario_actual(token: str = Depends(oauth2)) -> dict:
 
 
 def solo_admin(actual: dict = Depends(usuario_actual)) -> dict:
-    """Exige rol admin. Usar en rutas sensibles (gestion de usuarios, etc.)."""
-    if actual["rol"] != "admin":
+    """Exige rol admin o superadmin. Para rutas sensibles (gestion de usuarios)."""
+    if actual["rol"] not in ("admin", "superadmin"):
         raise HTTPException(
             status_code=403, detail="Necesitas permisos de administrador."
         )
     return actual
+
+
+def hospedaje_actual(actual: dict = Depends(usuario_actual)) -> int:
+    """Devuelve el hospedaje_id del usuario logueado. Es la pieza central del
+    aislamiento multi-tenant: cada endpoint filtra por este id.
+
+    El usuario siempre debe tener un hospedaje (salvo el superadmin, que se
+    maneja aparte). Si por algún motivo no lo tiene, se bloquea por seguridad."""
+    hid = actual.get("hospedaje_id")
+    if hid is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Tu usuario no está asociado a ningún hospedaje.",
+        )
+    return hid
 
 
 def publico(usuario_dict: dict) -> dict:
@@ -188,4 +207,5 @@ def publico(usuario_dict: dict) -> dict:
         "nombre": usuario_dict["nombre"],
         "rol": usuario_dict["rol"],
         "activo": bool(usuario_dict["activo"]),
+        "hospedaje_id": usuario_dict.get("hospedaje_id"),
     }

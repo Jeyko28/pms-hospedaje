@@ -284,26 +284,35 @@ def raiz():
 #  Habitaciones (CRUD)
 # --------------------------------------------------------------------------- #
 @app.get("/api/habitaciones")
-def listar_habitaciones(solo_activas: bool = True):
-    return [_a_dict(h) for h in Habitacion.obtener_todas(solo_activas=solo_activas)]
+def listar_habitaciones(solo_activas: bool = True, hid: int = Depends(auth.hospedaje_actual)):
+    return [
+        _a_dict(h)
+        for h in Habitacion.obtener_todas(solo_activas=solo_activas, hospedaje_id=hid)
+    ]
 
 
-def _buscar_habitacion(habitacion_id):
+def _buscar_habitacion(habitacion_id, hid):
+    # Solo busca dentro del hospedaje indicado (aislamiento).
     return next(
-        (h for h in Habitacion.obtener_todas(solo_activas=False) if h.id == habitacion_id),
+        (
+            h
+            for h in Habitacion.obtener_todas(solo_activas=False, hospedaje_id=hid)
+            if h.id == habitacion_id
+        ),
         None,
     )
 
 
 @app.post("/api/habitaciones", status_code=201)
-def crear_habitacion(datos: HabitacionDatos):
+def crear_habitacion(datos: HabitacionDatos, hid: int = Depends(auth.hospedaje_actual)):
     if not datos.numero.strip() or not datos.tipo.strip():
         raise HTTPException(status_code=422, detail="Numero y tipo son obligatorios.")
     if datos.precio_base < 0:
         raise HTTPException(status_code=422, detail="El precio no puede ser negativo.")
+    # El número es único DENTRO del hospedaje (otro hospedaje sí puede tener "101").
     if any(
         h.numero == datos.numero.strip()
-        for h in Habitacion.obtener_todas(solo_activas=False)
+        for h in Habitacion.obtener_todas(solo_activas=False, hospedaje_id=hid)
     ):
         raise HTTPException(
             status_code=409, detail=f"Ya existe una habitacion con el numero {datos.numero}."
@@ -314,14 +323,17 @@ def crear_habitacion(datos: HabitacionDatos):
         precio_base=datos.precio_base,
         estado_limpieza=datos.estado_limpieza,
         estado=datos.estado,
+        hospedaje_id=hid,
     )
     hab.guardar()
     return _a_dict(hab)
 
 
 @app.put("/api/habitaciones/{habitacion_id}")
-def editar_habitacion(habitacion_id: int, datos: HabitacionDatos):
-    hab = _buscar_habitacion(habitacion_id)
+def editar_habitacion(
+    habitacion_id: int, datos: HabitacionDatos, hid: int = Depends(auth.hospedaje_actual)
+):
+    hab = _buscar_habitacion(habitacion_id, hid)
     if not hab:
         raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
     if not datos.numero.strip() or not datos.tipo.strip():
@@ -330,7 +342,7 @@ def editar_habitacion(habitacion_id: int, datos: HabitacionDatos):
         raise HTTPException(status_code=422, detail="El precio no puede ser negativo.")
     if any(
         h.numero == datos.numero.strip() and h.id != habitacion_id
-        for h in Habitacion.obtener_todas(solo_activas=False)
+        for h in Habitacion.obtener_todas(solo_activas=False, hospedaje_id=hid)
     ):
         raise HTTPException(
             status_code=409, detail=f"Ya existe una habitacion con el numero {datos.numero}."
@@ -345,8 +357,12 @@ def editar_habitacion(habitacion_id: int, datos: HabitacionDatos):
 
 
 @app.delete("/api/habitaciones/{habitacion_id}")
-def eliminar_habitacion(habitacion_id: int, _admin: dict = Depends(auth.solo_admin)):
-    hab = _buscar_habitacion(habitacion_id)
+def eliminar_habitacion(
+    habitacion_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    hab = _buscar_habitacion(habitacion_id, hid)
     if not hab:
         raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
     if hab.estado == "ocupada":
@@ -362,12 +378,12 @@ def eliminar_habitacion(habitacion_id: int, _admin: dict = Depends(auth.solo_adm
 #  Huespedes (CRUD)
 # --------------------------------------------------------------------------- #
 @app.get("/api/huespedes")
-def listar_huespedes():
-    return [_a_dict(h) for h in Huesped.obtener_todos()]
+def listar_huespedes(hid: int = Depends(auth.hospedaje_actual)):
+    return [_a_dict(h) for h in Huesped.obtener_todos(hospedaje_id=hid)]
 
 
 @app.post("/api/huespedes", status_code=201)
-def crear_huesped(datos: HuespedDatos):
+def crear_huesped(datos: HuespedDatos, hid: int = Depends(auth.hospedaje_actual)):
     if not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
     huesped = Huesped(
@@ -376,14 +392,15 @@ def crear_huesped(datos: HuespedDatos):
         telefono=datos.telefono.strip(),
         documento=datos.documento.strip(),
         direccion=datos.direccion.strip(),
+        hospedaje_id=hid,
     )
     huesped.guardar()
     return _a_dict(huesped)
 
 
 @app.put("/api/huespedes/{huesped_id}")
-def editar_huesped(huesped_id: int, datos: HuespedDatos):
-    huesped = Huesped.obtener_por_id(huesped_id)
+def editar_huesped(huesped_id: int, datos: HuespedDatos, hid: int = Depends(auth.hospedaje_actual)):
+    huesped = Huesped.obtener_por_id(huesped_id, hospedaje_id=hid)
     if not huesped:
         raise HTTPException(status_code=404, detail="Huesped no encontrado.")
     if not datos.nombre.strip():
@@ -398,16 +415,20 @@ def editar_huesped(huesped_id: int, datos: HuespedDatos):
 
 
 @app.delete("/api/huespedes/{huesped_id}")
-def eliminar_huesped(huesped_id: int, _admin: dict = Depends(auth.solo_admin)):
-    huesped = Huesped.obtener_por_id(huesped_id)
+def eliminar_huesped(
+    huesped_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    huesped = Huesped.obtener_por_id(huesped_id, hospedaje_id=hid)
     if not huesped:
         raise HTTPException(status_code=404, detail="Huesped no encontrado.")
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*) AS n FROM reservas WHERE huesped_id = ? AND estado != 'Cancelada'",
-            (huesped_id,),
+            "SELECT COUNT(*) AS n FROM reservas WHERE huesped_id = ? AND estado != 'Cancelada' AND hospedaje_id = ?",
+            (huesped_id, hid),
         )
         activas = cursor.fetchone()["n"]
     finally:
@@ -425,7 +446,7 @@ def eliminar_huesped(huesped_id: int, _admin: dict = Depends(auth.solo_admin)):
 #  Reservas
 # --------------------------------------------------------------------------- #
 @app.get("/api/reservas")
-def listar_reservas():
+def listar_reservas(hid: int = Depends(auth.hospedaje_actual)):
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -437,8 +458,10 @@ def listar_reservas():
             FROM reservas r
             JOIN huespedes h    ON r.huesped_id = h.id
             JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ?
             ORDER BY r.fecha_entrada DESC
-            """
+            """,
+            (hid,),
         )
         return [dict(row) for row in cursor.fetchall()]
     finally:
@@ -446,7 +469,7 @@ def listar_reservas():
 
 
 @app.post("/api/reservas", status_code=201)
-def crear_reserva(datos: ReservaNueva):
+def crear_reserva(datos: ReservaNueva, hid: int = Depends(auth.hospedaje_actual)):
     try:
         entrada = datetime.strptime(datos.fecha_entrada, "%Y-%m-%d")
         salida = datetime.strptime(datos.fecha_salida, "%Y-%m-%d")
@@ -459,6 +482,13 @@ def crear_reserva(datos: ReservaNueva):
             status_code=422,
             detail="La fecha de salida debe ser posterior a la de entrada.",
         )
+    # La habitación debe pertenecer a este hospedaje (evita reservar una ajena).
+    hab = _buscar_habitacion(datos.habitacion_id, hid)
+    if not hab:
+        raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+    # El huésped también debe ser de este hospedaje.
+    if not Huesped.obtener_por_id(datos.huesped_id, hospedaje_id=hid):
+        raise HTTPException(status_code=404, detail="Huesped no encontrado.")
     if not Reserva.verificar_disponibilidad(
         datos.habitacion_id, datos.fecha_entrada, datos.fecha_salida
     ):
@@ -472,14 +502,15 @@ def crear_reserva(datos: ReservaNueva):
         fecha_salida=datos.fecha_salida,
         notas=datos.notas,
         estado="Confirmada",
+        hospedaje_id=hid,
     )
     reserva.guardar()
     return _a_dict(reserva)
 
 
 @app.post("/api/reservas/{reserva_id}/cancelar")
-def cancelar_reserva(reserva_id: int):
-    reserva = Reserva.obtener_por_id(reserva_id)
+def cancelar_reserva(reserva_id: int, hid: int = Depends(auth.hospedaje_actual)):
+    reserva = Reserva.obtener_por_id(reserva_id, hospedaje_id=hid)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada.")
     reserva.cancelar()
@@ -490,7 +521,7 @@ def cancelar_reserva(reserva_id: int):
 #  Recepcion: check-in, check-out, estancias activas y reservas pendientes
 # --------------------------------------------------------------------------- #
 @app.get("/api/recepcion/reservas-pendientes")
-def reservas_pendientes_checkin():
+def reservas_pendientes_checkin(hid: int = Depends(auth.hospedaje_actual)):
     """Reservas confirmadas que aun no tienen un check-in (estancia)."""
     conn = get_connection()
     try:
@@ -503,9 +534,11 @@ def reservas_pendientes_checkin():
             JOIN huespedes h    ON r.huesped_id = h.id
             JOIN habitaciones hab ON r.habitacion_id = hab.id
             WHERE r.estado = 'Confirmada'
+            AND r.hospedaje_id = ?
             AND NOT EXISTS (SELECT 1 FROM estancias e WHERE e.reserva_id = r.id)
             ORDER BY r.fecha_entrada
-            """
+            """,
+            (hid,),
         )
         return [dict(row) for row in cursor.fetchall()]
     finally:
@@ -513,7 +546,7 @@ def reservas_pendientes_checkin():
 
 
 @app.get("/api/recepcion/estancias-activas")
-def estancias_activas():
+def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
     """Huespedes actualmente alojados (estancia activa) con su saldo."""
     conn = get_connection()
     try:
@@ -530,8 +563,10 @@ def estancias_activas():
             JOIN habitaciones hab ON e.habitacion_id = hab.id
             LEFT JOIN facturas f ON f.estancia_id = e.id
             WHERE e.estado = 'activa'
+            AND e.hospedaje_id = ?
             ORDER BY e.fecha_checkin
-            """
+            """,
+            (hid,),
         )
         filas = []
         for row in cursor.fetchall():
@@ -544,15 +579,15 @@ def estancias_activas():
 
 
 @app.post("/api/recepcion/checkin", status_code=201)
-def hacer_checkin(datos: CheckinIn):
+def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
     """Registra el check-in: crea estancia + factura inicial, marca la
     habitacion como ocupada. Reusa la logica de modelos.py."""
-    reserva = Reserva.obtener_por_id(datos.reserva_id)
+    reserva = Reserva.obtener_por_id(datos.reserva_id, hospedaje_id=hid)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada.")
 
     hab = next(
-        (h for h in Habitacion.obtener_todas() if h.id == reserva.habitacion_id), None
+        (h for h in Habitacion.obtener_todas(hospedaje_id=hid) if h.id == reserva.habitacion_id), None
     )
     if not hab:
         raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
@@ -567,6 +602,7 @@ def hacer_checkin(datos: CheckinIn):
         fecha_checkin=hoy,
         fecha_checkout_esperado=reserva.fecha_salida,
         estado="activa",
+        hospedaje_id=hid,
     )
     estancia.guardar()
 
@@ -579,6 +615,7 @@ def hacer_checkin(datos: CheckinIn):
         total=reserva.total,
         estado="pendiente",
         pdf_generado=0,
+        hospedaje_id=hid,
     )
     factura.guardar()
 
@@ -595,13 +632,16 @@ def hacer_checkin(datos: CheckinIn):
 
 
 @app.post("/api/recepcion/checkout")
-def hacer_checkout(datos: CheckoutIn):
+def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual)):
     """Finaliza una estancia: exige saldo 0, libera y ensucia la habitacion,
     marca la reserva como Check-out y genera la factura PDF."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM estancias WHERE id = ?", (datos.estancia_id,))
+        cursor.execute(
+            "SELECT * FROM estancias WHERE id = ? AND hospedaje_id = ?",
+            (datos.estancia_id, hid),
+        )
         row = cursor.fetchone()
     finally:
         conn.close()
@@ -613,6 +653,7 @@ def hacer_checkout(datos: CheckoutIn):
         habitacion_id=row["habitacion_id"], fecha_checkin=row["fecha_checkin"],
         fecha_checkout_esperado=row["fecha_checkout_esperado"],
         fecha_checkout_real=row["fecha_checkout_real"], estado=row["estado"],
+        hospedaje_id=row["hospedaje_id"] if "hospedaje_id" in row.keys() else hid,
     )
 
     factura = Factura.obtener_por_estancia(estancia.id)
@@ -636,11 +677,11 @@ def hacer_checkout(datos: CheckoutIn):
             detail=f"No se puede cerrar: queda un saldo pendiente de S/ {saldo:.2f}.",
         )
 
-    reserva = Reserva.obtener_por_id(estancia.reserva_id)
+    reserva = Reserva.obtener_por_id(estancia.reserva_id, hospedaje_id=hid)
     hab = next(
-        (h for h in Habitacion.obtener_todas() if h.id == estancia.habitacion_id), None
+        (h for h in Habitacion.obtener_todas(hospedaje_id=hid) if h.id == estancia.habitacion_id), None
     )
-    huesped = Huesped.obtener_por_id(estancia.huesped_id)
+    huesped = Huesped.obtener_por_id(estancia.huesped_id, hospedaje_id=hid)
 
     estancia.finalizar(datetime.now().strftime("%Y-%m-%d"))
     if hab:
@@ -666,7 +707,7 @@ def hacer_checkout(datos: CheckoutIn):
 #  Pagos
 # --------------------------------------------------------------------------- #
 @app.get("/api/facturas")
-def listar_facturas():
+def listar_facturas(hid: int = Depends(auth.hospedaje_actual)):
     """Lista todas las facturas con datos del huesped, habitacion y estancia,
     mas el total pagado y el saldo. Es el historial de facturacion."""
     conn = get_connection()
@@ -684,8 +725,10 @@ def listar_facturas():
             JOIN huespedes h    ON f.huesped_id = h.id
             JOIN estancias e    ON f.estancia_id = e.id
             JOIN habitaciones hab ON e.habitacion_id = hab.id
+            WHERE f.hospedaje_id = ?
             ORDER BY f.id DESC
-            """
+            """,
+            (hid,),
         )
         filas = []
         for row in cursor.fetchall():
@@ -698,10 +741,16 @@ def listar_facturas():
 
 
 @app.get("/api/facturas/{factura_id}/pagos")
-def listar_pagos(factura_id: int):
+def listar_pagos(factura_id: int, hid: int = Depends(auth.hospedaje_actual)):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        # Verificar que la factura sea de este hospedaje antes de devolver sus pagos.
+        cursor.execute(
+            "SELECT 1 FROM facturas WHERE id = ? AND hospedaje_id = ?", (factura_id, hid)
+        )
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Factura no encontrada.")
         cursor.execute(
             "SELECT id, monto, metodo, fecha, referencia FROM pagos WHERE factura_id = ? ORDER BY fecha",
             (factura_id,),
@@ -712,14 +761,16 @@ def listar_pagos(factura_id: int):
 
 
 @app.get("/api/facturas/{factura_id}/pdf")
-def descargar_factura_pdf(factura_id: int):
+def descargar_factura_pdf(factura_id: int, hid: int = Depends(auth.hospedaje_actual)):
     """Genera (o regenera) el PDF de una factura y lo devuelve como descarga.
     Reutiliza utils.generar_factura_pdf reconstruyendo los objetos necesarios."""
-    # 1. Cargar la factura.
+    # 1. Cargar la factura (solo si es de este hospedaje).
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM facturas WHERE id = ?", (factura_id,))
+        cursor.execute(
+            "SELECT * FROM facturas WHERE id = ? AND hospedaje_id = ?", (factura_id, hid)
+        )
         f_row = cursor.fetchone()
     finally:
         conn.close()
@@ -740,12 +791,12 @@ def descargar_factura_pdf(factura_id: int):
     estancia = Estancia(**dict(e_row))
 
     # 3. Huesped, habitacion y reserva.
-    huesped = Huesped.obtener_por_id(factura.huesped_id)
+    huesped = Huesped.obtener_por_id(factura.huesped_id, hospedaje_id=hid)
     habitacion = next(
-        (h for h in Habitacion.obtener_todas(solo_activas=False) if h.id == estancia.habitacion_id),
+        (h for h in Habitacion.obtener_todas(solo_activas=False, hospedaje_id=hid) if h.id == estancia.habitacion_id),
         None,
     )
-    reserva = Reserva.obtener_por_id(estancia.reserva_id)
+    reserva = Reserva.obtener_por_id(estancia.reserva_id, hospedaje_id=hid)
     if not huesped or not habitacion or not reserva:
         raise HTTPException(
             status_code=409, detail="Faltan datos relacionados para generar la factura."
@@ -764,7 +815,7 @@ def descargar_factura_pdf(factura_id: int):
 
 
 @app.post("/api/pagos", status_code=201)
-def registrar_pago(datos: PagoNuevo):
+def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
     if datos.monto <= 0:
         raise HTTPException(status_code=422, detail="El monto debe ser mayor a cero.")
 
@@ -772,7 +823,10 @@ def registrar_pago(datos: PagoNuevo):
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM facturas WHERE id = ?", (datos.factura_id,))
+        cursor.execute(
+            "SELECT * FROM facturas WHERE id = ? AND hospedaje_id = ?",
+            (datos.factura_id, hid),
+        )
         row = cursor.fetchone()
         if row:
             factura = Factura(**dict(row))
@@ -787,6 +841,7 @@ def registrar_pago(datos: PagoNuevo):
         metodo=datos.metodo,
         fecha=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         referencia=datos.referencia,
+        hospedaje_id=hid,
     )
     pago.guardar()
 
@@ -818,17 +873,21 @@ def registrar_pago(datos: PagoNuevo):
 #  Dashboard: resumen para las tarjetas de estadisticas
 # --------------------------------------------------------------------------- #
 @app.get("/api/dashboard/resumen")
-def dashboard_resumen():
+def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT estado, COUNT(*) AS n FROM habitaciones WHERE activa = 1 GROUP BY estado"
+            "SELECT estado, COUNT(*) AS n FROM habitaciones WHERE activa = 1 AND hospedaje_id = ? GROUP BY estado",
+            (hid,),
         )
         por_estado = {row["estado"]: row["n"] for row in cursor.fetchall()}
 
-        cursor.execute("SELECT COUNT(*) AS n FROM habitaciones WHERE activa = 1")
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM habitaciones WHERE activa = 1 AND hospedaje_id = ?",
+            (hid,),
+        )
         total_habitaciones = cursor.fetchone()["n"]
 
         ocupadas = por_estado.get("ocupada", 0)
@@ -836,22 +895,27 @@ def dashboard_resumen():
         mantenimiento = por_estado.get("mantenimiento", 0)
         ocupacion_pct = round((ocupadas / total_habitaciones) * 100) if total_habitaciones else 0
 
-        cursor.execute("SELECT COUNT(*) AS n FROM estancias WHERE estado = 'activa'")
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM estancias WHERE estado = 'activa' AND hospedaje_id = ?",
+            (hid,),
+        )
         estancias_activas = cursor.fetchone()["n"]
 
         cursor.execute(
             """
             SELECT COUNT(*) AS n FROM reservas r
             WHERE r.estado = 'Confirmada'
+            AND r.hospedaje_id = ?
             AND NOT EXISTS (SELECT 1 FROM estancias e WHERE e.reserva_id = r.id)
-            """
+            """,
+            (hid,),
         )
         checkins_pendientes = cursor.fetchone()["n"]
 
         mes_actual = datetime.now().strftime("%Y-%m")
         cursor.execute(
-            "SELECT COALESCE(SUM(monto), 0) AS total FROM pagos WHERE substr(fecha, 1, 7) = ?",
-            (mes_actual,),
+            "SELECT COALESCE(SUM(monto), 0) AS total FROM pagos WHERE substr(fecha, 1, 7) = ? AND hospedaje_id = ?",
+            (mes_actual, hid),
         )
         ingresos_mes = cursor.fetchone()["total"]
 
@@ -877,12 +941,12 @@ def dashboard_resumen():
 #  La noche se cuenta de entrada hasta salida-1 (el dia de salida no ocupa).
 # --------------------------------------------------------------------------- #
 @app.get("/api/reportes/ocupacion")
-def reporte_ocupacion(anio: int, mes: int):
+def reporte_ocupacion(anio: int, mes: int, hid: int = Depends(auth.hospedaje_actual)):
     if mes < 1 or mes > 12:
         raise HTTPException(status_code=422, detail="El mes debe estar entre 1 y 12.")
 
     num_dias = calendar.monthrange(anio, mes)[1]
-    total_habitaciones = len(Habitacion.obtener_todas(solo_activas=True))
+    total_habitaciones = len(Habitacion.obtener_todas(solo_activas=True, hospedaje_id=hid))
 
     conn = get_connection()
     try:
@@ -894,9 +958,10 @@ def reporte_ocupacion(anio: int, mes: int):
             SELECT fecha_entrada, fecha_salida
             FROM reservas
             WHERE estado != 'Cancelada'
+            AND hospedaje_id = ?
             AND fecha_entrada <= ? AND fecha_salida >= ?
             """,
-            (ultimo_dia, primer_dia),
+            (hid, ultimo_dia, primer_dia),
         )
         reservas = cursor.fetchall()
     finally:
