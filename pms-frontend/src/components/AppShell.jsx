@@ -8,6 +8,7 @@ import {
   Receipt,
   BarChart3,
   ShieldCheck,
+  Building2,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -36,16 +37,20 @@ import "./AppShell.css";
 
 // Cada item usa un icono real de lucide-react (componente), legible incluso
 // en tamano pequeno (modo rail). Antes eran caracteres Unicode genericos.
-// soloAdmin: el item solo se muestra a usuarios con rol admin.
+// Banderas de visibilidad por rol:
+//  - operativa: secciones del día a día de UN hospedaje. El SUPERADMIN (dueño
+//    del SaaS) NO las ve: él gestiona cuentas, no opera hoteles ajenos.
+//  - soloAdmin: solo admin (de hospedaje). soloSuperadmin: solo el dueño del SaaS.
 const NAV = [
-  { id: "dashboard", icon: LayoutDashboard, label: "Panel" },
-  { id: "reservas", icon: CalendarDays, label: "Reservas" },
-  { id: "recepcion", icon: ConciergeBell, label: "Recepción" },
-  { id: "habitaciones", icon: BedDouble, label: "Habitaciones" },
-  { id: "huespedes", icon: Users, label: "Huéspedes" },
-  { id: "facturas", icon: Receipt, label: "Facturas" },
-  { id: "reportes", icon: BarChart3, label: "Reportes" },
-  { id: "usuarios", icon: ShieldCheck, label: "Usuarios", soloAdmin: true },
+  { id: "dashboard", icon: LayoutDashboard, label: "Panel", operativa: true },
+  { id: "reservas", icon: CalendarDays, label: "Reservas", operativa: true },
+  { id: "recepcion", icon: ConciergeBell, label: "Recepción", operativa: true },
+  { id: "habitaciones", icon: BedDouble, label: "Habitaciones", operativa: true },
+  { id: "huespedes", icon: Users, label: "Huéspedes", operativa: true },
+  { id: "facturas", icon: Receipt, label: "Facturas", operativa: true },
+  { id: "reportes", icon: BarChart3, label: "Reportes", operativa: true },
+  { id: "usuarios", icon: ShieldCheck, label: "Usuarios", soloAdmin: true, operativa: true },
+  { id: "hospedajes", icon: Building2, label: "Hospedajes", soloSuperadmin: true },
 ];
 
 // Tamano e impreso consistente para todos los iconos de la barra.
@@ -56,10 +61,16 @@ const CLAVE_COLAPSO = "pms-sidebar-collapsed";
 export default function AppShell({ children }) {
   const { ruta, navegar } = useRuta();
   const { theme, toggle: toggleTema } = useTheme();
-  const { usuario, esAdmin, logout } = useAuth();
+  const { usuario, esAdmin, esSuperadmin, logout } = useAuth();
 
   // Filtra los items que el usuario puede ver segun su rol.
-  const navVisible = NAV.filter((item) => !item.soloAdmin || esAdmin);
+  const navVisible = NAV.filter((item) => {
+    // El superadmin solo gestiona el SaaS: oculta las secciones operativas.
+    if (esSuperadmin) return !item.operativa;
+    if (item.soloSuperadmin) return esSuperadmin;
+    if (item.soloAdmin) return esAdmin;
+    return true;
+  });
 
   // Colapso en escritorio (persistido).
   const [colapsado, setColapsado] = useState(

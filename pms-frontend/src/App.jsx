@@ -10,14 +10,22 @@ import Huespedes from "./pages/huespedes/Huespedes";
 import Facturas from "./pages/facturas/Facturas";
 import Reportes from "./pages/reportes/Reportes";
 import Usuarios from "./pages/usuarios/Usuarios";
+import Hospedajes from "./pages/hospedajes/Hospedajes";
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
- * "usuarios" solo es accesible para admin (defensa tambien en el backend).
+ * "usuarios" requiere admin; "hospedajes" requiere superadmin
+ * (defensa tambien en el backend).
  */
 function Vista() {
   const { ruta } = useRuta();
-  const { esAdmin } = useAuth();
+  const { esAdmin, esSuperadmin } = useAuth();
+
+  // El superadmin (dueño del SaaS) solo opera el panel Hospedajes; no tiene
+  // hospedaje propio, así que cualquier ruta operativa lo lleva a Hospedajes.
+  if (esSuperadmin) {
+    return <Hospedajes />;
+  }
 
   switch (ruta) {
     case "dashboard":
@@ -36,6 +44,8 @@ function Vista() {
       return <Reportes />;
     case "usuarios":
       return esAdmin ? <Usuarios /> : <Dashboard />;
+    case "hospedajes":
+      return esSuperadmin ? <Hospedajes /> : <Dashboard />;
     default:
       return <Dashboard />;
   }

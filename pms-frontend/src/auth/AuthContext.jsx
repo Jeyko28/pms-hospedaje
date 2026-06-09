@@ -49,11 +49,13 @@ export function AuthProvider({ children }) {
     setUsuario(null);
   }
 
-  const esAdmin = usuario?.rol === "admin";
+  const esSuperadmin = usuario?.rol === "superadmin";
+  // Un superadmin también tiene capacidades de admin en la UI.
+  const esAdmin = usuario?.rol === "admin" || esSuperadmin;
 
   return (
     <AuthContext.Provider
-      value={{ usuario, esAdmin, cargando, login, logout }}
+      value={{ usuario, esAdmin, esSuperadmin, cargando, login, logout }}
     >
       {children}
     </AuthContext.Provider>

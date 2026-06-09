@@ -161,6 +161,34 @@ def autenticar(usuario: str, password: str):
     return u
 
 
+def estado_hospedaje(hospedaje_id):
+    """Devuelve el estado del hospedaje ('activo','prueba','suspendido',...)
+    o None si no existe. El superadmin no depende de esto."""
+    if hospedaje_id is None:
+        return None
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT estado FROM hospedajes WHERE id = ?", (hospedaje_id,))
+        row = cursor.fetchone()
+        return row["estado"] if row else None
+    finally:
+        conn.close()
+
+
+def verificar_acceso_hospedaje(usuario: dict):
+    """Lanza 403 si el hospedaje del usuario está suspendido/cancelado.
+    El superadmin siempre pasa. Se llama en el login y en cada peticion."""
+    if usuario.get("rol") == "superadmin":
+        return
+    est = estado_hospedaje(usuario.get("hospedaje_id"))
+    if est in ("suspendido", "cancelado"):
+        raise HTTPException(
+            status_code=403,
+            detail="Tu cuenta está suspendida. Contacta al proveedor para reactivarla.",
+        )
+
+
 # --------------------------------------------------------------------------- #
 #  Dependencias de FastAPI (protegen rutas)
 # --------------------------------------------------------------------------- #
@@ -172,6 +200,8 @@ def usuario_actual(token: str = Depends(oauth2)) -> dict:
     u = buscar_por_id(int(uid)) if uid else None
     if not u or not u["activo"]:
         raise HTTPException(status_code=401, detail="Usuario no valido.")
+    # Bloquea el acceso si el hospedaje está suspendido/cancelado.
+    verificar_acceso_hospedaje(u)
     return u
 
 
@@ -197,6 +227,15 @@ def hospedaje_actual(actual: dict = Depends(usuario_actual)) -> int:
             detail="Tu usuario no está asociado a ningún hospedaje.",
         )
     return hid
+
+
+def solo_superadmin(actual: dict = Depends(usuario_actual)) -> dict:
+    """Exige rol superadmin (el dueño del SaaS). Para gestionar hospedajes."""
+    if actual["rol"] != "superadmin":
+        raise HTTPException(
+            status_code=403, detail="Solo el super administrador puede hacer esto."
+        )
+    return actual
 
 
 def publico(usuario_dict: dict) -> dict:

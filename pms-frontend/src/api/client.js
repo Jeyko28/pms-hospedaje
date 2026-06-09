@@ -141,4 +141,9 @@ export const api = {
   crearUsuario: (datos) => post("/api/usuarios", datos),
   editarUsuario: (id, datos) => put(`/api/usuarios/${id}`, datos),
   eliminarUsuario: (id) => del(`/api/usuarios/${id}`),
+
+  // Hospedajes (solo super admin) — panel de gestion del SaaS
+  hospedajes: () => get("/api/hospedajes"),
+  crearHospedaje: (datos) => post("/api/hospedajes", datos),
+  editarHospedaje: (id, datos) => put(`/api/hospedajes/${id}`, datos),
 };

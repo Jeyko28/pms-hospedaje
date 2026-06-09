@@ -31,6 +31,21 @@ export const ESTADO_RESERVA = {
   Cancelada: { tone: "danger", icon: "✗", label: "Cancelada" },
 };
 
+// Estado de un hospedaje (cliente del SaaS) — panel super admin.
+export const ESTADO_HOSPEDAJE = {
+  prueba: { tone: "info", icon: "◷", label: "En prueba" },
+  activo: { tone: "success", icon: "✓", label: "Activo" },
+  suspendido: { tone: "warning", icon: "!", label: "Suspendido" },
+  cancelado: { tone: "danger", icon: "✗", label: "Cancelado" },
+};
+
+// Plan de un hospedaje.
+export const PLAN_HOSPEDAJE = {
+  trial: { tone: "neutral", icon: "◷", label: "Prueba" },
+  basico: { tone: "info", icon: "•", label: "Básico" },
+  pro: { tone: "success", icon: "★", label: "Pro" },
+};
+
 /** Devuelve la config de presentacion o un neutro seguro si no existe. */
 export function presentar(mapa, clave) {
   return mapa[clave] || { tone: "neutral", icon: "•", label: String(clave ?? "—") };

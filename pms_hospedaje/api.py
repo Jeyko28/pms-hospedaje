@@ -130,6 +130,24 @@ class UsuarioEdit(BaseModel):
     password: str = ""  # vacio = no cambiar la contrasena
 
 
+class HospedajeNuevo(BaseModel):
+    # Datos del hospedaje + su usuario administrador inicial.
+    nombre: str
+    plan: str = "trial"          # 'trial' | 'basico' | 'pro'
+    estado: str = "activo"       # 'prueba' | 'activo' | 'suspendido' | 'cancelado'
+    fecha_expira: str = ""       # YYYY-MM-DD (vacio = sin fecha)
+    admin_usuario: str           # usuario del admin de ese hospedaje
+    admin_nombre: str
+    admin_password: str
+
+
+class HospedajeEdit(BaseModel):
+    nombre: str
+    plan: str
+    estado: str
+    fecha_expira: str = ""
+
+
 # --------------------------------------------------------------------------- #
 #  Autenticacion y gestion de usuarios
 # --------------------------------------------------------------------------- #
@@ -138,6 +156,8 @@ def login(datos: LoginIn):
     u = auth.autenticar(datos.usuario.strip(), datos.password)
     if not u:
         raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos.")
+    # Bloquea el login si el hospedaje está suspendido/cancelado.
+    auth.verificar_acceso_hospedaje(u)
     token = auth.crear_token(u)
     return {"token": token, "usuario": auth.publico(u)}
 
@@ -150,12 +170,15 @@ def quien_soy(actual: dict = Depends(auth.usuario_actual)):
 
 
 @app.get("/api/usuarios")
-def listar_usuarios(_admin: dict = Depends(auth.solo_admin)):
+def listar_usuarios(admin: dict = Depends(auth.solo_admin)):
+    # Cada admin SOLO ve los usuarios de su propio hospedaje (aislamiento).
+    hid = admin["hospedaje_id"]
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, usuario, nombre, rol, activo FROM usuarios ORDER BY id"
+            "SELECT id, usuario, nombre, rol, activo FROM usuarios WHERE hospedaje_id = ? ORDER BY id",
+            (hid,),
         )
         return [dict(row) for row in cursor.fetchall()]
     finally:
@@ -163,15 +186,18 @@ def listar_usuarios(_admin: dict = Depends(auth.solo_admin)):
 
 
 @app.post("/api/usuarios", status_code=201)
-def crear_usuario(datos: UsuarioNuevo, _admin: dict = Depends(auth.solo_admin)):
+def crear_usuario(datos: UsuarioNuevo, admin: dict = Depends(auth.solo_admin)):
+    hid = admin["hospedaje_id"]
     if not datos.usuario.strip() or not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="Usuario y nombre son obligatorios.")
     if len(datos.password) < 6:
         raise HTTPException(
             status_code=422, detail="La contrasena debe tener al menos 6 caracteres."
         )
+    # Un admin de hospedaje solo crea admin/recepcion (no superadmin).
     if datos.rol not in ("admin", "recepcion"):
         raise HTTPException(status_code=422, detail="Rol invalido.")
+    # El nombre de usuario es global-unico (es la llave de login).
     if auth.buscar_por_usuario(datos.usuario.strip()):
         raise HTTPException(status_code=409, detail="Ese nombre de usuario ya existe.")
 
@@ -179,12 +205,13 @@ def crear_usuario(datos: UsuarioNuevo, _admin: dict = Depends(auth.solo_admin)):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO usuarios (usuario, nombre, password_hash, rol) VALUES (?, ?, ?, ?)",
+            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id) VALUES (?, ?, ?, ?, ?)",
             (
                 datos.usuario.strip(),
                 datos.nombre.strip(),
                 auth.hashear_password(datos.password),
                 datos.rol,
+                hid,
             ),
         )
         conn.commit()
@@ -194,11 +221,20 @@ def crear_usuario(datos: UsuarioNuevo, _admin: dict = Depends(auth.solo_admin)):
     return auth.publico(auth.buscar_por_id(nuevo_id))
 
 
+def _usuario_de_mi_hospedaje(usuario_id, hid):
+    """Devuelve el usuario solo si pertenece al hospedaje hid (o None)."""
+    u = auth.buscar_por_id(usuario_id)
+    if not u or u.get("hospedaje_id") != hid:
+        return None
+    return u
+
+
 @app.put("/api/usuarios/{usuario_id}")
 def editar_usuario(
-    usuario_id: int, datos: UsuarioEdit, _admin: dict = Depends(auth.solo_admin)
+    usuario_id: int, datos: UsuarioEdit, admin: dict = Depends(auth.solo_admin)
 ):
-    u = auth.buscar_por_id(usuario_id)
+    hid = admin["hospedaje_id"]
+    u = _usuario_de_mi_hospedaje(usuario_id, hid)
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
     if not datos.nombre.strip():
@@ -237,7 +273,8 @@ def editar_usuario(
 
 @app.delete("/api/usuarios/{usuario_id}")
 def eliminar_usuario(usuario_id: int, admin: dict = Depends(auth.solo_admin)):
-    u = auth.buscar_por_id(usuario_id)
+    hid = admin["hospedaje_id"]
+    u = _usuario_de_mi_hospedaje(usuario_id, hid)
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
     # No permitir que un admin se borre a si mismo (evita quedarse sin acceso).
@@ -245,14 +282,14 @@ def eliminar_usuario(usuario_id: int, admin: dict = Depends(auth.solo_admin)):
         raise HTTPException(
             status_code=409, detail="No puedes eliminar tu propio usuario."
         )
-    # No permitir borrar el ultimo admin activo.
+    # No permitir borrar el ultimo admin activo DE ESTE hospedaje.
     if u["rol"] == "admin":
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) AS n FROM usuarios WHERE rol='admin' AND activo=1 AND id!=?",
-                (usuario_id,),
+                "SELECT COUNT(*) AS n FROM usuarios WHERE rol='admin' AND activo=1 AND hospedaje_id=? AND id!=?",
+                (hid, usuario_id),
             )
             otros = cursor.fetchone()["n"]
         finally:
@@ -270,6 +307,96 @@ def eliminar_usuario(usuario_id: int, admin: dict = Depends(auth.solo_admin)):
     finally:
         conn.close()
     return {"id": usuario_id, "eliminado": True}
+
+
+# --------------------------------------------------------------------------- #
+#  Hospedajes (SOLO super admin) — panel de gestion del SaaS
+# --------------------------------------------------------------------------- #
+@app.get("/api/hospedajes")
+def listar_hospedajes(_sa: dict = Depends(auth.solo_superadmin)):
+    """Lista todos los hospedajes con un conteo de sus usuarios."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT h.id, h.nombre, h.slug, h.plan, h.estado,
+                   h.fecha_inicio, h.fecha_expira,
+                   (SELECT COUNT(*) FROM usuarios u WHERE u.hospedaje_id = h.id) AS usuarios,
+                   (SELECT COUNT(*) FROM habitaciones hb WHERE hb.hospedaje_id = h.id) AS habitaciones
+            FROM hospedajes h
+            ORDER BY h.id
+            """
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/hospedajes", status_code=201)
+def crear_hospedaje(datos: HospedajeNuevo, _sa: dict = Depends(auth.solo_superadmin)):
+    """Da de alta un cliente nuevo: crea el hospedaje + su usuario admin."""
+    if not datos.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre del hospedaje es obligatorio.")
+    if not datos.admin_usuario.strip() or not datos.admin_nombre.strip():
+        raise HTTPException(status_code=422, detail="Usuario y nombre del admin son obligatorios.")
+    if len(datos.admin_password) < 6:
+        raise HTTPException(status_code=422, detail="La contrasena debe tener al menos 6 caracteres.")
+    if datos.plan not in ("trial", "basico", "pro"):
+        raise HTTPException(status_code=422, detail="Plan invalido.")
+    if datos.estado not in ("prueba", "activo", "suspendido", "cancelado"):
+        raise HTTPException(status_code=422, detail="Estado invalido.")
+    if auth.buscar_por_usuario(datos.admin_usuario.strip()):
+        raise HTTPException(status_code=409, detail="Ese nombre de usuario ya existe.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
+            (datos.nombre.strip(), datos.plan, datos.estado, datos.fecha_expira or None),
+        )
+        nuevo_hid = cursor.lastrowid
+        # Crear el usuario admin de ese hospedaje.
+        cursor.execute(
+            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id) VALUES (?, ?, ?, ?, ?)",
+            (
+                datos.admin_usuario.strip(),
+                datos.admin_nombre.strip(),
+                auth.hashear_password(datos.admin_password),
+                "admin",
+                nuevo_hid,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": nuevo_hid, "nombre": datos.nombre.strip(), "estado": datos.estado}
+
+
+@app.put("/api/hospedajes/{hospedaje_id}")
+def editar_hospedaje(
+    hospedaje_id: int, datos: HospedajeEdit, _sa: dict = Depends(auth.solo_superadmin)
+):
+    """Cambia nombre, plan, estado (activar/suspender) y vencimiento."""
+    if datos.plan not in ("trial", "basico", "pro"):
+        raise HTTPException(status_code=422, detail="Plan invalido.")
+    if datos.estado not in ("prueba", "activo", "suspendido", "cancelado"):
+        raise HTTPException(status_code=422, detail="Estado invalido.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM hospedajes WHERE id = ?", (hospedaje_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+        cursor.execute(
+            "UPDATE hospedajes SET nombre=?, plan=?, estado=?, fecha_expira=? WHERE id=?",
+            (datos.nombre.strip(), datos.plan, datos.estado, datos.fecha_expira or None, hospedaje_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": hospedaje_id, "estado": datos.estado}
 
 
 # --------------------------------------------------------------------------- #

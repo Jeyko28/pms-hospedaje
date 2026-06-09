@@ -147,6 +147,15 @@
   }
 }
 
+/* Subtítulo separador dentro de un formulario (ej. "Usuario admin"). */
+.entidad-form__seccion {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-default);
+}
+
 .entidad-form__error {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
