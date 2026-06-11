@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { RouterProvider, useRuta } from "./router/Router";
 import { useAuth } from "./auth/AuthContext";
 import Login from "./auth/Login";
+import Registro from "./auth/Registro";
 import AppShell from "./components/AppShell";
 import Dashboard from "./pages/Dashboard";
 import Reservas from "./pages/reservas/Reservas";
@@ -11,6 +13,7 @@ import Facturas from "./pages/facturas/Facturas";
 import Reportes from "./pages/reportes/Reportes";
 import Usuarios from "./pages/usuarios/Usuarios";
 import Hospedajes from "./pages/hospedajes/Hospedajes";
+import AsistenteBienvenida from "./components/AsistenteBienvenida";
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
@@ -52,7 +55,18 @@ function Vista() {
 }
 
 /**
- * App — raiz: si no hay sesion muestra Login; si la hay, la app completa.
+ * Acceso — alterna entre iniciar sesión y registro (onboarding self-service).
+ */
+function Acceso() {
+  const [vista, setVista] = useState("login"); // 'login' | 'registro'
+  if (vista === "registro") {
+    return <Registro onIrALogin={() => setVista("login")} />;
+  }
+  return <Login onIrARegistro={() => setVista("registro")} />;
+}
+
+/**
+ * App — raiz: si no hay sesion muestra Login/Registro; si la hay, la app.
  */
 export default function App() {
   const { usuario, cargando } = useAuth();
@@ -75,7 +89,7 @@ export default function App() {
   }
 
   if (!usuario) {
-    return <Login />;
+    return <Acceso />;
   }
 
   return (
@@ -83,6 +97,30 @@ export default function App() {
       <AppShell>
         <Vista />
       </AppShell>
+      <BienvenidaGate />
     </RouterProvider>
   );
+}
+
+/**
+ * BienvenidaGate — muestra el asistente de bienvenida la PRIMERA vez que un
+ * admin (no superadmin) entra. Se recuerda por usuario en localStorage para
+ * no volver a mostrarlo. Va dentro de RouterProvider porque el asistente
+ * navega entre secciones.
+ */
+function BienvenidaGate() {
+  const { usuario, esSuperadmin } = useAuth();
+  const clave = usuario ? `pms-bienvenida-${usuario.id}` : null;
+  const [mostrar, setMostrar] = useState(
+    () => !!clave && !esSuperadmin && localStorage.getItem(clave) !== "1"
+  );
+
+  if (!mostrar || esSuperadmin) return null;
+
+  function cerrar() {
+    if (clave) localStorage.setItem(clave, "1");
+    setMostrar(false);
+  }
+
+  return <AsistenteBienvenida onCerrar={cerrar} />;
 }

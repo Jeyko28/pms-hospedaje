@@ -64,3 +64,52 @@
   width: 100%;
   margin-top: var(--space-2);
 }
+
+/* Enlace para alternar entre iniciar sesión y registro. */
+.login__alt {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.login__link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-600);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.login__link:hover {
+  color: var(--color-brand-700);
+}
+
+/* Login con Google: divisor "o" + botón centrado. */
+.login__google {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.login__divisor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.login__divisor::before,
+.login__divisor::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: var(--border-default);
+}
+
+.login__google-btn {
+  display: flex;
+  justify-content: center;
+}

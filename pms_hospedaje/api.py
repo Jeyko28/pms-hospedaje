@@ -18,6 +18,26 @@ from datetime import datetime, timedelta
 
 import os
 
+# Cargar variables de un archivo .env.local si existe (desarrollo local).
+# Asi GOOGLE_CLIENT_ID, etc. quedan disponibles sin definirlas a mano cada vez.
+# En produccion (Render) las variables se definen en el panel, no con archivo.
+def _cargar_env_local():
+    ruta = os.path.join(os.path.dirname(__file__), ".env.local")
+    if not os.path.exists(ruta):
+        return
+    with open(ruta, encoding="utf-8") as f:
+        for linea in f:
+            linea = linea.strip()
+            if not linea or linea.startswith("#") or "=" not in linea:
+                continue
+            clave, _, valor = linea.partition("=")
+            clave = clave.strip()
+            valor = valor.strip().strip('"').strip("'")
+            # No pisar variables ya definidas en el entorno real.
+            os.environ.setdefault(clave, valor)
+
+_cargar_env_local()
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -116,6 +136,11 @@ class LoginIn(BaseModel):
     password: str
 
 
+class GoogleLoginIn(BaseModel):
+    # El frontend obtiene este 'credential' (JWT) del botón de Google.
+    credential: str
+
+
 class UsuarioNuevo(BaseModel):
     usuario: str
     nombre: str
@@ -148,6 +173,15 @@ class HospedajeEdit(BaseModel):
     fecha_expira: str = ""
 
 
+class RegistroPublico(BaseModel):
+    # Lo que un cliente nuevo llena en la pagina publica de registro.
+    hospedaje_nombre: str
+    nombre: str          # nombre de la persona (su admin)
+    email: str           # correo de contacto del cliente
+    usuario: str         # usuario para iniciar sesion
+    password: str
+
+
 # --------------------------------------------------------------------------- #
 #  Autenticacion y gestion de usuarios
 # --------------------------------------------------------------------------- #
@@ -160,6 +194,115 @@ def login(datos: LoginIn):
     auth.verificar_acceso_hospedaje(u)
     token = auth.crear_token(u)
     return {"token": token, "usuario": auth.publico(u)}
+
+
+@app.post("/api/auth/registro", status_code=201)
+def registro_publico(datos: RegistroPublico):
+    """Registro SELF-SERVICE: un cliente nuevo crea su hospedaje + su usuario
+    admin con una prueba gratis de 14 dias. Endpoint PUBLICO (sin login).
+    Al terminar, devuelve el token para entrar directo a la app."""
+    nombre_h = datos.hospedaje_nombre.strip()
+    nombre = datos.nombre.strip()
+    usuario = datos.usuario.strip()
+    email = datos.email.strip()
+    if not nombre_h or not nombre or not usuario or not email:
+        raise HTTPException(status_code=422, detail="Todos los campos son obligatorios.")
+    # Validacion basica de correo.
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=422, detail="Escribe un correo valido.")
+    if len(datos.password) < 6:
+        raise HTTPException(
+            status_code=422, detail="La contrasena debe tener al menos 6 caracteres."
+        )
+    if auth.buscar_por_usuario(usuario):
+        raise HTTPException(status_code=409, detail="Ese nombre de usuario ya esta en uso.")
+
+    from datetime import timedelta as _td
+    fecha_expira = (datetime.now() + _td(days=14)).strftime("%Y-%m-%d")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
+            (nombre_h, "trial", "prueba", fecha_expira),
+        )
+        nuevo_hid = cursor.lastrowid
+        cursor.execute(
+            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id, email) VALUES (?, ?, ?, ?, ?, ?)",
+            (usuario, nombre, auth.hashear_password(datos.password), "admin", nuevo_hid, email),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Entrar directo: emitir token del nuevo admin.
+    u = auth.buscar_por_usuario(usuario)
+    token = auth.crear_token(u)
+    return {
+        "token": token,
+        "usuario": auth.publico(u),
+        "fecha_expira": fecha_expira,
+    }
+
+
+@app.post("/api/auth/google")
+def login_google(datos: GoogleLoginIn):
+    """Inicia sesion con Google. Verifica el token, y:
+      - Si el correo ya tiene cuenta -> entra (respeta suspension).
+      - Si no -> crea un hospedaje nuevo con trial de 14 dias (onboarding).
+    Endpoint PUBLICO."""
+    info = auth.verificar_token_google(datos.credential)
+    email = info["email"]
+    nombre = info["nombre"]
+
+    u = auth.buscar_por_email(email)
+    if u:
+        if not u["activo"]:
+            raise HTTPException(status_code=403, detail="Tu usuario esta inactivo.")
+        auth.verificar_acceso_hospedaje(u)
+        token = auth.crear_token(u)
+        return {"token": token, "usuario": auth.publico(u), "nuevo": False}
+
+    # No existe: crear hospedaje + usuario admin (login social = onboarding).
+    from datetime import timedelta as _td
+    fecha_expira = (datetime.now() + _td(days=14)).strftime("%Y-%m-%d")
+    # Usuario de login derivado del email, garantizando unicidad.
+    base = email.split("@")[0]
+    usuario_login = base
+    i = 1
+    while auth.buscar_por_usuario(usuario_login):
+        i += 1
+        usuario_login = f"{base}{i}"
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
+            (f"Hospedaje de {nombre}", "trial", "prueba", fecha_expira),
+        )
+        nuevo_hid = cursor.lastrowid
+        # Sin contrasena utilizable: entra solo por Google (hash de un valor aleatorio).
+        import secrets
+        cursor.execute(
+            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id, email) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                usuario_login,
+                nombre,
+                auth.hashear_password(secrets.token_urlsafe(16)),
+                "admin",
+                nuevo_hid,
+                email,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    u = auth.buscar_por_email(email)
+    token = auth.crear_token(u)
+    return {"token": token, "usuario": auth.publico(u), "nuevo": True}
 
 
 @app.get("/api/auth/yo")
@@ -405,6 +548,16 @@ def editar_hospedaje(
 @app.get("/")
 def raiz():
     return {"servicio": "PMS Hospedaje API", "estado": "ok", "docs": "/docs"}
+
+
+@app.get("/api/config")
+def config_publica():
+    """Config publica para el frontend (sin secretos). Indica si el login con
+    Google esta disponible y con que client id mostrar el boton."""
+    return {
+        "google_login": bool(auth.GOOGLE_CLIENT_ID),
+        "google_client_id": auth.GOOGLE_CLIENT_ID,
+    }
 
 
 # --------------------------------------------------------------------------- #

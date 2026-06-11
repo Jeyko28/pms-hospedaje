@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import { useTheme } from "../hooks/useTheme";
 import Field from "../components/Field";
 import Button from "../components/Button";
+import BotonGoogle from "./BotonGoogle";
 import "./Login.css";
 
 /**
@@ -11,7 +12,7 @@ import "./Login.css";
  * Muestra errores claros y deshabilita el boton mientras valida
  * (heuristica: prevencion de errores + visibilidad del estado).
  */
-export default function Login() {
+export default function Login({ onIrARegistro }) {
   const { login } = useAuth();
   const { theme } = useTheme(); // asegura que el tema se aplique tambien aqui
 
@@ -79,6 +80,15 @@ export default function Login() {
         <Button type="submit" disabled={entrando} className="login__submit">
           {entrando ? "Entrando…" : "Entrar"}
         </Button>
+
+        <BotonGoogle onError={setError} />
+
+        <p className="login__alt">
+          ¿No tienes cuenta?{" "}
+          <button type="button" className="login__link" onClick={onIrARegistro}>
+            Crea tu hospedaje gratis
+          </button>
+        </p>
       </form>
     </div>
   );

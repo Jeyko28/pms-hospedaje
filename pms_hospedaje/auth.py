@@ -23,6 +23,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
 from database import get_connection
+from dbengine import USA_POSTGRES
 
 # --------------------------------------------------------------------------- #
 #  Configuracion
@@ -43,6 +44,11 @@ if os.environ.get("PMS_ENV") == "production" and SECRET_KEY == _DEFAULT_DEV_KEY:
 
 ALGORITHM = "HS256"
 TOKEN_HORAS = 12  # la sesion dura 12 horas
+
+# ID de cliente de Google (para "Iniciar sesion con Google"). Se define como
+# variable de entorno GOOGLE_CLIENT_ID. Si no esta, el login con Google se
+# desactiva (pero el login normal sigue funcionando).
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 # Contrasena inicial del admin por defecto (solo si no existe ningun usuario).
 # En produccion conviene definir PMS_ADMIN_PASSWORD para no usar 'admin123'.
@@ -69,10 +75,18 @@ def crear_tabla_usuarios():
                 rol TEXT NOT NULL DEFAULT 'recepcion',  -- 'superadmin'|'admin'|'recepcion'
                 activo INTEGER DEFAULT 1,
                 hospedaje_id INTEGER DEFAULT 1,         -- a qué hospedaje pertenece
+                email TEXT,                             -- para login con Google
                 creado_en TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+        # BDs antiguas: añadir columna email si falta (no rompe nada).
+        cols = {row[1] if not USA_POSTGRES else row[0] for row in _columnas_usuarios(cursor)}
+        if "email" not in cols:
+            try:
+                cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+            except Exception:
+                pass
         # Si no hay ningun usuario, crear un admin por defecto para el primer acceso.
         cursor.execute("SELECT COUNT(*) AS n FROM usuarios")
         if cursor.fetchone()["n"] == 0:
@@ -83,6 +97,17 @@ def crear_tabla_usuarios():
         conn.commit()
     finally:
         conn.close()
+
+
+def _columnas_usuarios(cursor):
+    """Devuelve filas describiendo las columnas de 'usuarios' segun el motor."""
+    if USA_POSTGRES:
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='usuarios'"
+        )
+        return cursor.fetchall()
+    cursor.execute("PRAGMA table_info(usuarios)")
+    return cursor.fetchall()
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +184,44 @@ def autenticar(usuario: str, password: str):
     if not verificar_password(password, u["password_hash"]):
         return None
     return u
+
+
+def buscar_por_email(email: str):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM usuarios WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def verificar_token_google(credential: str) -> dict:
+    """Verifica el token de Google y devuelve los datos del usuario
+    (email, nombre). Lanza 401/503 si no es valido o si no esta configurado."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="El inicio de sesion con Google no esta configurado.",
+        )
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+
+        info = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token de Google invalido.")
+
+    email = info.get("email")
+    if not email or not info.get("email_verified", False):
+        raise HTTPException(status_code=401, detail="Correo de Google no verificado.")
+    return {
+        "email": email,
+        "nombre": info.get("name") or email.split("@")[0],
+    }
 
 
 def estado_hospedaje(hospedaje_id):

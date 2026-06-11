@@ -44,6 +44,19 @@ export function AuthProvider({ children }) {
     return resp.usuario;
   }
 
+  // Registro self-service: crea cuenta nueva y entra directo.
+  async function registro(datos) {
+    const resp = await api.registro(datos);
+    tokenStore.set(resp.token);
+    setUsuario(resp.usuario);
+    return resp;
+  }
+
+  // El botón de Google ya guardó el token; aquí solo fijamos el usuario.
+  function setUsuarioDesdeGoogle(u) {
+    setUsuario(u);
+  }
+
   function logout() {
     tokenStore.clear();
     setUsuario(null);
@@ -55,7 +68,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ usuario, esAdmin, esSuperadmin, cargando, login, logout }}
+      value={{ usuario, esAdmin, esSuperadmin, cargando, login, registro, setUsuarioDesdeGoogle, logout }}
     >
       {children}
     </AuthContext.Provider>
