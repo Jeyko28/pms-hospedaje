@@ -63,16 +63,27 @@ export default function BotonGoogle({ onError }) {
             }
           },
         });
-        window.google.accounts.id.renderButton(contenedorRef.current, {
-          theme: "outline",
-          size: "large",
-          width: 320,
-          text: "continue_with",
-          locale: "es",
-        });
         setDisponible(true);
-      } catch (_) {
-        /* Google no disponible: simplemente no se muestra el botón. */
+        // El contenedor debe existir en el DOM antes de pintar el botón.
+        // Se hace tras setDisponible para que el div ya esté montado.
+        setTimeout(() => {
+          try {
+            if (contenedorRef.current) {
+              window.google.accounts.id.renderButton(contenedorRef.current, {
+                theme: "outline",
+                size: "large",
+                width: 320,
+                text: "continue_with",
+                locale: "es",
+              });
+            }
+          } catch (e) {
+            console.error("[Google] renderButton falló:", e);
+          }
+        }, 0);
+      } catch (e) {
+        // Google no disponible: se registra para diagnóstico y no se muestra.
+        console.error("[Google] no se pudo iniciar el login con Google:", e);
       }
     }
     init();
