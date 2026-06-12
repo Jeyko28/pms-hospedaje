@@ -225,31 +225,50 @@ def verificar_token_google(credential: str) -> dict:
 
 
 def estado_hospedaje(hospedaje_id):
-    """Devuelve el estado del hospedaje ('activo','prueba','suspendido',...)
-    o None si no existe. El superadmin no depende de esto."""
+    """Devuelve (estado, fecha_expira) del hospedaje, o (None, None) si no existe.
+    El superadmin no depende de esto."""
     if hospedaje_id is None:
-        return None
+        return None, None
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT estado FROM hospedajes WHERE id = ?", (hospedaje_id,))
+        cursor.execute(
+            "SELECT estado, fecha_expira FROM hospedajes WHERE id = ?", (hospedaje_id,)
+        )
         row = cursor.fetchone()
-        return row["estado"] if row else None
+        if not row:
+            return None, None
+        return row["estado"], row["fecha_expira"]
     finally:
         conn.close()
 
 
 def verificar_acceso_hospedaje(usuario: dict):
-    """Lanza 403 si el hospedaje del usuario está suspendido/cancelado.
+    """Lanza 403 si el hospedaje del usuario no puede operar:
+      - estado suspendido/cancelado (corte manual del proveedor), o
+      - la suscripcion/prueba ya VENCIO (fecha_expira pasada).
     El superadmin siempre pasa. Se llama en el login y en cada peticion."""
     if usuario.get("rol") == "superadmin":
         return
-    est = estado_hospedaje(usuario.get("hospedaje_id"))
+    est, fecha_expira = estado_hospedaje(usuario.get("hospedaje_id"))
     if est in ("suspendido", "cancelado"):
         raise HTTPException(
             status_code=403,
             detail="Tu cuenta está suspendida. Contacta al proveedor para reactivarla.",
         )
+    # Bloqueo automatico por vencimiento (prueba o suscripcion).
+    if fecha_expira:
+        hoy = datetime.now().strftime("%Y-%m-%d")
+        if str(fecha_expira)[:10] < hoy:
+            detalle = (
+                "Tu prueba gratis terminó."
+                if est == "prueba"
+                else "Tu suscripción venció."
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"{detalle} Renueva tu plan para seguir usando el sistema.",
+            )
 
 
 # --------------------------------------------------------------------------- #
