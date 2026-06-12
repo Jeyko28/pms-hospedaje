@@ -19,13 +19,32 @@ const GIS_SRC = "https://accounts.google.com/gsi/client";
 
 function cargarScriptGoogle() {
   return new Promise((resolve, reject) => {
+    // Caso rapido: el script (precargado en index.html) ya esta listo.
     if (window.google?.accounts?.id) return resolve();
+
+    // Si el script ya esta en la pagina (precargado) pero aun no termina,
+    // esperamos con un poll corto a que window.google quede disponible.
     const existente = document.querySelector(`script[src="${GIS_SRC}"]`);
     if (existente) {
-      existente.addEventListener("load", () => resolve());
-      existente.addEventListener("error", reject);
+      let intentos = 0;
+      const t = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(t);
+          resolve();
+        } else if (++intentos > 100) {
+          // ~5s sin cargar: damos por fallida la carga.
+          clearInterval(t);
+          reject(new Error("El script de Google no cargó."));
+        }
+      }, 50);
+      existente.addEventListener("error", () => {
+        clearInterval(t);
+        reject(new Error("Error al cargar el script de Google."));
+      });
       return;
     }
+
+    // No estaba: lo agregamos (fallback por si index.html cambia).
     const s = document.createElement("script");
     s.src = GIS_SRC;
     s.async = true;

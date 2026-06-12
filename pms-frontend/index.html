@@ -12,6 +12,11 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Login con Google: precargar el script desde el inicio para que el
+         boton aparezca sin retraso (en vez de cargarlo despues con JS). -->
+    <link rel="preconnect" href="https://accounts.google.com" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <div id="root"></div>
