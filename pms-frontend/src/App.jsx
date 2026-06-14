@@ -6,6 +6,7 @@ import Registro from "./auth/Registro";
 import AppShell from "./components/AppShell";
 import Dashboard from "./pages/Dashboard";
 import Reservas from "./pages/reservas/Reservas";
+import Calendario from "./pages/calendario/Calendario";
 import Recepcion from "./pages/recepcion/Recepcion";
 import Habitaciones from "./pages/habitaciones/Habitaciones";
 import Huespedes from "./pages/huespedes/Huespedes";
@@ -35,6 +36,8 @@ function Vista() {
       return <Dashboard />;
     case "reservas":
       return <Reservas />;
+    case "calendario":
+      return <Calendario />;
     case "recepcion":
       return <Recepcion />;
     case "habitaciones":

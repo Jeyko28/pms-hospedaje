@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
+  CalendarRange,
   ConciergeBell,
   BedDouble,
   Users,
@@ -44,6 +45,7 @@ import "./AppShell.css";
 const NAV = [
   { id: "dashboard", icon: LayoutDashboard, label: "Panel", operativa: true },
   { id: "reservas", icon: CalendarDays, label: "Reservas", operativa: true },
+  { id: "calendario", icon: CalendarRange, label: "Calendario", operativa: true },
   { id: "recepcion", icon: ConciergeBell, label: "Recepción", operativa: true },
   { id: "habitaciones", icon: BedDouble, label: "Habitaciones", operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", operativa: true },

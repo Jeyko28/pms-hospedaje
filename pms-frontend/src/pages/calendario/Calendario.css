@@ -1,0 +1,318 @@
+.cal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.cal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.cal__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.cal__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cal__nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.cal__nav-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+}
+.cal__mes {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  min-width: 130px;
+  text-align: center;
+}
+
+/* Contenedor con scroll horizontal si el mes no cabe */
+.cal__wrap {
+  overflow-x: auto;
+}
+
+/* La cuadrícula: 1 columna fija (habitación) + N columnas de días con ANCHO
+   FIJO (44px), igual en todos los meses. Si el mes no cabe, aparece scroll
+   horizontal — pero las celdas nunca se estiran ni se encogen. */
+.cal__grid {
+  display: grid;
+  grid-template-columns: 120px repeat(var(--dias), 44px);
+  width: max-content;
+  position: relative;
+}
+
+/* Cabecera */
+.cal__esquina {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg-surface);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+}
+.cal__dia {
+  padding: var(--space-1) 0;
+  text-align: center;
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cal__dia-sem {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.cal__dia-num {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+.cal__dia--finde {
+  background-color: var(--bg-subtle);
+}
+.cal__dia--hoy .cal__dia-num {
+  background-color: var(--color-brand-600);
+  color: #fff;
+  border-radius: var(--radius-full);
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  margin: 0 auto;
+}
+
+/* Celda de nombre de habitación (columna fija) */
+.cal__hab {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 44px;
+}
+.cal__hab strong {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.cal__hab-tipo {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Celdas de fondo de cada día */
+.cal__celda {
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-default);
+  min-height: 44px;
+}
+.cal__celda--finde {
+  background-color: var(--bg-subtle);
+}
+
+/* Barra de reserva: se posiciona en su fila ocupando varias columnas.
+   Como las barras se renderizan después de las celdas de la misma fila,
+   caen en la misma "fila implícita" del grid gracias a grid-row auto. */
+.cal__barra {
+  grid-row: auto;
+  align-self: center;
+  margin: 2px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+.cal__barra:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.cal__barra-txt {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Leyenda */
+.cal__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.cal__leyenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cal__leyenda-color {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+}
+
+/* Tooltip flotante (preview al hover sobre una reserva) */
+.cal__tip {
+  position: fixed;
+  z-index: 50;
+  transform: translate(-50%, -100%);
+  min-width: 200px;
+  max-width: 260px;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  animation: cal-tip-in 120ms ease-out;
+}
+.cal__tip--abajo {
+  transform: translate(-50%, 0);
+}
+@keyframes cal-tip-in {
+  from { opacity: 0; transform: translate(-50%, -100%) scale(0.97); }
+}
+.cal__tip--abajo {
+  animation: cal-tip-in-abajo 120ms ease-out;
+}
+@keyframes cal-tip-in-abajo {
+  from { opacity: 0; transform: translate(-50%, 0) scale(0.97); }
+}
+/* Flecha apuntando a la barra */
+.cal__tip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 11px;
+  height: 11px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  transform: translateX(-50%) rotate(45deg);
+}
+.cal__tip--abajo::after {
+  bottom: auto;
+  top: -6px;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  border-top: 1px solid var(--border-default);
+}
+.cal__tip-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+}
+.cal__tip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.cal__tip-head strong {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.cal__tip-row {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.cal__tip-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle, var(--border-default));
+}
+.cal__tip-total {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+/* Modal de detalle de reserva */
+.cal__modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.cal__modal-datos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+.cal__modal-datos > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.cal__modal-datos dt {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.cal__modal-datos dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  text-align: right;
+}
+.cal__modal-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-600);
+}
+.cal__modal-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

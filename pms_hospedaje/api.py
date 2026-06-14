@@ -971,6 +971,49 @@ def listar_reservas(hid: int = Depends(auth.hospedaje_actual)):
         conn.close()
 
 
+@app.get("/api/reservas/calendario")
+def reservas_calendario(
+    desde: str, hasta: str, hid: int = Depends(auth.hospedaje_actual)
+):
+    """Datos para el CALENDARIO TIMELINE: las habitaciones del hospedaje y las
+    reservas que se solapan con el rango [desde, hasta]. Optimizado para la
+    vista habitacion x fecha."""
+    try:
+        datetime.strptime(desde, "%Y-%m-%d")
+        datetime.strptime(hasta, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fechas con formato YYYY-MM-DD.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        # Habitaciones del hospedaje (filas del calendario).
+        cursor.execute(
+            "SELECT id, numero, tipo FROM habitaciones WHERE hospedaje_id = ? AND activa = 1 ORDER BY numero",
+            (hid,),
+        )
+        habitaciones = [dict(r) for r in cursor.fetchall()]
+
+        # Reservas que se solapan con el rango (no canceladas).
+        cursor.execute(
+            """
+            SELECT r.id, r.habitacion_id, r.fecha_entrada, r.fecha_salida,
+                   r.estado, r.total, h.nombre AS huesped
+            FROM reservas r
+            JOIN huespedes h ON r.huesped_id = h.id
+            WHERE r.hospedaje_id = ?
+            AND r.estado != 'Cancelada'
+            AND r.fecha_entrada < ? AND r.fecha_salida > ?
+            ORDER BY r.fecha_entrada
+            """,
+            (hid, hasta, desde),
+        )
+        reservas = [dict(r) for r in cursor.fetchall()]
+        return {"desde": desde, "hasta": hasta, "habitaciones": habitaciones, "reservas": reservas}
+    finally:
+        conn.close()
+
+
 @app.post("/api/reservas", status_code=201)
 def crear_reserva(datos: ReservaNueva, hid: int = Depends(auth.hospedaje_actual)):
     try:

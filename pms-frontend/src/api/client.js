@@ -118,6 +118,8 @@ export const api = {
   crearReserva: (datos) => post("/api/reservas", datos),
   cancelarReserva: (id) => post(`/api/reservas/${id}/cancelar`),
   confirmarReserva: (id) => post(`/api/reservas/${id}/confirmar`),
+  reservasCalendario: (desde, hasta) =>
+    get(`/api/reservas/calendario?desde=${desde}&hasta=${hasta}`),
   checkin: (reservaId) => post("/api/recepcion/checkin", { reserva_id: reservaId }),
   checkout: (estanciaId) =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId }),
