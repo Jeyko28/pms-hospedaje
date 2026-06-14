@@ -83,7 +83,10 @@ export default function Reservas() {
     }
   }
 
-  const cargandoDatosForm = huespedes.loading || habitaciones.loading;
+  // Solo bloqueamos con el spinner en la carga INICIAL (sin datos aun). En las
+  // recargas en segundo plano (ej. tras crear un huesped) mantenemos el
+  // formulario montado para no perder lo ya escrito.
+  const cargandoDatosForm = !huespedes.data || !habitaciones.data;
 
   return (
     <div className="reservas">
@@ -247,6 +250,7 @@ export default function Reservas() {
             habitaciones={habitaciones.data || []}
             onCreada={alCrear}
             onCancelar={() => setModalAbierto(false)}
+            onHuespedCreado={huespedes.recargar}
           />
         )}
       </Modal>

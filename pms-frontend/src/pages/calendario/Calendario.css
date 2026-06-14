@@ -132,14 +132,38 @@
   color: var(--text-muted);
 }
 
-/* Celdas de fondo de cada día */
+/* Celdas de fondo de cada día (botón: clic = nueva reserva) */
 .cal__celda {
+  border: none;
   border-bottom: 1px solid var(--border-default);
   border-right: 1px solid var(--border-default);
   min-height: 44px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  position: relative;
+}
+.cal__celda:hover:not(:disabled) {
+  background-color: var(--bg-subtle);
+}
+/* Señal discreta "+" al pasar el cursor sobre una celda libre */
+.cal__celda:hover:not(:disabled)::after {
+  content: "+";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 .cal__celda--finde {
   background-color: var(--bg-subtle);
+}
+.cal__celda--pasada {
+  cursor: default;
 }
 
 /* Barra de reserva: se posiciona en su fila ocupando varias columnas.
@@ -159,6 +183,10 @@
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: filter var(--transition-fast), transform var(--transition-fast);
+  /* Por encima de las celdas-botón (que son position:relative), pero por
+     debajo de la columna fija de habitación (z-index 2) al hacer scroll. */
+  position: relative;
+  z-index: 1;
 }
 .cal__barra:hover {
   filter: brightness(1.08);

@@ -7,6 +7,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
+import NuevaReservaForm from "../reservas/NuevaReservaForm";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import "./Calendario.css";
 
@@ -70,6 +71,11 @@ export default function Calendario() {
   const [accionando, setAccionando] = useState(false);
   const [errorAccion, setErrorAccion] = useState(null);
   const [tip, setTip] = useState(null); // tooltip al pasar el cursor: { r, hab, cx, top, bottom }
+  const [nueva, setNueva] = useState(null); // reserva nueva desde celda vacia: { habitacion_id, fecha_entrada, fecha_salida }
+
+  // Datos para el formulario de nueva reserva (habitaciones con precio + huespedes).
+  const habitacionesForm = useApi(api.habitaciones);
+  const huespedesForm = useApi(api.huespedes);
 
   // Rango del mes visible.
   const primerDia = useMemo(() => new Date(anio, mes, 1), [anio, mes]);
@@ -143,6 +149,18 @@ export default function Calendario() {
     } finally {
       setAccionando(false);
     }
+  }
+
+  // Clic en una celda libre: abre el formulario de nueva reserva precargado
+  // con esa habitación y día (salida por defecto = noche siguiente).
+  function abrirNueva(habId, fecha) {
+    const salida = ymd(new Date(new Date(fecha + "T00:00:00").getTime() + 86400000));
+    setNueva({ habitacion_id: habId, fecha_entrada: fecha, fecha_salida: salida });
+  }
+
+  function alCrearNueva() {
+    setNueva(null);
+    recargar();
   }
 
   // Para una reserva, calcula en qué columna empieza y cuántos días ocupa
@@ -246,14 +264,24 @@ export default function Calendario() {
                     <strong>Hab. {hab.numero}</strong>
                     <span className="cal__hab-tipo">{hab.tipo}</span>
                   </div>
-                  {/* Celdas de fondo (una por día) */}
+                  {/* Celdas de fondo (una por día). Clic en una libre = nueva
+                      reserva. Las fechas pasadas quedan deshabilitadas. */}
                   {dias.map((d, i) => {
                     const finde = d.getDay() === 0 || d.getDay() === 6;
+                    const pasado = ymd(d) < hoyStr;
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={ymd(d)}
-                        className={"cal__celda" + (finde ? " cal__celda--finde" : "")}
+                        className={
+                          "cal__celda" +
+                          (finde ? " cal__celda--finde" : "") +
+                          (pasado ? " cal__celda--pasada" : "")
+                        }
                         style={{ gridRow: fila, gridColumn: i + 2 }}
+                        disabled={pasado}
+                        aria-label={`Nueva reserva · Hab. ${hab.numero} · ${fechaCorta(ymd(d))}`}
+                        onClick={() => abrirNueva(hab.id, ymd(d))}
                       />
                     );
                   })}
@@ -329,6 +357,28 @@ export default function Calendario() {
           </div>
         );
       })()}
+
+      {/* Modal: nueva reserva al hacer clic en una celda libre */}
+      <Modal
+        open={!!nueva}
+        title="Nueva reserva"
+        onClose={() => setNueva(null)}
+      >
+        {!habitacionesForm.data || !huespedesForm.data ? (
+          <StateMessage variant="loading" title="Cargando datos…" />
+        ) : (
+          nueva && (
+            <NuevaReservaForm
+              huespedes={huespedesForm.data || []}
+              habitaciones={habitacionesForm.data || []}
+              iniciales={nueva}
+              onCreada={alCrearNueva}
+              onCancelar={() => setNueva(null)}
+              onHuespedCreado={huespedesForm.recargar}
+            />
+          )
+        )}
+      </Modal>
 
       {/* Modal de detalle/acciones al hacer clic en una reserva */}
       <Modal

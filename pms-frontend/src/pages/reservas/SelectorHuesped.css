@@ -1,0 +1,155 @@
+.selh {
+  position: relative;
+}
+
+/* Input de busqueda (mismo aspecto que los demas inputs del form) */
+.selh__input {
+  width: 100%;
+}
+
+/* Desplegable de coincidencias */
+.selh__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.selh__opcion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.selh__opcion:hover {
+  background: var(--bg-subtle);
+}
+.selh__opcion-nombre {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.selh__opcion-detalle {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.selh__vacio {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Opcion de crear un huesped nuevo */
+.selh__crear {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-top: 1px solid var(--border-default);
+  background: transparent;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-brand-600);
+  cursor: pointer;
+}
+.selh__crear:hover {
+  background: var(--bg-subtle);
+}
+
+/* Tarjeta del huesped ya seleccionado */
+.selh__chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+.selh__chip-info {
+  display: flex;
+  flex-direction: column;
+}
+.selh__chip-info strong {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.selh__chip-detalle {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.selh__chip-acciones {
+  display: flex;
+  gap: var(--space-3);
+}
+.selh__link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--color-brand-600);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.selh__link:hover {
+  color: var(--color-brand-700, var(--color-brand-600));
+}
+
+/* Mini-formulario de crear / actualizar */
+.selh--edit {
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-subtle);
+}
+.selh__edit-titulo {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.selh__edit-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.selh__edit-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.selh__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-600);
+}
+
+@media (max-width: 480px) {
+  .selh__edit-fila {
+    grid-template-columns: 1fr;
+  }
+}

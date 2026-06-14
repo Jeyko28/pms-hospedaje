@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import Field from "../../components/Field";
 import Button from "../../components/Button";
+import SelectorHuesped from "./SelectorHuesped";
 import { api } from "../../api/client";
 import "./NuevaReservaForm.css";
 
@@ -15,24 +16,29 @@ import "./NuevaReservaForm.css";
  *  - El boton se deshabilita mientras se guarda (evita doble envio).
  *
  * Props:
- *   huespedes:    lista para el selector
- *   habitaciones: lista para el selector
- *   onCreada:     callback tras crear con exito (para refrescar la lista)
- *   onCancelar:   cierra el formulario
+ *   huespedes:       lista para el selector
+ *   habitaciones:    lista para el selector
+ *   iniciales:       valores precargados (ej. al crear desde el calendario:
+ *                    habitacion_id, fecha_entrada, fecha_salida)
+ *   onCreada:        callback tras crear con exito (para refrescar la lista)
+ *   onCancelar:      cierra el formulario
+ *   onHuespedCreado: aviso para refrescar la lista maestra de huespedes
  */
 export default function NuevaReservaForm({
   huespedes,
   habitaciones,
+  iniciales = {},
   onCreada,
   onCancelar,
+  onHuespedCreado,
 }) {
   const hoy = new Date().toISOString().slice(0, 10);
 
   const [form, setForm] = useState({
     huesped_id: "",
-    habitacion_id: "",
-    fecha_entrada: hoy,
-    fecha_salida: "",
+    habitacion_id: iniciales.habitacion_id ? String(iniciales.habitacion_id) : "",
+    fecha_entrada: iniciales.fecha_entrada || hoy,
+    fecha_salida: iniciales.fecha_salida || "",
     notas: "",
   });
   const [errores, setErrores] = useState({});
@@ -107,19 +113,12 @@ export default function NuevaReservaForm({
         required
         error={errores.huesped_id}
       >
-        <select
-          id="huesped"
+        <SelectorHuesped
+          huespedes={huespedes}
           value={form.huesped_id}
-          onChange={set("huesped_id")}
-          aria-invalid={!!errores.huesped_id}
-        >
-          <option value="">Selecciona un huesped…</option>
-          {huespedes.map((h) => (
-            <option key={h.id} value={h.id}>
-              {h.nombre}
-            </option>
-          ))}
-        </select>
+          onChange={(id) => setForm((f) => ({ ...f, huesped_id: id }))}
+          onHuespedCreado={onHuespedCreado}
+        />
       </Field>
 
       <Field
