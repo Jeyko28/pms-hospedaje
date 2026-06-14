@@ -6,6 +6,7 @@ import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import StateMessage from "../components/StateMessage";
+import LinkReservas from "../components/LinkReservas";
 import {
   ESTADO_HABITACION,
   ESTADO_LIMPIEZA,
@@ -37,6 +38,9 @@ export default function Dashboard() {
           Nueva reserva
         </Button>
       </header>
+
+      {/* ---------- Link público de reservas (para compartir) ---------- */}
+      <LinkReservas />
 
       {/* ---------- Tarjetas de KPI ---------- */}
       <section aria-labelledby="kpis-title">

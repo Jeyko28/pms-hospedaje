@@ -89,6 +89,36 @@ def _a_dict(obj):
     return vars(obj)
 
 
+def _slugify(texto: str) -> str:
+    """Convierte 'Hostal El Sol' -> 'hostal-el-sol' (para URLs públicas)."""
+    import re
+    import unicodedata
+
+    # Quitar acentos.
+    t = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    t = t.lower().strip()
+    t = re.sub(r"[^a-z0-9]+", "-", t)      # espacios/simbolos -> guion
+    t = re.sub(r"-+", "-", t).strip("-")   # colapsar guiones
+    return t or "hospedaje"
+
+
+def _slug_unico(cursor, base: str, excluir_id=None) -> str:
+    """Devuelve un slug único: si 'hostal-sol' existe, prueba 'hostal-sol-2', etc."""
+    slug = base
+    i = 1
+    while True:
+        if excluir_id is not None:
+            cursor.execute(
+                "SELECT id FROM hospedajes WHERE slug = ? AND id != ?", (slug, excluir_id)
+            )
+        else:
+            cursor.execute("SELECT id FROM hospedajes WHERE slug = ?", (slug,))
+        if not cursor.fetchone():
+            return slug
+        i += 1
+        slug = f"{base}-{i}"
+
+
 # --------------------------------------------------------------------------- #
 #  Esquemas de entrada (lo que el frontend envia). Pydantic valida tipos.
 # --------------------------------------------------------------------------- #
@@ -97,6 +127,17 @@ class ReservaNueva(BaseModel):
     habitacion_id: int
     fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD")
     fecha_salida: str = Field(..., description="Formato YYYY-MM-DD")
+    notas: str = ""
+
+
+class ReservaPublica(BaseModel):
+    # Lo que un huesped envia desde la pagina publica de reservas.
+    habitacion_id: int
+    fecha_entrada: str
+    fecha_salida: str
+    nombre: str
+    email: str = ""
+    telefono: str = ""
     notas: str = ""
 
 
@@ -223,9 +264,10 @@ def registro_publico(datos: RegistroPublico):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        slug = _slug_unico(cursor, _slugify(nombre_h))
         cursor.execute(
-            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
-            (nombre_h, "trial", "prueba", fecha_expira),
+            "INSERT INTO hospedajes (nombre, slug, plan, estado, fecha_expira) VALUES (?, ?, ?, ?, ?)",
+            (nombre_h, slug, "trial", "prueba", fecha_expira),
         )
         nuevo_hid = cursor.lastrowid
         cursor.execute(
@@ -278,9 +320,11 @@ def login_google(datos: GoogleLoginIn):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        nombre_h = f"Hospedaje de {nombre}"
+        slug = _slug_unico(cursor, _slugify(nombre_h))
         cursor.execute(
-            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
-            (f"Hospedaje de {nombre}", "trial", "prueba", fecha_expira),
+            "INSERT INTO hospedajes (nombre, slug, plan, estado, fecha_expira) VALUES (?, ?, ?, ?, ?)",
+            (nombre_h, slug, "trial", "prueba", fecha_expira),
         )
         nuevo_hid = cursor.lastrowid
         # Sin contrasena utilizable: entra solo por Google (hash de un valor aleatorio).
@@ -495,9 +539,10 @@ def crear_hospedaje(datos: HospedajeNuevo, _sa: dict = Depends(auth.solo_superad
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        slug = _slug_unico(cursor, _slugify(datos.nombre.strip()))
         cursor.execute(
-            "INSERT INTO hospedajes (nombre, plan, estado, fecha_expira) VALUES (?, ?, ?, ?)",
-            (datos.nombre.strip(), datos.plan, datos.estado, datos.fecha_expira or None),
+            "INSERT INTO hospedajes (nombre, slug, plan, estado, fecha_expira) VALUES (?, ?, ?, ?, ?)",
+            (datos.nombre.strip(), slug, datos.plan, datos.estado, datos.fecha_expira or None),
         )
         nuevo_hid = cursor.lastrowid
         # Crear el usuario admin de ese hospedaje.
@@ -558,6 +603,184 @@ def config_publica():
         "google_login": bool(auth.GOOGLE_CLIENT_ID),
         "google_client_id": auth.GOOGLE_CLIENT_ID,
     }
+
+
+# --------------------------------------------------------------------------- #
+#  Motor de reservas PUBLICO (Fase B) — sin login.
+#  El huesped accede por el slug del hospedaje: /reservar/<slug>.
+# --------------------------------------------------------------------------- #
+@app.get("/api/publico/hospedaje/{slug}")
+def hospedaje_publico(slug: str):
+    """Info publica de un hospedaje + sus habitaciones (para la pagina de
+    reservas que ve el huesped). Solo si el hospedaje puede operar."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, nombre, slug, estado FROM hospedajes WHERE slug = ?", (slug,)
+        )
+        h = cursor.fetchone()
+        if not h:
+            raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+        h = dict(h)
+        # No mostrar la pagina si la cuenta no esta operativa.
+        if h["estado"] in ("suspendido", "cancelado"):
+            raise HTTPException(
+                status_code=404, detail="Este hospedaje no esta disponible."
+            )
+
+        # Habitaciones activas del hospedaje (datos minimos, sin info interna).
+        cursor.execute(
+            """
+            SELECT id, numero, tipo, precio_base
+            FROM habitaciones
+            WHERE hospedaje_id = ? AND activa = 1
+            ORDER BY precio_base
+            """,
+            (h["id"],),
+        )
+        habitaciones = [dict(r) for r in cursor.fetchall()]
+        return {
+            "hospedaje": {"nombre": h["nombre"], "slug": h["slug"]},
+            "habitaciones": habitaciones,
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/publico/disponibilidad/{slug}")
+def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
+    """Devuelve las habitaciones LIBRES del hospedaje en el rango de fechas."""
+    try:
+        fe = datetime.strptime(fecha_entrada, "%Y-%m-%d")
+        fs = datetime.strptime(fecha_salida, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fechas con formato YYYY-MM-DD.")
+    if fs <= fe:
+        raise HTTPException(
+            status_code=422, detail="La salida debe ser posterior a la entrada."
+        )
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, estado FROM hospedajes WHERE slug = ?", (slug,))
+        h = cursor.fetchone()
+        if not h or h["estado"] in ("suspendido", "cancelado"):
+            raise HTTPException(status_code=404, detail="Hospedaje no disponible.")
+        hid = h["id"]
+
+        # Habitaciones del hospedaje que NO tienen reserva que se solape.
+        cursor.execute(
+            """
+            SELECT id, numero, tipo, precio_base
+            FROM habitaciones
+            WHERE hospedaje_id = ? AND activa = 1
+            AND id NOT IN (
+                SELECT habitacion_id FROM reservas
+                WHERE hospedaje_id = ? AND estado != 'Cancelada'
+                AND fecha_entrada < ? AND fecha_salida > ?
+            )
+            ORDER BY precio_base
+            """,
+            (hid, hid, fecha_salida, fecha_entrada),
+        )
+        libres = [dict(r) for r in cursor.fetchall()]
+        noches = (fs - fe).days
+        for r in libres:
+            r["total"] = round(r["precio_base"] * noches, 2)
+        return {"noches": noches, "habitaciones": libres}
+    finally:
+        conn.close()
+
+
+@app.post("/api/publico/reservar/{slug}", status_code=201)
+def crear_reserva_publica(slug: str, datos: ReservaPublica):
+    """Crea una reserva desde la pagina publica. Registra al huesped (si es
+    nuevo) y crea la reserva en estado 'Pendiente' (a confirmar/pagar)."""
+    try:
+        fe = datetime.strptime(datos.fecha_entrada, "%Y-%m-%d")
+        fs = datetime.strptime(datos.fecha_salida, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fechas con formato YYYY-MM-DD.")
+    if fs <= fe:
+        raise HTTPException(
+            status_code=422, detail="La salida debe ser posterior a la entrada."
+        )
+    if not datos.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    # Al menos una forma de contacto (correo o telefono) para poder ubicar al huesped.
+    email = datos.email.strip()
+    telefono = datos.telefono.strip()
+    if not email and not telefono:
+        raise HTTPException(
+            status_code=422,
+            detail="Indica un correo o un teléfono para que el hospedaje pueda contactarte.",
+        )
+    if email and ("@" not in email or "." not in email.split("@")[-1]):
+        raise HTTPException(status_code=422, detail="Escribe un correo válido.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, estado FROM hospedajes WHERE slug = ?", (slug,))
+        h = cursor.fetchone()
+        if not h or h["estado"] in ("suspendido", "cancelado"):
+            raise HTTPException(status_code=404, detail="Hospedaje no disponible.")
+        hid = h["id"]
+
+        # La habitacion debe pertenecer al hospedaje.
+        cursor.execute(
+            "SELECT precio_base FROM habitaciones WHERE id = ? AND hospedaje_id = ? AND activa = 1",
+            (datos.habitacion_id, hid),
+        )
+        hab = cursor.fetchone()
+        if not hab:
+            raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+
+        # Disponibilidad (evita doble reserva).
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS n FROM reservas
+            WHERE habitacion_id = ? AND estado != 'Cancelada'
+            AND fecha_entrada < ? AND fecha_salida > ?
+            """,
+            (datos.habitacion_id, datos.fecha_salida, datos.fecha_entrada),
+        )
+        if cursor.fetchone()["n"] > 0:
+            raise HTTPException(
+                status_code=409, detail="Esa habitacion ya no esta disponible en esas fechas."
+            )
+
+        # Registrar al huesped (publico) en el hospedaje.
+        cursor.execute(
+            "INSERT INTO huespedes (nombre, email, telefono, hospedaje_id) VALUES (?, ?, ?, ?)",
+            (datos.nombre.strip(), email, telefono, hid),
+        )
+        huesped_id = cursor.lastrowid
+
+        noches = (fs - fe).days
+        total = round(hab["precio_base"] * noches, 2)
+
+        # Reserva en estado 'Pendiente' (la confirma/paga despues).
+        cursor.execute(
+            """
+            INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id)
+            VALUES (?, ?, ?, ?, 'Pendiente', ?, ?, ?)
+            """,
+            (huesped_id, datos.habitacion_id, datos.fecha_entrada, datos.fecha_salida,
+             total, datos.notas, hid),
+        )
+        reserva_id = cursor.lastrowid
+        conn.commit()
+        return {
+            "reserva_id": reserva_id,
+            "total": total,
+            "noches": noches,
+            "estado": "Pendiente",
+        }
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -794,6 +1017,33 @@ def cancelar_reserva(reserva_id: int, hid: int = Depends(auth.hospedaje_actual))
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada.")
     reserva.cancelar()
+    return {"id": reserva_id, "estado": reserva.estado}
+
+
+@app.post("/api/reservas/{reserva_id}/confirmar")
+def confirmar_reserva(reserva_id: int, hid: int = Depends(auth.hospedaje_actual)):
+    """Confirma una reserva 'Pendiente' (la que llegó por el motor público).
+    Verifica que la habitacion siga disponible antes de confirmar."""
+    reserva = Reserva.obtener_por_id(reserva_id, hospedaje_id=hid)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    if reserva.estado != "Pendiente":
+        raise HTTPException(
+            status_code=409, detail="Solo se pueden confirmar reservas pendientes."
+        )
+    # Revalidar disponibilidad (otra reserva pudo tomar la habitacion mientras).
+    if not Reserva.verificar_disponibilidad(
+        reserva.habitacion_id,
+        reserva.fecha_entrada,
+        reserva.fecha_salida,
+        reserva_id_excluir=reserva_id,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="La habitacion ya no esta disponible en esas fechas.",
+        )
+    reserva.estado = "Confirmada"
+    reserva.guardar()
     return {"id": reserva_id, "estado": reserva.estado}
 
 

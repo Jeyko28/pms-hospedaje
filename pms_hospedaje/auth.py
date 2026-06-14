@@ -321,12 +321,29 @@ def solo_superadmin(actual: dict = Depends(usuario_actual)) -> dict:
 
 
 def publico(usuario_dict: dict) -> dict:
-    """Quita el hash antes de devolver un usuario al frontend."""
+    """Quita el hash antes de devolver un usuario al frontend.
+    Incluye el slug y nombre del hospedaje (para el link publico de reservas)."""
+    hid = usuario_dict.get("hospedaje_id")
+    slug = None
+    nombre_h = None
+    if hid is not None:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT slug, nombre FROM hospedajes WHERE id = ?", (hid,))
+            row = cursor.fetchone()
+            if row:
+                slug = row["slug"]
+                nombre_h = row["nombre"]
+        finally:
+            conn.close()
     return {
         "id": usuario_dict["id"],
         "usuario": usuario_dict["usuario"],
         "nombre": usuario_dict["nombre"],
         "rol": usuario_dict["rol"],
         "activo": bool(usuario_dict["activo"]),
-        "hospedaje_id": usuario_dict.get("hospedaje_id"),
+        "hospedaje_id": hid,
+        "hospedaje_slug": slug,
+        "hospedaje_nombre": nombre_h,
     }

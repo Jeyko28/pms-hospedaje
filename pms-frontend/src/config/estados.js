@@ -25,6 +25,8 @@ export const ESTADO_LIMPIEZA = {
 
 // Estado de una reserva.
 export const ESTADO_RESERVA = {
+  // Pendiente: llegó por el motor de reservas público y espera confirmación.
+  Pendiente: { tone: "warning", icon: "⏳", label: "Pendiente" },
   Confirmada: { tone: "info", icon: "✓", label: "Confirmada" },
   "Check-in": { tone: "success", icon: "→", label: "Check-in" },
   "Check-out": { tone: "neutral", icon: "←", label: "Check-out" },

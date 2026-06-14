@@ -36,6 +36,7 @@ export default function Reservas() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [cancelandoId, setCancelandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
 
   // Filtrado en cliente: por texto (huesped/habitacion) y por estado.
   const filtradas = useMemo(() => {
@@ -67,6 +68,18 @@ export default function Reservas() {
       window.alert(e.message);
     } finally {
       setCancelandoId(null);
+    }
+  }
+
+  async function confirmar(id) {
+    setConfirmandoId(id);
+    try {
+      await api.confirmarReserva(id);
+      reservas.recargar();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setConfirmandoId(null);
     }
   }
 
@@ -107,6 +120,7 @@ export default function Reservas() {
               onChange={(e) => setFiltroEstado(e.target.value)}
             >
               <option value="todos">Todos</option>
+              <option value="Pendiente">Pendiente</option>
               <option value="Confirmada">Confirmada</option>
               <option value="Check-in">Check-in</option>
               <option value="Check-out">Check-out</option>
@@ -192,6 +206,16 @@ export default function Reservas() {
                   <span className="reserva-item__total">
                     {formatoMoneda.format(r.total || 0)}
                   </span>
+                  {/* Reserva del motor público: confirmar antes de operar. */}
+                  {r.estado === "Pendiente" && (
+                    <Button
+                      size="sm"
+                      onClick={() => confirmar(r.id)}
+                      disabled={confirmandoId === r.id}
+                    >
+                      {confirmandoId === r.id ? "Confirmando…" : "Confirmar"}
+                    </Button>
+                  )}
                   {cancelable && (
                     <Button
                       variant="ghost"

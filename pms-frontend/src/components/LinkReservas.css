@@ -1,0 +1,98 @@
+.linkres {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border: 1px solid var(--color-brand-100);
+  background-color: var(--color-brand-50);
+}
+
+.linkres__cab {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.linkres__icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--color-brand-600);
+  color: #fff;
+}
+
+.linkres__titulo {
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+}
+
+.linkres__sub {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+
+/* Barra con la URL + botones */
+.linkres__barra {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.linkres__url {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  min-height: var(--tap-target-min);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linkres__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  min-height: var(--tap-target-min);
+  border: none;
+  border-radius: var(--radius-md);
+  background-color: var(--color-brand-600);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast);
+}
+.linkres__btn:hover {
+  background-color: var(--color-brand-700);
+}
+
+.linkres__btn--ghost {
+  background-color: var(--bg-surface);
+  color: var(--color-brand-700);
+  border: 1px solid var(--border-strong);
+}
+.linkres__btn--ghost:hover {
+  background-color: var(--bg-subtle);
+}
+
+@media (max-width: 480px) {
+  .linkres__url {
+    flex-basis: 100%;
+  }
+}
