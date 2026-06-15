@@ -1506,6 +1506,64 @@ def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
         conn.close()
 
 
+@app.get("/api/dashboard/agenda")
+def dashboard_agenda(hid: int = Depends(auth.hospedaje_actual)):
+    """Agenda del día: quién LLEGA hoy (reservas confirmadas sin check-in con
+    entrada hoy) y quién SALE hoy (estancias activas cuyo checkout esperado es
+    hoy), con su saldo. Es la vista que mira recepción cada mañana."""
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Llegadas de hoy: confirmadas, con entrada = hoy y aún sin estancia.
+        cursor.execute(
+            """
+            SELECT r.id AS reserva_id, h.nombre AS huesped,
+                   hab.numero AS habitacion, hab.tipo AS tipo,
+                   r.fecha_entrada, r.fecha_salida, r.total
+            FROM reservas r
+            JOIN huespedes h     ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.estado = 'Confirmada'
+            AND r.hospedaje_id = ?
+            AND r.fecha_entrada = ?
+            AND NOT EXISTS (SELECT 1 FROM estancias e WHERE e.reserva_id = r.id)
+            ORDER BY hab.numero
+            """,
+            (hid, hoy),
+        )
+        llegadas = [dict(row) for row in cursor.fetchall()]
+
+        # Salidas de hoy: estancias activas cuyo checkout esperado es hoy.
+        cursor.execute(
+            """
+            SELECT e.id AS estancia_id, h.nombre AS huesped,
+                   hab.numero AS habitacion, hab.tipo AS tipo,
+                   COALESCE(f.total, 0) AS total,
+                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
+            FROM estancias e
+            JOIN huespedes h     ON e.huesped_id = h.id
+            JOIN habitaciones hab ON e.habitacion_id = hab.id
+            LEFT JOIN facturas f ON f.estancia_id = e.id
+            WHERE e.estado = 'activa'
+            AND e.hospedaje_id = ?
+            AND e.fecha_checkout_esperado = ?
+            ORDER BY hab.numero
+            """,
+            (hid, hoy),
+        )
+        salidas = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            d["saldo"] = round((d["total"] or 0) - (d["pagado"] or 0), 2)
+            salidas.append(d)
+
+        return {"fecha": hoy, "llegadas_hoy": llegadas, "salidas_hoy": salidas}
+    finally:
+        conn.close()
+
+
 # --------------------------------------------------------------------------- #
 #  Reportes: ocupacion diaria por mes.
 #  Reusa la MISMA logica de calculo que views/reportes.py (la app de escritorio):
@@ -1514,7 +1572,12 @@ def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
 #  La noche se cuenta de entrada hasta salida-1 (el dia de salida no ocupa).
 # --------------------------------------------------------------------------- #
 @app.get("/api/reportes/ocupacion")
-def reporte_ocupacion(anio: int, mes: int, hid: int = Depends(auth.hospedaje_actual)):
+def reporte_ocupacion(
+    anio: int,
+    mes: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     if mes < 1 or mes > 12:
         raise HTTPException(status_code=422, detail="El mes debe estar entre 1 y 12.")
 
@@ -1566,3 +1629,105 @@ def reporte_ocupacion(anio: int, mes: int, hid: int = Depends(auth.hospedaje_act
         "promedio_ocupacion": promedio,
         "dias": dias,
     }
+
+
+@app.get("/api/reportes/financiero")
+def reporte_financiero(
+    anio: int,
+    mes: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Reporte financiero del mes (solo admin): ingresos cobrados, desglose por
+    método de pago y ranking de habitaciones por ingresos. Filtrado por
+    hospedaje."""
+    if mes < 1 or mes > 12:
+        raise HTTPException(status_code=422, detail="El mes debe estar entre 1 y 12.")
+
+    periodo = f"{anio}-{mes:02d}"  # para comparar con substr(fecha, 1, 7)
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # --- Ingresos cobrados en el mes (por fecha de pago) y nº de pagos. ---
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(monto), 0) AS cobrado, COUNT(*) AS num_pagos
+            FROM pagos
+            WHERE hospedaje_id = ? AND substr(fecha, 1, 7) = ?
+            """,
+            (hid, periodo),
+        )
+        fila = cursor.fetchone()
+        cobrado = round(fila["cobrado"] or 0, 2)
+        num_pagos = fila["num_pagos"] or 0
+
+        # --- Desglose por método de pago. ---
+        cursor.execute(
+            """
+            SELECT metodo, COALESCE(SUM(monto), 0) AS total, COUNT(*) AS n
+            FROM pagos
+            WHERE hospedaje_id = ? AND substr(fecha, 1, 7) = ?
+            GROUP BY metodo
+            ORDER BY total DESC
+            """,
+            (hid, periodo),
+        )
+        metodos_pago = [
+            {"metodo": r["metodo"] or "otro", "total": round(r["total"] or 0, 2), "n": r["n"]}
+            for r in cursor.fetchall()
+        ]
+
+        # --- Reservas que ENTRAN en el mes (no canceladas): nº y ticket promedio. ---
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS n, COALESCE(AVG(total), 0) AS ticket
+            FROM reservas
+            WHERE hospedaje_id = ? AND estado != 'Cancelada'
+            AND substr(fecha_entrada, 1, 7) = ?
+            """,
+            (hid, periodo),
+        )
+        fila = cursor.fetchone()
+        num_reservas = fila["n"] or 0
+        ticket_promedio = round(fila["ticket"] or 0, 2)
+
+        # --- Top habitaciones por ingresos (reservas que entran en el mes). ---
+        cursor.execute(
+            """
+            SELECT hab.numero AS habitacion, hab.tipo AS tipo,
+                   COALESCE(SUM(r.total), 0) AS ingresos, COUNT(*) AS reservas
+            FROM reservas r
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ? AND r.estado != 'Cancelada'
+            AND substr(r.fecha_entrada, 1, 7) = ?
+            GROUP BY hab.id
+            ORDER BY ingresos DESC
+            LIMIT 5
+            """,
+            (hid, periodo),
+        )
+        top_habitaciones = [
+            {
+                "habitacion": r["habitacion"],
+                "tipo": r["tipo"],
+                "ingresos": round(r["ingresos"] or 0, 2),
+                "reservas": r["reservas"],
+            }
+            for r in cursor.fetchall()
+        ]
+
+        return {
+            "anio": anio,
+            "mes": mes,
+            "ingresos": {
+                "cobrado": cobrado,
+                "num_pagos": num_pagos,
+                "num_reservas": num_reservas,
+                "ticket_promedio": ticket_promedio,
+            },
+            "metodos_pago": metodos_pago,
+            "top_habitaciones": top_habitaciones,
+        }
+    finally:
+        conn.close()

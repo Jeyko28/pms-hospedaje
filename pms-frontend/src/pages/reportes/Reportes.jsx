@@ -6,11 +6,30 @@ import StatCard from "../../components/StatCard";
 import Button from "../../components/Button";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import Dona from "./Dona";
 import "./Reportes.css";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+const formatoMoneda = new Intl.NumberFormat("es-PE", {
+  style: "currency",
+  currency: "PEN",
+});
+
+// Etiqueta y color por método de pago. Colores con tokens (adaptan a oscuro).
+const METODO = {
+  efectivo: { label: "Efectivo", color: "var(--color-success-600)" },
+  yape: { label: "Yape", color: "var(--color-brand-600)" },
+  plin: { label: "Plin", color: "var(--color-warning-600)" },
+  tarjeta: { label: "Tarjeta", color: "var(--color-danger-600)" },
+  transferencia: { label: "Transferencia", color: "var(--color-neutral-500)" },
+};
+const PALETA = [
+  "var(--color-success-600)", "var(--color-brand-600)", "var(--color-warning-600)",
+  "var(--color-danger-600)", "var(--color-neutral-500)",
 ];
 
 // Color del nivel de ocupacion. Ademas del color, cada barra lleva su % como
@@ -32,6 +51,19 @@ export default function Reportes() {
   const fetcher = useCallback(() => api.ocupacion(anio, mes), [anio, mes]);
   const reporte = useApi(fetcher);
 
+  const fetcherFin = useCallback(() => api.reporteFinanciero(anio, mes), [anio, mes]);
+  const financiero = useApi(fetcherFin);
+
+  // Segmentos de la dona de métodos de pago (con su color y etiqueta).
+  const segmentosPago = useMemo(() => {
+    if (!financiero.data) return [];
+    return financiero.data.metodos_pago.map((m, i) => ({
+      label: METODO[m.metodo]?.label || m.metodo,
+      value: m.total,
+      color: METODO[m.metodo]?.color || PALETA[i % PALETA.length],
+    }));
+  }, [financiero.data]);
+
   const maxPct = useMemo(() => {
     if (!reporte.data) return 100;
     const m = Math.max(0, ...reporte.data.dias.map((d) => d.porcentaje));
@@ -47,7 +79,7 @@ export default function Reportes() {
         <div>
           <h1>Reportes</h1>
           <p className="reportes__subtitle">
-            Ocupación diaria de tu hospedaje.
+            Finanzas y ocupación de tu hospedaje.
           </p>
         </div>
       </header>
@@ -73,6 +105,121 @@ export default function Reportes() {
           </select>
         </Field>
       </Card>
+
+      {/* ---------- Reporte financiero (ingresos, métodos de pago, top) ---------- */}
+      {financiero.loading && !financiero.data && (
+        <Card>
+          <StateMessage variant="loading" title="Calculando ingresos…" />
+        </Card>
+      )}
+
+      {financiero.error && (
+        <Card>
+          <StateMessage
+            variant="error"
+            title="No se pudo cargar el reporte financiero"
+            message={financiero.error}
+            action={
+              <Button variant="secondary" onClick={financiero.recargar}>
+                Reintentar
+              </Button>
+            }
+          />
+        </Card>
+      )}
+
+      {financiero.data && (
+        <>
+          <div className="reportes__kpis">
+            <StatCard
+              icon="💰"
+              accent="success"
+              label="Cobrado en el mes"
+              value={formatoMoneda.format(financiero.data.ingresos.cobrado)}
+              hint={`${financiero.data.ingresos.num_pagos} pago(s)`}
+            />
+            <StatCard
+              icon="🎫"
+              accent="brand"
+              label="Ticket promedio"
+              value={formatoMoneda.format(financiero.data.ingresos.ticket_promedio)}
+              hint="por reserva"
+            />
+            <StatCard
+              icon="📋"
+              accent="warning"
+              label="Reservas del mes"
+              value={financiero.data.ingresos.num_reservas}
+              hint="entran este mes"
+            />
+          </div>
+
+          <div className="reportes__financiero">
+            {/* Métodos de pago (dona) */}
+            <Card>
+              <h2>Métodos de pago</h2>
+              {segmentosPago.length === 0 ? (
+                <StateMessage
+                  variant="empty"
+                  title="Sin pagos este mes"
+                  message="Cuando registres pagos verás aquí el desglose por método."
+                />
+              ) : (
+                <Dona
+                  segmentos={segmentosPago}
+                  centroValor={formatoMoneda.format(financiero.data.ingresos.cobrado)}
+                  centroLabel="cobrado"
+                  formato={(v) => formatoMoneda.format(v)}
+                />
+              )}
+            </Card>
+
+            {/* Top habitaciones por ingresos */}
+            <Card>
+              <h2>Top habitaciones</h2>
+              {financiero.data.top_habitaciones.length === 0 ? (
+                <StateMessage
+                  variant="empty"
+                  title="Sin reservas este mes"
+                  message="Las habitaciones con más ingresos aparecerán aquí."
+                />
+              ) : (
+                <ol className="reportes__top">
+                  {financiero.data.top_habitaciones.map((h, i) => {
+                    const max = financiero.data.top_habitaciones[0].ingresos || 1;
+                    return (
+                      <li key={h.habitacion} className="top-item">
+                        <span className="top-item__rank">{i + 1}</span>
+                        <div className="top-item__cuerpo">
+                          <div className="top-item__fila">
+                            <span className="top-item__nombre">
+                              Hab. {h.habitacion} · {h.tipo}
+                            </span>
+                            <span className="top-item__ingreso">
+                              {formatoMoneda.format(h.ingresos)}
+                            </span>
+                          </div>
+                          <div className="top-item__barra-zona">
+                            <div
+                              className="top-item__barra"
+                              style={{ width: `${(h.ingresos / max) * 100}%` }}
+                            />
+                          </div>
+                          <span className="top-item__meta">
+                            {h.reservas} reserva(s)
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Card>
+          </div>
+
+          <h2 className="reportes__sep">Ocupación</h2>
+        </>
+      )}
 
       {reporte.loading && (
         <Card>
@@ -166,41 +313,6 @@ export default function Reportes() {
                 ))}
               </div>
             )}
-          </Card>
-
-          {/* Tabla accesible: misma informacion en formato lectura/exportable.
-              Garantiza que el dato sea legible aunque el grafico no se vea. */}
-          <Card padding="none">
-            <details className="reportes__tabla-wrap">
-              <summary className="reportes__tabla-toggle">
-                Ver datos en tabla
-              </summary>
-              <div className="reportes__tabla-scroll">
-                <table className="reportes__tabla">
-                  <caption className="sr-only">
-                    Ocupación diaria de {MESES[mes - 1]} {anio}
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Día</th>
-                      <th scope="col">Ocupadas</th>
-                      <th scope="col">% Ocupación</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reporte.data.dias.map((d) => (
-                      <tr key={d.dia}>
-                        <td>{d.dia}</td>
-                        <td>
-                          {d.ocupadas} / {reporte.data.total_habitaciones}
-                        </td>
-                        <td>{d.porcentaje}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
           </Card>
         </>
       )}

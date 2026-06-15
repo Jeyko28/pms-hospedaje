@@ -96,6 +96,7 @@ const del = (path) => enviar("DELETE", path);
 export const api = {
   // Lecturas
   resumenDashboard: () => get("/api/dashboard/resumen"),
+  agendaDashboard: () => get("/api/dashboard/agenda"),
   habitaciones: () => get("/api/habitaciones"),
   huespedes: () => get("/api/huespedes"),
   reservas: () => get("/api/reservas"),
@@ -105,8 +106,9 @@ export const api = {
   estanciasActivas: () => get("/api/recepcion/estancias-activas"),
   pagosDeFactura: (facturaId) => get(`/api/facturas/${facturaId}/pagos`),
 
-  // Reportes
+  // Reportes (solo admin)
   ocupacion: (anio, mes) => get(`/api/reportes/ocupacion?anio=${anio}&mes=${mes}`),
+  reporteFinanciero: (anio, mes) => get(`/api/reportes/financiero?anio=${anio}&mes=${mes}`),
 
   // URL publica del PDF de una factura (para abrir/descargar en el navegador).
   urlFacturaPdf: (facturaId) => `${BASE_URL}/api/facturas/${facturaId}/pdf`,

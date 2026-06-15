@@ -50,7 +50,7 @@ const NAV = [
   { id: "habitaciones", icon: BedDouble, label: "Habitaciones", operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", operativa: true },
   { id: "facturas", icon: Receipt, label: "Facturas", operativa: true },
-  { id: "reportes", icon: BarChart3, label: "Reportes", operativa: true },
+  { id: "reportes", icon: BarChart3, label: "Reportes", soloAdmin: true, operativa: true },
   { id: "usuarios", icon: ShieldCheck, label: "Usuarios", soloAdmin: true, operativa: true },
   { id: "hospedajes", icon: Building2, label: "Hospedajes", soloSuperadmin: true },
 ];

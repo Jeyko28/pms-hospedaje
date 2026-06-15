@@ -47,7 +47,7 @@ function Vista() {
     case "facturas":
       return <Facturas />;
     case "reportes":
-      return <Reportes />;
+      return esAdmin ? <Reportes /> : <Dashboard />;
     case "usuarios":
       return esAdmin ? <Usuarios /> : <Dashboard />;
     case "hospedajes":

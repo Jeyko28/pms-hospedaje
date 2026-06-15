@@ -1,0 +1,78 @@
+.dona {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.dona__grafico {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex-shrink: 0;
+}
+.dona__svg {
+  width: 100%;
+  height: 100%;
+  /* La primera porción arranca arriba (12 en punto) por el offset 25. */
+}
+.dona__pista {
+  stroke: var(--bg-subtle);
+}
+.dona__svg circle {
+  transition: stroke-dasharray var(--transition-base, 200ms) ease;
+}
+
+/* Texto del centro, superpuesto al anillo. */
+.dona__centro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dona__centro-valor {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.dona__centro-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Leyenda */
+.dona__leyenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 180px;
+  flex: 1;
+}
+.dona__leyenda-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+.dona__leyenda-color {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.dona__leyenda-label {
+  color: var(--text-secondary);
+}
+.dona__leyenda-valor {
+  margin-left: auto;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
