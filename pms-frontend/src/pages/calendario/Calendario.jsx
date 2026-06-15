@@ -8,6 +8,7 @@ import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
+import PagoForm from "../recepcion/PagoForm";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import "./Calendario.css";
 
@@ -72,6 +73,10 @@ export default function Calendario() {
   const [errorAccion, setErrorAccion] = useState(null);
   const [tip, setTip] = useState(null); // tooltip al pasar el cursor: { r, hab, cx, top, bottom }
   const [nueva, setNueva] = useState(null); // reserva nueva desde celda vacia: { habitacion_id, fecha_entrada, fecha_salida }
+  const [mostrarPago, setMostrarPago] = useState(false); // sub-vista de cobro en el modal de detalle
+  const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
+  const [sobreHab, setSobreHab] = useState(null); // id de habitación bajo el cursor al arrastrar
+  const [errorMover, setErrorMover] = useState(null); // aviso si el movimiento se rechaza
 
   // Datos para el formulario de nueva reserva (habitaciones con precio + huespedes).
   const habitacionesForm = useApi(api.habitaciones);
@@ -151,6 +156,65 @@ export default function Calendario() {
     }
   }
 
+  async function hacerCheckout() {
+    if (!seleccion?.estancia_id) return;
+    setErrorAccion(null);
+    setAccionando(true);
+    try {
+      await api.checkout(seleccion.estancia_id);
+      setSeleccion(null);
+      recargar();
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setAccionando(false);
+    }
+  }
+
+  // Tras registrar un pago: vuelve al detalle y recarga (el efecto de sync
+  // de abajo refresca el saldo de la reserva seleccionada).
+  function alPagado() {
+    setMostrarPago(false);
+    recargar();
+  }
+
+  // Mantiene la reserva seleccionada al día tras cada recarga (saldo, estado).
+  // Si ya no aparece (ej. se hizo check-out y salió del rango) cierra el modal.
+  useEffect(() => {
+    if (!seleccion || !datos.data) return;
+    const r = datos.data.reservas.find((x) => x.id === seleccion.id);
+    if (!r) {
+      setSeleccion(null);
+      return;
+    }
+    const hab = datos.data.habitaciones.find((h) => h.id === r.habitacion_id);
+    setSeleccion({ ...r, habitacion: hab });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datos.data]);
+
+  // --- Arrastrar una reserva a otra habitación ---
+  function alIniciarArrastre(reserva, e) {
+    setTip(null);
+    setArrastrando(reserva);
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", String(reserva.id)); } catch (_) { /* algunos navegadores */ }
+  }
+
+  function alSoltarEn(habId) {
+    const reserva = arrastrando;
+    setArrastrando(null);
+    setSobreHab(null);
+    if (!reserva || habId === reserva.habitacion_id) return;
+    setErrorMover(null);
+    api
+      .moverReserva(reserva.id, habId)
+      .then(() => recargar())
+      .catch((err) => {
+        setErrorMover(err.message);
+        setTimeout(() => setErrorMover(null), 5000);
+      });
+  }
+
   // Clic en una celda libre: abre el formulario de nueva reserva precargado
   // con esa habitación y día (salida por defecto = noche siguiente).
   function abrirNueva(habId, fecha) {
@@ -208,6 +272,10 @@ export default function Calendario() {
         </div>
       </header>
 
+      {errorMover && (
+        <div className="cal__aviso-mover" role="alert">{errorMover}</div>
+      )}
+
       {datos.loading && (
         <Card><StateMessage variant="loading" title="Cargando calendario…" /></Card>
       )}
@@ -235,7 +303,10 @@ export default function Calendario() {
 
       {datos.data && datos.data.habitaciones.length > 0 && (
         <Card padding="none" className="cal__wrap">
-          <div className="cal__grid" style={{ "--dias": numDias }}>
+          <div
+            className={"cal__grid" + (arrastrando ? " cal__grid--arrastrando" : "")}
+            style={{ "--dias": numDias }}
+          >
             {/* Esquina + cabecera de días */}
             <div className="cal__esquina">Habitación</div>
             {dias.map((d) => {
@@ -260,7 +331,16 @@ export default function Calendario() {
               const fila = idx + 2; // fila del grid (1 es la cabecera)
               return (
                 <div key={hab.id} style={{ display: "contents" }}>
-                  <div className="cal__hab" style={{ gridRow: fila, gridColumn: 1 }}>
+                  <div
+                    className={
+                      "cal__hab" +
+                      (arrastrando && sobreHab === hab.id ? " cal__hab--drop" : "")
+                    }
+                    style={{ gridRow: fila, gridColumn: 1 }}
+                    onDragOver={(e) => { if (arrastrando) e.preventDefault(); }}
+                    onDragEnter={() => { if (arrastrando) setSobreHab(hab.id); }}
+                    onDrop={(e) => { e.preventDefault(); alSoltarEn(hab.id); }}
+                  >
                     <strong>Hab. {hab.numero}</strong>
                     <span className="cal__hab-tipo">{hab.tipo}</span>
                   </div>
@@ -276,12 +356,16 @@ export default function Calendario() {
                         className={
                           "cal__celda" +
                           (finde ? " cal__celda--finde" : "") +
-                          (pasado ? " cal__celda--pasada" : "")
+                          (pasado ? " cal__celda--pasada" : "") +
+                          (arrastrando && sobreHab === hab.id ? " cal__celda--drop" : "")
                         }
                         style={{ gridRow: fila, gridColumn: i + 2 }}
-                        disabled={pasado}
+                        disabled={pasado && !arrastrando}
                         aria-label={`Nueva reserva · Hab. ${hab.numero} · ${fechaCorta(ymd(d))}`}
                         onClick={() => abrirNueva(hab.id, ymd(d))}
+                        onDragOver={(e) => { if (arrastrando) e.preventDefault(); }}
+                        onDragEnter={() => { if (arrastrando) setSobreHab(hab.id); }}
+                        onDrop={(e) => { e.preventDefault(); alSoltarEn(hab.id); }}
                       />
                     );
                   })}
@@ -293,9 +377,13 @@ export default function Calendario() {
                       <button
                         type="button"
                         key={r.id}
-                        className="cal__barra"
-                        onClick={() => { setErrorAccion(null); setSeleccion({ ...r, habitacion: hab }); }}
+                        className={"cal__barra" + (arrastrando?.id === r.id ? " cal__barra--arrastrando" : "")}
+                        draggable
+                        onDragStart={(e) => alIniciarArrastre(r, e)}
+                        onDragEnd={() => { setArrastrando(null); setSobreHab(null); }}
+                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setSeleccion({ ...r, habitacion: hab }); }}
                         onMouseEnter={(e) => {
+                          if (arrastrando) return;
                           const rc = e.currentTarget.getBoundingClientRect();
                           setTip({ r, hab, cx: rc.left + rc.width / 2, top: rc.top, bottom: rc.bottom });
                         }}
@@ -383,47 +471,89 @@ export default function Calendario() {
       {/* Modal de detalle/acciones al hacer clic en una reserva */}
       <Modal
         open={!!seleccion}
-        title="Detalle de la reserva"
-        onClose={() => setSeleccion(null)}
+        title={mostrarPago ? "Registrar pago" : "Detalle de la reserva"}
+        onClose={() => { setSeleccion(null); setMostrarPago(false); }}
       >
-        {seleccion && (
-          <div className="cal__modal">
-            <dl className="cal__modal-datos">
-              <div><dt>Huésped</dt><dd>{seleccion.huesped}</dd></div>
-              <div><dt>Habitación</dt><dd>Hab. {seleccion.habitacion.numero} · {seleccion.habitacion.tipo}</dd></div>
-              <div><dt>Fechas</dt><dd>{fechaLegible(seleccion.fecha_entrada)} → {fechaLegible(seleccion.fecha_salida)}</dd></div>
-              <div><dt>Total</dt><dd>{formatoMoneda.format(seleccion.total || 0)}</dd></div>
-              <div>
-                <dt>Estado</dt>
-                <dd>
-                  <Badge {...badgeReserva(seleccion.estado)}>
-                    {presentar(ESTADO_RESERVA, seleccion.estado).label}
-                  </Badge>
-                </dd>
-              </div>
-            </dl>
-
-            {errorAccion && (
-              <p className="cal__modal-error" role="alert">{errorAccion}</p>
-            )}
-
-            <div className="cal__modal-acciones">
-              <Button variant="secondary" onClick={() => setSeleccion(null)}>
-                Cerrar
-              </Button>
-              {seleccion.estado === "Pendiente" && (
-                <Button onClick={confirmar} disabled={accionando}>
-                  {accionando ? "Confirmando…" : "Confirmar reserva"}
-                </Button>
-              )}
-              {seleccion.estado === "Confirmada" && (
-                <Button onClick={hacerCheckin} disabled={accionando}>
-                  {accionando ? "Procesando…" : "Hacer check-in"}
-                </Button>
-              )}
-            </div>
-          </div>
+        {seleccion && mostrarPago && (
+          <PagoForm
+            estancia={{ factura_id: seleccion.factura_id, saldo: seleccion.saldo }}
+            onPagado={alPagado}
+            onCerrar={() => setMostrarPago(false)}
+          />
         )}
+
+        {seleccion && !mostrarPago && (() => {
+          const esCheckin = seleccion.estado === "Check-in";
+          const saldo = seleccion.saldo || 0;
+          return (
+            <div className="cal__modal">
+              <dl className="cal__modal-datos">
+                <div><dt>Huésped</dt><dd>{seleccion.huesped}</dd></div>
+                <div><dt>Habitación</dt><dd>Hab. {seleccion.habitacion.numero} · {seleccion.habitacion.tipo}</dd></div>
+                <div><dt>Fechas</dt><dd>{fechaLegible(seleccion.fecha_entrada)} → {fechaLegible(seleccion.fecha_salida)}</dd></div>
+                <div><dt>Total</dt><dd>{formatoMoneda.format(seleccion.total || 0)}</dd></div>
+                <div>
+                  <dt>Estado</dt>
+                  <dd>
+                    <Badge {...badgeReserva(seleccion.estado)}>
+                      {presentar(ESTADO_RESERVA, seleccion.estado).label}
+                    </Badge>
+                  </dd>
+                </div>
+                {/* Saldo: solo cuando ya hizo check-in (hay estancia). */}
+                {esCheckin && seleccion.estancia_id && (
+                  <div>
+                    <dt>Saldo</dt>
+                    <dd>
+                      {saldo > 0 ? (
+                        <strong className="cal__modal-saldo">{formatoMoneda.format(saldo)}</strong>
+                      ) : (
+                        <span className="cal__modal-pagado">Pagado</span>
+                      )}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              {errorAccion && (
+                <p className="cal__modal-error" role="alert">{errorAccion}</p>
+              )}
+
+              {/* Aviso: no se puede cerrar con saldo pendiente. */}
+              {esCheckin && saldo > 0 && (
+                <p className="cal__modal-aviso">
+                  Cobra el saldo pendiente para poder hacer el check-out.
+                </p>
+              )}
+
+              <div className="cal__modal-acciones">
+                <Button variant="secondary" onClick={() => setSeleccion(null)}>
+                  Cerrar
+                </Button>
+                {seleccion.estado === "Pendiente" && (
+                  <Button onClick={confirmar} disabled={accionando}>
+                    {accionando ? "Confirmando…" : "Confirmar reserva"}
+                  </Button>
+                )}
+                {seleccion.estado === "Confirmada" && (
+                  <Button onClick={hacerCheckin} disabled={accionando}>
+                    {accionando ? "Procesando…" : "Hacer check-in"}
+                  </Button>
+                )}
+                {esCheckin && saldo > 0 && (
+                  <Button onClick={() => { setErrorAccion(null); setMostrarPago(true); }}>
+                    Registrar pago
+                  </Button>
+                )}
+                {esCheckin && saldo <= 0 && (
+                  <Button onClick={hacerCheckout} disabled={accionando}>
+                    {accionando ? "Procesando…" : "Hacer check-out"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

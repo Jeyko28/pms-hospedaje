@@ -130,6 +130,11 @@ class ReservaNueva(BaseModel):
     notas: str = ""
 
 
+class MoverReserva(BaseModel):
+    # Cambiar una reserva a otra habitacion (arrastre en el calendario).
+    habitacion_id: int
+
+
 class ReservaPublica(BaseModel):
     # Lo que un huesped envia desde la pagina publica de reservas.
     habitacion_id: int
@@ -994,13 +999,21 @@ def reservas_calendario(
         )
         habitaciones = [dict(r) for r in cursor.fetchall()]
 
-        # Reservas que se solapan con el rango (no canceladas).
+        # Reservas que se solapan con el rango (no canceladas). Para las que ya
+        # tienen check-in (estancia activa) traemos también estancia/factura y
+        # el saldo pendiente, para poder cobrar y cerrar desde el calendario.
         cursor.execute(
             """
             SELECT r.id, r.habitacion_id, r.fecha_entrada, r.fecha_salida,
-                   r.estado, r.total, h.nombre AS huesped
+                   r.estado, r.total, h.nombre AS huesped,
+                   e.id AS estancia_id,
+                   f.id AS factura_id,
+                   COALESCE(f.total, 0) AS factura_total,
+                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
             FROM reservas r
             JOIN huespedes h ON r.huesped_id = h.id
+            LEFT JOIN estancias e ON e.reserva_id = r.id AND e.estado = 'activa'
+            LEFT JOIN facturas f ON f.estancia_id = e.id
             WHERE r.hospedaje_id = ?
             AND r.estado != 'Cancelada'
             AND r.fecha_entrada < ? AND r.fecha_salida > ?
@@ -1008,7 +1021,15 @@ def reservas_calendario(
             """,
             (hid, hasta, desde),
         )
-        reservas = [dict(r) for r in cursor.fetchall()]
+        reservas = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            # Saldo solo tiene sentido si hay estancia (check-in hecho).
+            if d.get("estancia_id"):
+                d["saldo"] = round((d["factura_total"] or 0) - (d["pagado"] or 0), 2)
+            else:
+                d["saldo"] = None
+            reservas.append(d)
         return {"desde": desde, "hasta": hasta, "habitaciones": habitaciones, "reservas": reservas}
     finally:
         conn.close()
@@ -1088,6 +1109,73 @@ def confirmar_reserva(reserva_id: int, hid: int = Depends(auth.hospedaje_actual)
     reserva.estado = "Confirmada"
     reserva.guardar()
     return {"id": reserva_id, "estado": reserva.estado}
+
+
+@app.post("/api/reservas/{reserva_id}/mover")
+def mover_reserva(
+    reserva_id: int, datos: MoverReserva, hid: int = Depends(auth.hospedaje_actual)
+):
+    """Mueve una reserva a OTRA habitacion (arrastre en el calendario), sin
+    cambiar las fechas. Reglas:
+      - No se mueven reservas canceladas ni con check-out.
+      - La habitacion destino debe existir, no estar en mantenimiento, estar
+        LIMPIA (politica del hospedaje) y libre en esas fechas.
+      - Si el huesped ya hizo check-in, se mueve tambien su estancia: la
+        habitacion vieja queda disponible + sucia y la nueva, ocupada."""
+    reserva = Reserva.obtener_por_id(reserva_id, hospedaje_id=hid)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    if reserva.estado in ("Cancelada", "Check-out"):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede mover una reserva cancelada o con check-out.",
+        )
+
+    destino = _buscar_habitacion(datos.habitacion_id, hid)
+    if not destino:
+        raise HTTPException(status_code=404, detail="Habitacion destino no encontrada.")
+    if destino.id == reserva.habitacion_id:
+        raise HTTPException(status_code=422, detail="La reserva ya esta en esa habitacion.")
+    if destino.estado == "mantenimiento":
+        raise HTTPException(
+            status_code=409, detail=f"La habitacion {destino.numero} esta en mantenimiento."
+        )
+    if destino.estado_limpieza != "Limpia":
+        raise HTTPException(
+            status_code=409,
+            detail=f"La habitacion {destino.numero} esta sucia; limpiala antes de asignarla.",
+        )
+    if not Reserva.verificar_disponibilidad(
+        destino.id, reserva.fecha_entrada, reserva.fecha_salida, reserva_id_excluir=reserva_id
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"La habitacion {destino.numero} no esta libre en esas fechas.",
+        )
+
+    origen_id = reserva.habitacion_id
+    reserva.habitacion_id = destino.id
+    reserva.guardar()
+
+    # Si ya hay check-in, mover la estancia activa y ajustar la ocupacion.
+    if reserva.estado == "Check-in":
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE estancias SET habitacion_id = ? WHERE reserva_id = ? AND estado = 'activa' AND hospedaje_id = ?",
+                (destino.id, reserva_id, hid),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        origen = _buscar_habitacion(origen_id, hid)
+        if origen:
+            origen.cambiar_estado_ocupacion("disponible")
+            origen.cambiar_estado_limpieza("Sucia")
+        destino.cambiar_estado_ocupacion("ocupada")
+
+    return {"id": reserva_id, "habitacion_id": destino.id, "estado": reserva.estado}
 
 
 # --------------------------------------------------------------------------- #
@@ -1703,7 +1791,7 @@ def reporte_financiero(
             AND substr(r.fecha_entrada, 1, 7) = ?
             GROUP BY hab.id
             ORDER BY ingresos DESC
-            LIMIT 5
+            LIMIT 3
             """,
             (hid, periodo),
         )
