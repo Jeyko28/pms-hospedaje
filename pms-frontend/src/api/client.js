@@ -124,7 +124,8 @@ export const api = {
     post(`/api/reservas/${id}/mover`, { habitacion_id: habitacionId }),
   reservasCalendario: (desde, hasta) =>
     get(`/api/reservas/calendario?desde=${desde}&hasta=${hasta}`),
-  checkin: (reservaId) => post("/api/recepcion/checkin", { reserva_id: reservaId }),
+  checkin: (reservaId, fechaEntradaReal = "") =>
+    post("/api/recepcion/checkin", { reserva_id: reservaId, fecha_entrada_real: fechaEntradaReal }),
   checkout: (estanciaId) =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId }),
   registrarPago: (datos) => post("/api/pagos", datos),

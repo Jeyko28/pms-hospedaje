@@ -164,6 +164,9 @@ class HabitacionDatos(BaseModel):
 
 class CheckinIn(BaseModel):
     reserva_id: int
+    # Fecha real de entrada (YYYY-MM-DD). Si va vacía se usa hoy. Permite
+    # registrar un check-in adelantado/atrasado y cobrar por las noches reales.
+    fecha_entrada_real: str = ""
 
 
 class CheckoutIn(BaseModel):
@@ -675,7 +678,10 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
             raise HTTPException(status_code=404, detail="Hospedaje no disponible.")
         hid = h["id"]
 
-        # Habitaciones del hospedaje que NO tienen reserva que se solape.
+        # Habitaciones del hospedaje LIBRES: sin reserva que se solape Y sin
+        # estancia activa (huésped físicamente dentro) que se solape. Lo 2º
+        # cubre check-ins adelantados / estadías cuyas fechas reales difieren
+        # de la reserva (evita ofrecer una habitación realmente ocupada).
         cursor.execute(
             """
             SELECT id, numero, tipo, precio_base
@@ -686,9 +692,14 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
                 WHERE hospedaje_id = ? AND estado != 'Cancelada'
                 AND fecha_entrada < ? AND fecha_salida > ?
             )
+            AND id NOT IN (
+                SELECT habitacion_id FROM estancias
+                WHERE hospedaje_id = ? AND estado = 'activa'
+                AND fecha_checkin < ? AND fecha_checkout_esperado > ?
+            )
             ORDER BY precio_base
             """,
-            (hid, hid, fecha_salida, fecha_entrada),
+            (hid, hid, fecha_salida, fecha_entrada, hid, fecha_salida, fecha_entrada),
         )
         libres = [dict(r) for r in cursor.fetchall()]
         noches = (fs - fe).days
@@ -743,16 +754,11 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
         if not hab:
             raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
 
-        # Disponibilidad (evita doble reserva).
-        cursor.execute(
-            """
-            SELECT COUNT(*) AS n FROM reservas
-            WHERE habitacion_id = ? AND estado != 'Cancelada'
-            AND fecha_entrada < ? AND fecha_salida > ?
-            """,
-            (datos.habitacion_id, datos.fecha_salida, datos.fecha_entrada),
-        )
-        if cursor.fetchone()["n"] > 0:
+        # Disponibilidad (evita doble reserva). Usa la función central, que
+        # considera reservas Y estancias activas (ocupación física real).
+        if not Reserva.verificar_disponibilidad(
+            datos.habitacion_id, datos.fecha_entrada, datos.fecha_salida
+        ):
             raise HTTPException(
                 status_code=409, detail="Esa habitacion ya no esta disponible en esas fechas."
             )
@@ -791,12 +797,72 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
 # --------------------------------------------------------------------------- #
 #  Habitaciones (CRUD)
 # --------------------------------------------------------------------------- #
+def _ocupacion_hoy(hid: int) -> dict:
+    """Estado de ocupacion de HOY por habitacion, DERIVADO del calendario (no
+    del flag manual): mira estancias activas y reservas que cubren hoy.
+
+    Devuelve {habitacion_id: {"estado": "ocupada"|"reservada"|"libre"|
+    "mantenimiento", "salida_vencida": bool}}.
+      - ocupada:   hay un huesped con check-in (estancia activa).
+      - reservada: hay una reserva (Pendiente/Confirmada) que cubre hoy pero
+                   el huesped aun no hizo check-in (llega hoy / esperado).
+      - libre:     nada cubre hoy.
+      - salida_vencida: el huesped sigue con check-in pero su salida esperada
+                   ya paso (recordatorio para cerrar la estancia)."""
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, estado FROM habitaciones WHERE activa = 1 AND hospedaje_id = ?",
+            (hid,),
+        )
+        habs = {r["id"]: r["estado"] for r in cursor.fetchall()}
+
+        cursor.execute(
+            "SELECT habitacion_id, fecha_checkout_esperado FROM estancias WHERE estado = 'activa' AND hospedaje_id = ?",
+            (hid,),
+        )
+        estancias = {r["habitacion_id"]: r["fecha_checkout_esperado"] for r in cursor.fetchall()}
+
+        cursor.execute(
+            """
+            SELECT DISTINCT habitacion_id FROM reservas
+            WHERE hospedaje_id = ? AND estado IN ('Pendiente', 'Confirmada')
+            AND fecha_entrada <= ? AND fecha_salida > ?
+            """,
+            (hid, hoy, hoy),
+        )
+        reservadas = {r["habitacion_id"] for r in cursor.fetchall()}
+    finally:
+        conn.close()
+
+    out = {}
+    for hab_id, estado_manual in habs.items():
+        if estado_manual == "mantenimiento":
+            out[hab_id] = {"estado": "mantenimiento", "salida_vencida": False}
+        elif hab_id in estancias:
+            esp = estancias[hab_id]
+            out[hab_id] = {"estado": "ocupada", "salida_vencida": bool(esp) and esp < hoy}
+        elif hab_id in reservadas:
+            out[hab_id] = {"estado": "reservada", "salida_vencida": False}
+        else:
+            out[hab_id] = {"estado": "libre", "salida_vencida": False}
+    return out
+
+
 @app.get("/api/habitaciones")
 def listar_habitaciones(solo_activas: bool = True, hid: int = Depends(auth.hospedaje_actual)):
-    return [
+    habs = [
         _a_dict(h)
         for h in Habitacion.obtener_todas(solo_activas=solo_activas, hospedaje_id=hid)
     ]
+    ocup = _ocupacion_hoy(hid)
+    for h in habs:
+        info = ocup.get(h["id"], {"estado": "libre", "salida_vencida": False})
+        h["ocupacion_hoy"] = info["estado"]
+        h["salida_vencida"] = info["salida_vencida"]
+    return habs
 
 
 def _buscar_habitacion(habitacion_id, hid):
@@ -1007,6 +1073,7 @@ def reservas_calendario(
             SELECT r.id, r.habitacion_id, r.fecha_entrada, r.fecha_salida,
                    r.estado, r.total, h.nombre AS huesped,
                    e.id AS estancia_id,
+                   e.fecha_checkin AS checkin_real,
                    f.id AS factura_id,
                    COALESCE(f.total, 0) AS factura_total,
                    COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
@@ -1216,12 +1283,14 @@ def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
             """
             SELECT e.id, e.fecha_checkin, e.fecha_checkout_esperado,
                    h.nombre AS huesped, hab.numero AS habitacion, hab.tipo AS tipo,
+                   r.fecha_entrada AS reserva_entrada, r.fecha_salida AS reserva_salida,
                    f.id AS factura_id,
                    COALESCE(f.total, 0) AS total,
                    COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
             FROM estancias e
             JOIN huespedes h    ON e.huesped_id = h.id
             JOIN habitaciones hab ON e.habitacion_id = hab.id
+            LEFT JOIN reservas r ON e.reserva_id = r.id
             LEFT JOIN facturas f ON f.estancia_id = e.id
             WHERE e.estado = 'activa'
             AND e.hospedaje_id = ?
@@ -1256,11 +1325,29 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
         raise HTTPException(status_code=409, detail="La habitacion ya esta ocupada.")
 
     hoy = datetime.now().strftime("%Y-%m-%d")
+    # Fecha real de entrada: la indicada por recepción o, si no, hoy.
+    fecha_real = datos.fecha_entrada_real.strip() or hoy
+    try:
+        fe = datetime.strptime(fecha_real, "%Y-%m-%d")
+        fs = datetime.strptime(reserva.fecha_salida, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fecha de entrada con formato YYYY-MM-DD.")
+    if fe >= fs:
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de entrada debe ser anterior a la fecha de salida de la reserva.",
+        )
+
+    # Cobro por NOCHES REALES (entrada real -> salida esperada) x precio. Así
+    # un check-in adelantado/atrasado se cobra correcto, no por lo reservado.
+    noches_reales = (fs - fe).days
+    total_real = round(noches_reales * hab.precio_base, 2)
+
     estancia = Estancia(
         reserva_id=reserva.id,
         huesped_id=reserva.huesped_id,
         habitacion_id=reserva.habitacion_id,
-        fecha_checkin=hoy,
+        fecha_checkin=fecha_real,
         fecha_checkout_esperado=reserva.fecha_salida,
         estado="activa",
         hospedaje_id=hid,
@@ -1271,9 +1358,9 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
         estancia_id=estancia.id,
         huesped_id=reserva.huesped_id,
         fecha_emision=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        subtotal=reserva.total,
+        subtotal=total_real,
         impuestos=0.0,
-        total=reserva.total,
+        total=total_real,
         estado="pendiente",
         pdf_generado=0,
         hospedaje_id=hid,
@@ -1288,6 +1375,8 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
         "estancia_id": estancia.id,
         "factura_id": factura.id,
         "habitacion": hab.numero,
+        "fecha_checkin": fecha_real,
+        "noches": noches_reales,
         "total": factura.total,
     }
 
@@ -1535,26 +1624,22 @@ def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
 # --------------------------------------------------------------------------- #
 @app.get("/api/dashboard/resumen")
 def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
+    # Ocupacion DERIVADA del calendario (no del flag manual): refleja la
+    # realidad de hoy. disponibles = habitaciones realmente libres hoy.
+    ocup = _ocupacion_hoy(hid)
+    total_habitaciones = len(ocup)
+    ocupadas = sum(1 for v in ocup.values() if v["estado"] == "ocupada")
+    reservadas = sum(1 for v in ocup.values() if v["estado"] == "reservada")
+    disponibles = sum(1 for v in ocup.values() if v["estado"] == "libre")
+    mantenimiento = sum(1 for v in ocup.values() if v["estado"] == "mantenimiento")
+    salidas_vencidas = sum(1 for v in ocup.values() if v["salida_vencida"])
+    # % de ocupacion = habitaciones comprometidas hoy (ocupadas + reservadas).
+    comprometidas = ocupadas + reservadas
+    ocupacion_pct = round((comprometidas / total_habitaciones) * 100) if total_habitaciones else 0
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT estado, COUNT(*) AS n FROM habitaciones WHERE activa = 1 AND hospedaje_id = ? GROUP BY estado",
-            (hid,),
-        )
-        por_estado = {row["estado"]: row["n"] for row in cursor.fetchall()}
-
-        cursor.execute(
-            "SELECT COUNT(*) AS n FROM habitaciones WHERE activa = 1 AND hospedaje_id = ?",
-            (hid,),
-        )
-        total_habitaciones = cursor.fetchone()["n"]
-
-        ocupadas = por_estado.get("ocupada", 0)
-        disponibles = por_estado.get("disponible", 0)
-        mantenimiento = por_estado.get("mantenimiento", 0)
-        ocupacion_pct = round((ocupadas / total_habitaciones) * 100) if total_habitaciones else 0
 
         cursor.execute(
             "SELECT COUNT(*) AS n FROM estancias WHERE estado = 'activa' AND hospedaje_id = ?",
@@ -1583,8 +1668,10 @@ def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
         return {
             "total_habitaciones": total_habitaciones,
             "ocupadas": ocupadas,
+            "reservadas": reservadas,
             "disponibles": disponibles,
             "mantenimiento": mantenimiento,
+            "salidas_vencidas": salidas_vencidas,
             "ocupacion_pct": ocupacion_pct,
             "estancias_activas": estancias_activas,
             "checkins_pendientes": checkins_pendientes,

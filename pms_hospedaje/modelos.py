@@ -315,8 +315,17 @@ class Reserva:
 
     @staticmethod
     def verificar_disponibilidad(habitacion_id, fecha_entrada, fecha_salida, reserva_id_excluir=None):
+        """Una habitacion esta libre en [entrada, salida) si NO hay:
+          1) una reserva no cancelada que se solape, NI
+          2) una estancia ACTIVA que se solape (ocupacion fisica real).
+        El (2) cubre el caso de un check-in adelantado o una estadia
+        extendida, donde las fechas reales difieren de las de la reserva:
+        si el huesped ya esta dentro, la habitacion no debe ofrecerse libre
+        aunque su reserva diga otras fechas."""
         conn = get_connection()
         cursor = conn.cursor()
+
+        # 1) Reservas que se solapan.
         query = '''
             SELECT COUNT(*) FROM reservas
             WHERE habitacion_id = ?
@@ -328,9 +337,25 @@ class Reserva:
             query += " AND id != ?"
             params.append(reserva_id_excluir)
         cursor.execute(query, params)
-        count = cursor.fetchone()[0]
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False
+
+        # 2) Estancias activas que se solapan (ocupacion fisica).
+        query2 = '''
+            SELECT COUNT(*) FROM estancias
+            WHERE habitacion_id = ?
+            AND estado = 'activa'
+            AND fecha_checkin < ? AND fecha_checkout_esperado > ?
+        '''
+        params2 = [habitacion_id, fecha_salida, fecha_entrada]
+        if reserva_id_excluir:
+            query2 += " AND reserva_id != ?"
+            params2.append(reserva_id_excluir)
+        cursor.execute(query2, params2)
+        ocupada = cursor.fetchone()[0] > 0
         conn.close()
-        return count == 0
+        return not ocupada
 
 
 # NUEVAS CLASES

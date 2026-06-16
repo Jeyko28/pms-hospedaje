@@ -7,6 +7,7 @@ import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import PagoForm from "./PagoForm";
+import CheckinForm from "./CheckinForm";
 import "./Recepcion.css";
 
 const formatoMoneda = new Intl.NumberFormat("es-PE", {
@@ -31,22 +32,16 @@ export default function Recepcion() {
 
   const [accionId, setAccionId] = useState(null); // id en proceso (spinner)
   const [pagoEstancia, setPagoEstancia] = useState(null); // estancia para modal de pago
+  const [checkinReserva, setCheckinReserva] = useState(null); // reserva para modal de check-in
 
   function refrescarTodo() {
     pendientes.recargar();
     estancias.recargar();
   }
 
-  async function hacerCheckin(reservaId) {
-    setAccionId(`in-${reservaId}`);
-    try {
-      await api.checkin(reservaId);
-      refrescarTodo();
-    } catch (e) {
-      window.alert(e.message);
-    } finally {
-      setAccionId(null);
-    }
+  function alCheckin() {
+    setCheckinReserva(null);
+    refrescarTodo();
   }
 
   async function hacerCheckout(estanciaId) {
@@ -134,10 +129,9 @@ export default function Recepcion() {
                 <Button
                   size="sm"
                   icon="→"
-                  onClick={() => hacerCheckin(r.id)}
-                  disabled={accionId === `in-${r.id}`}
+                  onClick={() => setCheckinReserva(r)}
                 >
-                  {accionId === `in-${r.id}` ? "Procesando…" : "Check-in"}
+                  Check-in
                 </Button>
               </Card>
             ))}
@@ -190,8 +184,15 @@ export default function Recepcion() {
                     <div className="recep-item__meta">
                       <span>Hab. {e.habitacion}</span>
                       <span aria-hidden="true">·</span>
+                      <span>Entró {formatoFecha(e.fecha_checkin)}</span>
+                      <span aria-hidden="true">·</span>
                       <span>Sale {formatoFecha(e.fecha_checkout_esperado)}</span>
                     </div>
+                    {e.reserva_entrada && e.reserva_entrada !== e.fecha_checkin && (
+                      <p className="recep-item__nota">
+                        Reservó desde {formatoFecha(e.reserva_entrada)} · se cobra por la estadía real
+                      </p>
+                    )}
                     <div className="recep-item__pago">
                       {pagado ? (
                         <Badge tone="success" icon="✓">
@@ -242,6 +243,21 @@ export default function Recepcion() {
             })}
         </section>
       </div>
+
+      {/* Modal de check-in (elige fecha real + previsualiza el cobro) */}
+      <Modal
+        open={!!checkinReserva}
+        title={`Check-in de ${checkinReserva?.huesped ?? ""}`}
+        onClose={() => setCheckinReserva(null)}
+      >
+        {checkinReserva && (
+          <CheckinForm
+            reserva={checkinReserva}
+            onCheckinHecho={alCheckin}
+            onCancelar={() => setCheckinReserva(null)}
+          />
+        )}
+      </Modal>
 
       {/* Modal de pago */}
       <Modal

@@ -146,7 +146,7 @@ export default function Dashboard() {
               accent="success"
               label="Ocupación"
               value={`${resumen.data.ocupacion_pct}%`}
-              hint={`${resumen.data.ocupadas} ocupadas`}
+              hint={`${resumen.data.ocupadas} ocupadas · ${resumen.data.reservadas ?? 0} reservadas`}
             />
             <StatCard
               icon="🛎️"
@@ -164,6 +164,21 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {/* Aviso: huéspedes que ya debieron salir y siguen con check-in. */}
+      {resumen.data && resumen.data.salidas_vencidas > 0 && (
+        <div className="dashboard__alerta" role="alert">
+          <strong>{resumen.data.salidas_vencidas}</strong>{" "}
+          {resumen.data.salidas_vencidas === 1
+            ? "habitación con salida vencida"
+            : "habitaciones con salida vencida"}
+          : hay huéspedes que ya debieron hacer check-out. Ciérralas en{" "}
+          <button className="dashboard__alerta-link" onClick={() => navegar("recepcion")}>
+            Recepción
+          </button>
+          .
+        </div>
+      )}
 
       {/* ---------- Agenda del día (llegan / salen hoy) ---------- */}
       <section aria-labelledby="agenda-title" className="dashboard__section">

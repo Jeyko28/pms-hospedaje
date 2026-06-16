@@ -102,7 +102,8 @@ export default function Habitaciones() {
       {habitaciones.data && habitaciones.data.length > 0 && (
         <div className="entidad__grid">
           {habitaciones.data.map((h) => {
-            const ocup = presentar(ESTADO_HABITACION, h.estado);
+            // Ocupación de HOY derivada del calendario (no del flag manual).
+            const ocup = presentar(ESTADO_HABITACION, h.ocupacion_hoy || h.estado);
             const limp = presentar(ESTADO_LIMPIEZA, h.estado_limpieza);
             return (
               <Card key={h.id} padding="sm" className="entidad-card">
@@ -121,6 +122,11 @@ export default function Habitaciones() {
                   <Badge tone={limp.tone} icon={limp.icon}>
                     {limp.label}
                   </Badge>
+                  {h.salida_vencida && (
+                    <Badge tone="warning" icon="!">
+                      Salida vencida
+                    </Badge>
+                  )}
                 </div>
                 <div className="entidad-card__acciones">
                   <Button size="sm" variant="secondary" onClick={() => abrirEditar(h)}>

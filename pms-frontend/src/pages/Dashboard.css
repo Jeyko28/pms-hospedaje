@@ -42,6 +42,26 @@
   color: var(--color-danger-600);
 }
 
+/* Aviso de salidas vencidas. */
+.dashboard__alerta {
+  font-size: var(--text-sm);
+  color: var(--color-warning-700);
+  background-color: var(--color-warning-50);
+  border: 1px solid var(--color-warning-600);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.dashboard__alerta-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: var(--weight-semibold);
+  color: var(--color-warning-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Agenda del día: dos columnas (llegan / salen). */
 .dashboard__agenda {
   display: grid;

@@ -9,8 +9,12 @@
  */
 
 // Estado de ocupacion de una habitacion.
+// 'disponible'/'libre' son equivalentes (libre viene del calculo por calendario);
+// 'reservada' = vendida para hoy pero el huesped aun no hace check-in.
 export const ESTADO_HABITACION = {
   disponible: { tone: "success", icon: "✓", label: "Disponible" },
+  libre: { tone: "success", icon: "✓", label: "Disponible" },
+  reservada: { tone: "info", icon: "◷", label: "Reservada hoy" },
   ocupada: { tone: "danger", icon: "●", label: "Ocupada" },
   mantenimiento: { tone: "warning", icon: "⚙", label: "Mantenimiento" },
 };

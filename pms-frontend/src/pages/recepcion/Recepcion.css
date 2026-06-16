@@ -96,5 +96,12 @@
   }
 }
 
+/* Nota cuando la entrada real difiere de la reservada. */
+.recep-item__nota {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-warning-700);
+}
+
 /* Los estilos del formulario de pago viven ahora en PagoForm.css
    (componente autocontenido, reutilizable en Recepción y Calendario). */

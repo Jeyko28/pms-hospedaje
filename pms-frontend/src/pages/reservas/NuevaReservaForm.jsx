@@ -3,6 +3,7 @@ import Field from "../../components/Field";
 import Button from "../../components/Button";
 import SelectorHuesped from "./SelectorHuesped";
 import { api } from "../../api/client";
+import { ymdLocal } from "../../utils/fechas";
 import "./NuevaReservaForm.css";
 
 /**
@@ -32,7 +33,7 @@ export default function NuevaReservaForm({
   onCancelar,
   onHuespedCreado,
 }) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = ymdLocal();
 
   const [form, setForm] = useState({
     huesped_id: "",

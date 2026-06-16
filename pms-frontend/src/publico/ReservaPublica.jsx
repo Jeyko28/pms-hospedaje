@@ -4,6 +4,7 @@ import Field from "../components/Field";
 import Button from "../components/Button";
 import { api } from "../api/client";
 import { useTheme } from "../hooks/useTheme";
+import { ymdLocal } from "../utils/fechas";
 import "./ReservaPublica.css";
 
 const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
@@ -20,7 +21,7 @@ const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PE
  */
 export default function ReservaPublica({ slug }) {
   useTheme();
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = ymdLocal();
 
   const [cargando, setCargando] = useState(true);
   const [hospedaje, setHospedaje] = useState(null);

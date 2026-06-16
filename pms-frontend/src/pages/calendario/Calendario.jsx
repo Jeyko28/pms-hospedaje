@@ -9,6 +9,7 @@ import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
 import PagoForm from "../recepcion/PagoForm";
+import CheckinForm from "../recepcion/CheckinForm";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import "./Calendario.css";
 
@@ -55,8 +56,13 @@ const TONO_BARRA = {
   "Check-out": "var(--color-neutral-400)",
 };
 
+// Fecha YYYY-MM-DD en hora LOCAL. (toISOString() daría UTC, que en husos
+// detrás de UTC —ej. Perú −5— por la tarde ya es el día siguiente, lo que
+// desajustaría "hoy", las fechas mínimas y la comparación de días pasados.)
 function ymd(d) {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
 }
 
 /**
@@ -74,6 +80,7 @@ export default function Calendario() {
   const [tip, setTip] = useState(null); // tooltip al pasar el cursor: { r, hab, cx, top, bottom }
   const [nueva, setNueva] = useState(null); // reserva nueva desde celda vacia: { habitacion_id, fecha_entrada, fecha_salida }
   const [mostrarPago, setMostrarPago] = useState(false); // sub-vista de cobro en el modal de detalle
+  const [mostrarCheckin, setMostrarCheckin] = useState(false); // sub-vista de check-in en el modal
   const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
   const [sobreHab, setSobreHab] = useState(null); // id de habitación bajo el cursor al arrastrar
   const [errorMover, setErrorMover] = useState(null); // aviso si el movimiento se rechaza
@@ -141,19 +148,11 @@ export default function Calendario() {
     }
   }
 
-  async function hacerCheckin() {
-    if (!seleccion) return;
-    setErrorAccion(null);
-    setAccionando(true);
-    try {
-      await api.checkin(seleccion.id);
-      setSeleccion(null);
-      recargar();
-    } catch (e) {
-      setErrorAccion(e.message);
-    } finally {
-      setAccionando(false);
-    }
+  // Tras el check-in (desde CheckinForm): cierra la sub-vista y recarga; el
+  // efecto de sync actualiza la reserva seleccionada a estado Check-in.
+  function alCheckinHecho() {
+    setMostrarCheckin(false);
+    recargar();
   }
 
   async function hacerCheckout() {
@@ -381,7 +380,7 @@ export default function Calendario() {
                         draggable
                         onDragStart={(e) => alIniciarArrastre(r, e)}
                         onDragEnd={() => { setArrastrando(null); setSobreHab(null); }}
-                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setSeleccion({ ...r, habitacion: hab }); }}
+                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setSeleccion({ ...r, habitacion: hab }); }}
                         onMouseEnter={(e) => {
                           if (arrastrando) return;
                           const rc = e.currentTarget.getBoundingClientRect();
@@ -471,8 +470,8 @@ export default function Calendario() {
       {/* Modal de detalle/acciones al hacer clic en una reserva */}
       <Modal
         open={!!seleccion}
-        title={mostrarPago ? "Registrar pago" : "Detalle de la reserva"}
-        onClose={() => { setSeleccion(null); setMostrarPago(false); }}
+        title={mostrarPago ? "Registrar pago" : mostrarCheckin ? "Check-in" : "Detalle de la reserva"}
+        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); }}
       >
         {seleccion && mostrarPago && (
           <PagoForm
@@ -482,7 +481,15 @@ export default function Calendario() {
           />
         )}
 
-        {seleccion && !mostrarPago && (() => {
+        {seleccion && mostrarCheckin && (
+          <CheckinForm
+            reserva={seleccion}
+            onCheckinHecho={alCheckinHecho}
+            onCancelar={() => setMostrarCheckin(false)}
+          />
+        )}
+
+        {seleccion && !mostrarPago && !mostrarCheckin && (() => {
           const esCheckin = seleccion.estado === "Check-in";
           const saldo = seleccion.saldo || 0;
           return (
@@ -491,6 +498,13 @@ export default function Calendario() {
                 <div><dt>Huésped</dt><dd>{seleccion.huesped}</dd></div>
                 <div><dt>Habitación</dt><dd>Hab. {seleccion.habitacion.numero} · {seleccion.habitacion.tipo}</dd></div>
                 <div><dt>Fechas</dt><dd>{fechaLegible(seleccion.fecha_entrada)} → {fechaLegible(seleccion.fecha_salida)}</dd></div>
+                {/* Entrada real: solo si ya hizo check-in y difiere de lo reservado. */}
+                {esCheckin && seleccion.checkin_real && seleccion.checkin_real !== seleccion.fecha_entrada && (
+                  <div>
+                    <dt>Entró</dt>
+                    <dd><strong className="cal__modal-saldo">{fechaLegible(seleccion.checkin_real)}</strong></dd>
+                  </div>
+                )}
                 <div><dt>Total</dt><dd>{formatoMoneda.format(seleccion.total || 0)}</dd></div>
                 <div>
                   <dt>Estado</dt>
@@ -536,8 +550,8 @@ export default function Calendario() {
                   </Button>
                 )}
                 {seleccion.estado === "Confirmada" && (
-                  <Button onClick={hacerCheckin} disabled={accionando}>
-                    {accionando ? "Procesando…" : "Hacer check-in"}
+                  <Button onClick={() => { setErrorAccion(null); setMostrarCheckin(true); }}>
+                    Hacer check-in
                   </Button>
                 )}
                 {esCheckin && saldo > 0 && (
