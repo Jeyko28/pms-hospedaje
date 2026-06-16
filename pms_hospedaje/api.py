@@ -689,7 +689,7 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
             WHERE hospedaje_id = ? AND activa = 1
             AND id NOT IN (
                 SELECT habitacion_id FROM reservas
-                WHERE hospedaje_id = ? AND estado != 'Cancelada'
+                WHERE hospedaje_id = ? AND estado NOT IN ('Cancelada', 'Check-out')
                 AND fecha_entrada < ? AND fecha_salida > ?
             )
             AND id NOT IN (

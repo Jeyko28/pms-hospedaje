@@ -6,6 +6,7 @@ import Card from "../../components/Card";
 import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
+import Field from "../../components/Field";
 import StateMessage from "../../components/StateMessage";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
 import PagoForm from "../recepcion/PagoForm";
@@ -81,6 +82,8 @@ export default function Calendario() {
   const [nueva, setNueva] = useState(null); // reserva nueva desde celda vacia: { habitacion_id, fecha_entrada, fecha_salida }
   const [mostrarPago, setMostrarPago] = useState(false); // sub-vista de cobro en el modal de detalle
   const [mostrarCheckin, setMostrarCheckin] = useState(false); // sub-vista de check-in en el modal
+  const [mostrarMover, setMostrarMover] = useState(false); // sub-vista de mover de habitación (móvil/teclado)
+  const [destinoHab, setDestinoHab] = useState(""); // habitación destino elegida en el selector
   const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
   const [sobreHab, setSobreHab] = useState(null); // id de habitación bajo el cursor al arrastrar
   const [errorMover, setErrorMover] = useState(null); // aviso si el movimiento se rechaza
@@ -197,6 +200,23 @@ export default function Calendario() {
     setArrastrando(reserva);
     e.dataTransfer.effectAllowed = "move";
     try { e.dataTransfer.setData("text/plain", String(reserva.id)); } catch (_) { /* algunos navegadores */ }
+  }
+
+  // Mover la reserva del modal a otra habitación (selector; móvil/teclado).
+  async function moverSeleccionA(habId) {
+    if (!seleccion || !habId) return;
+    setErrorAccion(null);
+    setAccionando(true);
+    try {
+      await api.moverReserva(seleccion.id, habId);
+      setMostrarMover(false);
+      setDestinoHab("");
+      recargar(); // el efecto de sync actualiza la reserva a la nueva habitación
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setAccionando(false);
+    }
   }
 
   function alSoltarEn(habId) {
@@ -380,7 +400,7 @@ export default function Calendario() {
                         draggable
                         onDragStart={(e) => alIniciarArrastre(r, e)}
                         onDragEnd={() => { setArrastrando(null); setSobreHab(null); }}
-                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setSeleccion({ ...r, habitacion: hab }); }}
+                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarMover(false); setSeleccion({ ...r, habitacion: hab }); }}
                         onMouseEnter={(e) => {
                           if (arrastrando) return;
                           const rc = e.currentTarget.getBoundingClientRect();
@@ -470,8 +490,13 @@ export default function Calendario() {
       {/* Modal de detalle/acciones al hacer clic en una reserva */}
       <Modal
         open={!!seleccion}
-        title={mostrarPago ? "Registrar pago" : mostrarCheckin ? "Check-in" : "Detalle de la reserva"}
-        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); }}
+        title={
+          mostrarPago ? "Registrar pago"
+            : mostrarCheckin ? "Check-in"
+            : mostrarMover ? "Mover de habitación"
+            : "Detalle de la reserva"
+        }
+        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarMover(false); }}
       >
         {seleccion && mostrarPago && (
           <PagoForm
@@ -489,7 +514,46 @@ export default function Calendario() {
           />
         )}
 
-        {seleccion && !mostrarPago && !mostrarCheckin && (() => {
+        {seleccion && mostrarMover && (
+          <div className="cal__modal">
+            <p className="cal__mover-intro">
+              Mover a «{seleccion.huesped}» a otra habitación, sin cambiar las fechas
+              ({fechaLegible(seleccion.fecha_entrada)} → {fechaLegible(seleccion.fecha_salida)}).
+            </p>
+            <Field id="mover-destino" label="Habitación destino">
+              <select
+                id="mover-destino"
+                value={destinoHab}
+                onChange={(e) => { setDestinoHab(e.target.value); setErrorAccion(null); }}
+              >
+                <option value="">Selecciona una habitación…</option>
+                {(datos.data?.habitaciones || [])
+                  .filter((h) => h.id !== seleccion.habitacion_id)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>
+                      Hab. {h.numero} · {h.tipo}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            {errorAccion && (
+              <p className="cal__modal-error" role="alert">{errorAccion}</p>
+            )}
+            <div className="cal__modal-acciones">
+              <Button variant="secondary" onClick={() => { setMostrarMover(false); setErrorAccion(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => moverSeleccionA(Number(destinoHab))}
+                disabled={!destinoHab || accionando}
+              >
+                {accionando ? "Moviendo…" : "Mover aquí"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {seleccion && !mostrarPago && !mostrarCheckin && !mostrarMover && (() => {
           const esCheckin = seleccion.estado === "Check-in";
           const saldo = seleccion.saldo || 0;
           return (
@@ -544,6 +608,14 @@ export default function Calendario() {
                 <Button variant="secondary" onClick={() => setSeleccion(null)}>
                   Cerrar
                 </Button>
+                {seleccion.estado !== "Check-out" && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => { setErrorAccion(null); setDestinoHab(""); setMostrarMover(true); }}
+                  >
+                    Mover de habitación
+                  </Button>
+                )}
                 {seleccion.estado === "Pendiente" && (
                   <Button onClick={confirmar} disabled={accionando}>
                     {accionando ? "Confirmando…" : "Confirmar reserva"}
