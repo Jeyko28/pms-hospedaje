@@ -110,8 +110,42 @@ export const api = {
   ocupacion: (anio, mes) => get(`/api/reportes/ocupacion?anio=${anio}&mes=${mes}`),
   reporteFinanciero: (anio, mes) => get(`/api/reportes/financiero?anio=${anio}&mes=${mes}`),
 
-  // URL publica del PDF de una factura (para abrir/descargar en el navegador).
+  // URL del PDF de una factura (referencia; NO sirve para abrir directo en el
+  // navegador porque el endpoint exige token y la navegación no lo envía).
   urlFacturaPdf: (facturaId) => `${BASE_URL}/api/facturas/${facturaId}/pdf`,
+
+  // Descarga el PDF de una factura CON el token (fetch autenticado) y devuelve
+  // una URL de blob lista para abrir/descargar. Esto resuelve el "Not
+  // authenticated" que aparecía al abrir la URL del PDF directo.
+  facturaPdfBlobUrl: async (facturaId) => {
+    let respuesta;
+    try {
+      respuesta = await fetch(`${BASE_URL}/api/facturas/${facturaId}/pdf`, {
+        headers: cabeceras(false),
+      });
+    } catch (e) {
+      throw new Error(
+        "No se pudo conectar con el servidor. Verifica que la API este encendida."
+      );
+    }
+    if (respuesta.status === 401) {
+      tokenStore.clear();
+      if (alExpirar) alExpirar();
+      throw new Error("Tu sesion expiro. Inicia sesion de nuevo.");
+    }
+    if (!respuesta.ok) {
+      let detalle = `No se pudo generar el PDF (error ${respuesta.status}).`;
+      try {
+        const datos = await respuesta.json();
+        if (datos && datos.detail) detalle = datos.detail;
+      } catch (_) {
+        /* el cuerpo no era JSON */
+      }
+      throw new Error(detalle);
+    }
+    const blob = await respuesta.blob();
+    return URL.createObjectURL(blob);
+  },
 
   // Facturas (historial completo)
   facturas: () => get("/api/facturas"),
@@ -126,8 +160,8 @@ export const api = {
     get(`/api/reservas/calendario?desde=${desde}&hasta=${hasta}`),
   checkin: (reservaId, fechaEntradaReal = "") =>
     post("/api/recepcion/checkin", { reserva_id: reservaId, fecha_entrada_real: fechaEntradaReal }),
-  checkout: (estanciaId) =>
-    post("/api/recepcion/checkout", { estancia_id: estanciaId }),
+  checkout: (estanciaId, fechaCheckoutReal = "") =>
+    post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
   registrarPago: (datos) => post("/api/pagos", datos),
 
   // Escrituras — Habitaciones (CRUD)

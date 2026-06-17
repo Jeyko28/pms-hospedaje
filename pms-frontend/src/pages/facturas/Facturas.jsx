@@ -6,6 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import { abrirFacturaPdf } from "../../utils/pdf";
 import "../entidades.css";
 import "./Facturas.css";
 
@@ -209,9 +210,7 @@ export default function Facturas() {
                     size="sm"
                     variant="secondary"
                     icon="📄"
-                    onClick={() =>
-                      window.open(api.urlFacturaPdf(f.id), "_blank", "noopener")
-                    }
+                    onClick={() => abrirFacturaPdf(f.id)}
                   >
                     PDF
                   </Button>

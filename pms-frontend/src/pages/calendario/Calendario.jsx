@@ -11,6 +11,7 @@ import StateMessage from "../../components/StateMessage";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
 import PagoForm from "../recepcion/PagoForm";
 import CheckinForm from "../recepcion/CheckinForm";
+import CheckoutForm from "../recepcion/CheckoutForm";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import "./Calendario.css";
 
@@ -82,6 +83,7 @@ export default function Calendario() {
   const [nueva, setNueva] = useState(null); // reserva nueva desde celda vacia: { habitacion_id, fecha_entrada, fecha_salida }
   const [mostrarPago, setMostrarPago] = useState(false); // sub-vista de cobro en el modal de detalle
   const [mostrarCheckin, setMostrarCheckin] = useState(false); // sub-vista de check-in en el modal
+  const [mostrarCheckout, setMostrarCheckout] = useState(false); // sub-vista de check-out en el modal
   const [mostrarMover, setMostrarMover] = useState(false); // sub-vista de mover de habitación (móvil/teclado)
   const [destinoHab, setDestinoHab] = useState(""); // habitación destino elegida en el selector
   const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
@@ -158,19 +160,11 @@ export default function Calendario() {
     recargar();
   }
 
-  async function hacerCheckout() {
-    if (!seleccion?.estancia_id) return;
-    setErrorAccion(null);
-    setAccionando(true);
-    try {
-      await api.checkout(seleccion.estancia_id);
-      setSeleccion(null);
-      recargar();
-    } catch (e) {
-      setErrorAccion(e.message);
-    } finally {
-      setAccionando(false);
-    }
+  // Tras el check-out (desde CheckoutForm): cierra el modal y recarga.
+  function alCheckoutHecho() {
+    setMostrarCheckout(false);
+    setSeleccion(null);
+    recargar();
   }
 
   // Tras registrar un pago: vuelve al detalle y recarga (el efecto de sync
@@ -400,7 +394,7 @@ export default function Calendario() {
                         draggable
                         onDragStart={(e) => alIniciarArrastre(r, e)}
                         onDragEnd={() => { setArrastrando(null); setSobreHab(null); }}
-                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarMover(false); setSeleccion({ ...r, habitacion: hab }); }}
+                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); setSeleccion({ ...r, habitacion: hab }); }}
                         onMouseEnter={(e) => {
                           if (arrastrando) return;
                           const rc = e.currentTarget.getBoundingClientRect();
@@ -493,10 +487,11 @@ export default function Calendario() {
         title={
           mostrarPago ? "Registrar pago"
             : mostrarCheckin ? "Check-in"
+            : mostrarCheckout ? "Check-out"
             : mostrarMover ? "Mover de habitación"
             : "Detalle de la reserva"
         }
-        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarMover(false); }}
+        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); }}
       >
         {seleccion && mostrarPago && (
           <PagoForm
@@ -511,6 +506,19 @@ export default function Calendario() {
             reserva={seleccion}
             onCheckinHecho={alCheckinHecho}
             onCancelar={() => setMostrarCheckin(false)}
+          />
+        )}
+
+        {seleccion && mostrarCheckout && (
+          <CheckoutForm
+            estanciaId={seleccion.estancia_id}
+            fechaCheckin={seleccion.checkin_real}
+            fechaSalidaEsperada={seleccion.fecha_salida}
+            totalFacturado={seleccion.factura_total}
+            saldo={seleccion.saldo}
+            onCheckoutHecho={alCheckoutHecho}
+            onAjuste={recargar}
+            onCancelar={() => setMostrarCheckout(false)}
           />
         )}
 
@@ -553,7 +561,7 @@ export default function Calendario() {
           </div>
         )}
 
-        {seleccion && !mostrarPago && !mostrarCheckin && !mostrarMover && (() => {
+        {seleccion && !mostrarPago && !mostrarCheckin && !mostrarCheckout && !mostrarMover && (() => {
           const esCheckin = seleccion.estado === "Check-in";
           const saldo = seleccion.saldo || 0;
           return (
@@ -632,8 +640,8 @@ export default function Calendario() {
                   </Button>
                 )}
                 {esCheckin && saldo <= 0 && (
-                  <Button onClick={hacerCheckout} disabled={accionando}>
-                    {accionando ? "Procesando…" : "Hacer check-out"}
+                  <Button onClick={() => { setErrorAccion(null); setMostrarCheckout(true); }}>
+                    Hacer check-out
                   </Button>
                 )}
               </div>

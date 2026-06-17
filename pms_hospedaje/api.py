@@ -171,6 +171,9 @@ class CheckinIn(BaseModel):
 
 class CheckoutIn(BaseModel):
     estancia_id: int
+    # Fecha real de salida (YYYY-MM-DD). Si va vacía se usa hoy. Permite cerrar
+    # con la estadía real (salida adelantada o extendida) y cobrar correcto.
+    fecha_checkout_real: str = ""
 
 
 class PagoNuevo(BaseModel):
@@ -1096,6 +1099,7 @@ def reservas_calendario(
                 d["saldo"] = round((d["factura_total"] or 0) - (d["pagado"] or 0), 2)
             else:
                 d["saldo"] = None
+                d["factura_total"] = None
             reservas.append(d)
         return {"desde": desde, "hasta": hasta, "habitaciones": habitaciones, "reservas": reservas}
     finally:
@@ -1410,6 +1414,38 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
     if not factura:
         raise HTTPException(status_code=409, detail="La estancia no tiene factura.")
 
+    reserva = Reserva.obtener_por_id(estancia.reserva_id, hospedaje_id=hid)
+    hab = next(
+        (h for h in Habitacion.obtener_todas(hospedaje_id=hid) if h.id == estancia.habitacion_id), None
+    )
+    huesped = Huesped.obtener_por_id(estancia.huesped_id, hospedaje_id=hid)
+
+    # Fecha real de salida: la indicada o, si no, hoy. Debe ser posterior a la
+    # entrada (al menos 1 noche).
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    fecha_salida_real = datos.fecha_checkout_real.strip() or hoy
+    try:
+        fci = datetime.strptime(estancia.fecha_checkin, "%Y-%m-%d")
+        fco = datetime.strptime(fecha_salida_real, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=422, detail="Fecha de salida con formato YYYY-MM-DD.")
+    if fco <= fci:
+        raise HTTPException(
+            status_code=422,
+            detail="La fecha de salida debe ser posterior a la de entrada.",
+        )
+
+    # COBRO POR ESTADÍA REAL: recalcula la factura por las noches realmente
+    # ocupadas (entrada real -> salida real) x precio. Cubre salida adelantada
+    # (cobra menos / queda saldo a favor) o estadía extendida (cobra más).
+    noches_reales = (fco - fci).days
+    if hab:
+        nuevo_total = round(noches_reales * hab.precio_base, 2)
+        if abs(nuevo_total - (factura.total or 0)) > 0.001:
+            factura.subtotal = nuevo_total
+            factura.total = nuevo_total
+            factura.guardar()
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -1420,20 +1456,17 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
         pagado = cursor.fetchone()["pagado"] or 0
     finally:
         conn.close()
-    saldo = round(factura.total - pagado, 2)
+    saldo = round((factura.total or 0) - pagado, 2)
     if saldo > 0:
         raise HTTPException(
             status_code=409,
-            detail=f"No se puede cerrar: queda un saldo pendiente de S/ {saldo:.2f}.",
+            detail=(
+                f"Con la salida real ({noches_reales} noche(s)) el total es "
+                f"S/ {factura.total:.2f}. Falta cobrar S/ {saldo:.2f} antes de cerrar."
+            ),
         )
 
-    reserva = Reserva.obtener_por_id(estancia.reserva_id, hospedaje_id=hid)
-    hab = next(
-        (h for h in Habitacion.obtener_todas(hospedaje_id=hid) if h.id == estancia.habitacion_id), None
-    )
-    huesped = Huesped.obtener_por_id(estancia.huesped_id, hospedaje_id=hid)
-
-    estancia.finalizar(datetime.now().strftime("%Y-%m-%d"))
+    estancia.finalizar(fecha_salida_real)
     if hab:
         hab.cambiar_estado_ocupacion("disponible")
         hab.cambiar_estado_limpieza("Sucia")
@@ -1450,7 +1483,14 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
     except Exception:
         ruta_pdf = None
 
-    return {"estancia_id": estancia.id, "estado": "finalizada", "pdf": ruta_pdf}
+    return {
+        "estancia_id": estancia.id,
+        "estado": "finalizada",
+        "noches": noches_reales,
+        "total": factura.total,
+        "credito": round(max(0, pagado - (factura.total or 0)), 2),  # a favor del huésped
+        "pdf": ruta_pdf,
+    }
 
 
 # --------------------------------------------------------------------------- #

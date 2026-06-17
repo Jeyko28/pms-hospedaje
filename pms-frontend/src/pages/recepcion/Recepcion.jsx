@@ -8,6 +8,8 @@ import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import PagoForm from "./PagoForm";
 import CheckinForm from "./CheckinForm";
+import CheckoutForm from "./CheckoutForm";
+import { abrirFacturaPdf } from "../../utils/pdf";
 import "./Recepcion.css";
 
 const formatoMoneda = new Intl.NumberFormat("es-PE", {
@@ -30,9 +32,9 @@ export default function Recepcion() {
   const pendientes = useApi(api.reservasPendientes);
   const estancias = useApi(api.estanciasActivas);
 
-  const [accionId, setAccionId] = useState(null); // id en proceso (spinner)
   const [pagoEstancia, setPagoEstancia] = useState(null); // estancia para modal de pago
   const [checkinReserva, setCheckinReserva] = useState(null); // reserva para modal de check-in
+  const [checkoutEstancia, setCheckoutEstancia] = useState(null); // estancia para modal de check-out
 
   function refrescarTodo() {
     pendientes.recargar();
@@ -44,18 +46,9 @@ export default function Recepcion() {
     refrescarTodo();
   }
 
-  async function hacerCheckout(estanciaId) {
-    if (!window.confirm("Confirmar check-out de esta estancia?")) return;
-    setAccionId(`out-${estanciaId}`);
-    try {
-      await api.checkout(estanciaId);
-      refrescarTodo();
-    } catch (e) {
-      // Ej. saldo pendiente -> mensaje claro del backend.
-      window.alert(e.message);
-    } finally {
-      setAccionId(null);
-    }
+  function alCheckout() {
+    setCheckoutEstancia(null);
+    refrescarTodo();
   }
 
   function alPagar() {
@@ -211,9 +204,7 @@ export default function Recepcion() {
                         size="sm"
                         variant="secondary"
                         icon="📄"
-                        onClick={() =>
-                          window.open(api.urlFacturaPdf(e.factura_id), "_blank", "noopener")
-                        }
+                        onClick={() => abrirFacturaPdf(e.factura_id)}
                       >
                         Factura
                       </Button>
@@ -232,10 +223,9 @@ export default function Recepcion() {
                       size="sm"
                       variant={pagado ? "primary" : "ghost"}
                       icon="←"
-                      onClick={() => hacerCheckout(e.id)}
-                      disabled={accionId === `out-${e.id}`}
+                      onClick={() => setCheckoutEstancia(e)}
                     >
-                      {accionId === `out-${e.id}` ? "Procesando…" : "Check-out"}
+                      Check-out
                     </Button>
                   </div>
                 </Card>
@@ -255,6 +245,26 @@ export default function Recepcion() {
             reserva={checkinReserva}
             onCheckinHecho={alCheckin}
             onCancelar={() => setCheckinReserva(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Modal de check-out (elige fecha real de salida + recalcula el cobro) */}
+      <Modal
+        open={!!checkoutEstancia}
+        title={`Check-out de ${checkoutEstancia?.huesped ?? ""}`}
+        onClose={() => setCheckoutEstancia(null)}
+      >
+        {checkoutEstancia && (
+          <CheckoutForm
+            estanciaId={checkoutEstancia.id}
+            fechaCheckin={checkoutEstancia.fecha_checkin}
+            fechaSalidaEsperada={checkoutEstancia.fecha_checkout_esperado}
+            totalFacturado={checkoutEstancia.total}
+            saldo={checkoutEstancia.saldo}
+            onCheckoutHecho={alCheckout}
+            onAjuste={estancias.recargar}
+            onCancelar={() => setCheckoutEstancia(null)}
           />
         )}
       </Modal>
