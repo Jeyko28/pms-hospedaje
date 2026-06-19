@@ -93,6 +93,35 @@ const post = (path, body) => enviar("POST", path, body);
 const put = (path, body) => enviar("PUT", path, body);
 const del = (path) => enviar("DELETE", path);
 
+// Descarga un PDF protegido (con token) y devuelve una URL de blob para abrirlo.
+async function descargarPdf(path) {
+  let respuesta;
+  try {
+    respuesta = await fetch(`${BASE_URL}${path}`, { headers: cabeceras(false) });
+  } catch (e) {
+    throw new Error(
+      "No se pudo conectar con el servidor. Verifica que la API este encendida."
+    );
+  }
+  if (respuesta.status === 401) {
+    tokenStore.clear();
+    if (alExpirar) alExpirar();
+    throw new Error("Tu sesion expiro. Inicia sesion de nuevo.");
+  }
+  if (!respuesta.ok) {
+    let detalle = `No se pudo generar el PDF (error ${respuesta.status}).`;
+    try {
+      const datos = await respuesta.json();
+      if (datos && datos.detail) detalle = datos.detail;
+    } catch (_) {
+      /* el cuerpo no era JSON */
+    }
+    throw new Error(detalle);
+  }
+  const blob = await respuesta.blob();
+  return URL.createObjectURL(blob);
+}
+
 export const api = {
   // Lecturas
   resumenDashboard: () => get("/api/dashboard/resumen"),
@@ -114,41 +143,21 @@ export const api = {
   // navegador porque el endpoint exige token y la navegación no lo envía).
   urlFacturaPdf: (facturaId) => `${BASE_URL}/api/facturas/${facturaId}/pdf`,
 
-  // Descarga el PDF de una factura CON el token (fetch autenticado) y devuelve
-  // una URL de blob lista para abrir/descargar. Esto resuelve el "Not
-  // authenticated" que aparecía al abrir la URL del PDF directo.
-  facturaPdfBlobUrl: async (facturaId) => {
-    let respuesta;
-    try {
-      respuesta = await fetch(`${BASE_URL}/api/facturas/${facturaId}/pdf`, {
-        headers: cabeceras(false),
-      });
-    } catch (e) {
-      throw new Error(
-        "No se pudo conectar con el servidor. Verifica que la API este encendida."
-      );
-    }
-    if (respuesta.status === 401) {
-      tokenStore.clear();
-      if (alExpirar) alExpirar();
-      throw new Error("Tu sesion expiro. Inicia sesion de nuevo.");
-    }
-    if (!respuesta.ok) {
-      let detalle = `No se pudo generar el PDF (error ${respuesta.status}).`;
-      try {
-        const datos = await respuesta.json();
-        if (datos && datos.detail) detalle = datos.detail;
-      } catch (_) {
-        /* el cuerpo no era JSON */
-      }
-      throw new Error(detalle);
-    }
-    const blob = await respuesta.blob();
-    return URL.createObjectURL(blob);
-  },
+  // Descarga un PDF protegido CON el token (fetch autenticado) y devuelve una
+  // URL de blob lista para abrir/descargar. Resuelve el "Not authenticated"
+  // que aparecía al abrir la URL del PDF directo (la navegación no manda token).
+  facturaPdfBlobUrl: (facturaId) => descargarPdf(`/api/facturas/${facturaId}/pdf`),
+  comprobantePdfBlobUrl: (comprobanteId) =>
+    descargarPdf(`/api/comprobantes/${comprobanteId}/pdf`),
 
   // Facturas (historial completo)
   facturas: () => get("/api/facturas"),
+
+  // Facturación electrónica (SUNAT)
+  sunatConfig: () => get("/api/sunat/config"),
+  guardarSunatConfig: (datos) => put("/api/sunat/config", datos),
+  emitirBoleta: (facturaId) => post(`/api/facturas/${facturaId}/emitir`),
+  comprobantes: () => get("/api/comprobantes"),
 
   // Escrituras — Reservas / Recepcion
   crearReserva: (datos) => post("/api/reservas", datos),

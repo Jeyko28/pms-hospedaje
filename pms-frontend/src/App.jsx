@@ -11,6 +11,7 @@ import Recepcion from "./pages/recepcion/Recepcion";
 import Habitaciones from "./pages/habitaciones/Habitaciones";
 import Huespedes from "./pages/huespedes/Huespedes";
 import Facturas from "./pages/facturas/Facturas";
+import ConfigSunat from "./pages/sunat/ConfigSunat";
 import Reportes from "./pages/reportes/Reportes";
 import Usuarios from "./pages/usuarios/Usuarios";
 import Hospedajes from "./pages/hospedajes/Hospedajes";
@@ -46,6 +47,8 @@ function Vista() {
       return <Huespedes />;
     case "facturas":
       return <Facturas />;
+    case "sunat":
+      return esAdmin ? <ConfigSunat /> : <Dashboard />;
     case "reportes":
       return esAdmin ? <Reportes /> : <Dashboard />;
     case "usuarios":

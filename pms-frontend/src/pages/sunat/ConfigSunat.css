@@ -1,0 +1,126 @@
+.sunat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sunat__subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.sunat__aviso {
+  font-size: var(--text-sm);
+  color: var(--color-info-700, var(--color-brand-600));
+  background-color: var(--color-info-50, var(--bg-subtle));
+  border: 1px solid var(--color-info-600, var(--color-brand-600));
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  line-height: 1.5;
+}
+
+.sunat__card-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+}
+
+.sunat__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.sunat__form-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.sunat__check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.sunat__check input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+.sunat__check-hint {
+  color: var(--text-muted);
+}
+.sunat__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-600);
+}
+.sunat__ok {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-success-600);
+}
+.sunat__acciones {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sunat__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sunat__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.comprobante-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.comprobante-item__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.comprobante-item__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.comprobante-item__num {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.comprobante-item__cliente {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.comprobante-item__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.comprobante-item__lado {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.comprobante-item__total {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+  .sunat__form-fila {
+    grid-template-columns: 1fr;
+  }
+}

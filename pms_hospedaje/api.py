@@ -45,6 +45,7 @@ from pydantic import BaseModel, Field
 
 import database
 import auth
+import sunat
 from database import get_connection
 from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago
 from utils import generar_factura_pdf
@@ -53,6 +54,8 @@ from utils import generar_factura_pdf
 database.crear_tablas()
 # Crear tabla de usuarios y un admin por defecto si no existe ninguno.
 auth.crear_tabla_usuarios()
+# Crear tablas de facturación electrónica (SUNAT) si faltan.
+sunat.crear_tablas_sunat()
 
 app = FastAPI(
     title="PMS Hospedaje API",
@@ -181,6 +184,15 @@ class PagoNuevo(BaseModel):
     monto: float
     metodo: str = "efectivo"
     referencia: str = ""
+
+
+class SunatConfigDatos(BaseModel):
+    ruc: str = ""
+    razon_social: str = ""
+    direccion: str = ""
+    serie_boleta: str = "B001"
+    modo: str = "sandbox"
+    activo: bool = False
 
 
 class LoginIn(BaseModel):
@@ -1510,7 +1522,9 @@ def listar_facturas(hid: int = Depends(auth.hospedaje_actual)):
                    hab.numero AS habitacion, hab.tipo AS tipo,
                    e.fecha_checkin, e.fecha_checkout_esperado, e.fecha_checkout_real,
                    e.estado AS estancia_estado,
-                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
+                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado,
+                   (SELECT c.id FROM comprobantes c WHERE c.factura_id = f.id AND c.estado != 'anulado' LIMIT 1) AS comprobante_id,
+                   (SELECT c.numero FROM comprobantes c WHERE c.factura_id = f.id AND c.estado != 'anulado' LIMIT 1) AS comprobante_numero
             FROM facturas f
             JOIN huespedes h    ON f.huesped_id = h.id
             JOIN estancias e    ON f.estancia_id = e.id
@@ -1602,6 +1616,138 @@ def descargar_factura_pdf(factura_id: int, hid: int = Depends(auth.hospedaje_act
 
     nombre = f"factura_{factura.id}_{huesped.nombre.replace(' ', '_')}.pdf"
     return FileResponse(ruta, media_type="application/pdf", filename=nombre)
+
+
+# --------------------------------------------------------------------------- #
+#  Facturación electrónica (SUNAT) — Fase 1: boletas en sandbox
+# --------------------------------------------------------------------------- #
+@app.get("/api/sunat/config")
+def sunat_obtener_config(
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual)
+):
+    """Config SUNAT del hospedaje (solo admin)."""
+    return sunat.obtener_config(hid)
+
+
+@app.put("/api/sunat/config")
+def sunat_guardar_config(
+    datos: SunatConfigDatos,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Guarda la config SUNAT (solo admin). Valida lo mínimo si se activa."""
+    if datos.activo and (not datos.ruc.strip() or not datos.razon_social.strip()):
+        raise HTTPException(
+            status_code=422,
+            detail="Para activar la facturación necesitas RUC y razón social.",
+        )
+    if datos.ruc.strip() and (not datos.ruc.strip().isdigit() or len(datos.ruc.strip()) != 11):
+        raise HTTPException(status_code=422, detail="El RUC debe tener 11 dígitos.")
+    return sunat.guardar_config(hid, datos.dict())
+
+
+@app.post("/api/facturas/{factura_id}/emitir", status_code=201)
+def sunat_emitir_boleta(
+    factura_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Emite la BOLETA de una factura ya pagada (modo sandbox)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT f.id, f.total, f.huesped_id,
+                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado,
+                   h.nombre AS huesped_nombre, h.documento AS huesped_doc,
+                   hab.numero AS habitacion, hab.tipo AS tipo,
+                   e.fecha_checkin, e.fecha_checkout_real, e.fecha_checkout_esperado
+            FROM facturas f
+            JOIN huespedes h ON f.huesped_id = h.id
+            LEFT JOIN estancias e ON f.estancia_id = e.id
+            LEFT JOIN habitaciones hab ON e.habitacion_id = hab.id
+            WHERE f.id = ? AND f.hospedaje_id = ?
+            """,
+            (factura_id, hid),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Factura no encontrada.")
+    f = dict(row)
+    saldo = round((f["total"] or 0) - (f["pagado"] or 0), 2)
+    if saldo > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No se puede emitir: la factura tiene un saldo de S/ {saldo:.2f}.",
+        )
+
+    # Descripción del concepto (noches de la estadía).
+    salida = f.get("fecha_checkout_real") or f.get("fecha_checkout_esperado")
+    noches = ""
+    if f.get("fecha_checkin") and salida:
+        try:
+            n = (datetime.strptime(salida, "%Y-%m-%d") - datetime.strptime(f["fecha_checkin"], "%Y-%m-%d")).days
+            noches = f" - {n} noche(s)"
+        except (ValueError, TypeError):
+            noches = ""
+    hab = f.get("habitacion")
+    descripcion = f"Servicio de hospedaje" + (f" - Hab. {hab}" if hab else "") + noches
+
+    try:
+        comp = sunat.emitir_boleta(
+            hid,
+            {"id": f["id"], "total": f["total"]},
+            {"nombre": f["huesped_nombre"], "documento": f.get("huesped_doc")},
+            descripcion,
+        )
+    except sunat.SunatError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return comp
+
+
+@app.get("/api/comprobantes")
+def sunat_listar_comprobantes(hid: int = Depends(auth.hospedaje_actual)):
+    """Lista los comprobantes electrónicos emitidos por el hospedaje."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, factura_id, tipo, numero, fecha_emision, cliente_nombre,
+                   cliente_tipo_doc, cliente_num_doc, total, estado, modo
+            FROM comprobantes
+            WHERE hospedaje_id = ?
+            ORDER BY id DESC
+            """,
+            (hid,),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.get("/api/comprobantes/{comprobante_id}/pdf")
+def sunat_comprobante_pdf(comprobante_id: int, hid: int = Depends(auth.hospedaje_actual)):
+    """Devuelve la representación impresa (PDF) de un comprobante."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT numero, pdf_path FROM comprobantes WHERE id = ? AND hospedaje_id = ?",
+            (comprobante_id, hid),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Comprobante no encontrado.")
+    ruta = row["pdf_path"]
+    if not ruta or not os.path.exists(ruta):
+        raise HTTPException(status_code=404, detail="El PDF del comprobante no se encontró.")
+    return FileResponse(ruta, media_type="application/pdf", filename=f"{row['numero']}.pdf")
 
 
 @app.post("/api/pagos", status_code=201)

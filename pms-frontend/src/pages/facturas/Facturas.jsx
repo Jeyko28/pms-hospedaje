@@ -6,7 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
-import { abrirFacturaPdf } from "../../utils/pdf";
+import { abrirFacturaPdf, abrirComprobantePdf } from "../../utils/pdf";
 import "../entidades.css";
 import "./Facturas.css";
 
@@ -39,6 +39,19 @@ export default function Facturas() {
   const facturas = useApi(api.facturas);
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todas");
+  const [emitiendoId, setEmitiendoId] = useState(null);
+
+  async function emitirBoleta(facturaId) {
+    setEmitiendoId(facturaId);
+    try {
+      await api.emitirBoleta(facturaId);
+      facturas.recargar();
+    } catch (e) {
+      window.alert(e.message);
+    } finally {
+      setEmitiendoId(null);
+    }
+  }
 
   const filtradas = useMemo(() => {
     if (!facturas.data) return [];
@@ -206,14 +219,38 @@ export default function Facturas() {
                       Saldo {formatoMoneda.format(f.saldo)}
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon="📄"
-                    onClick={() => abrirFacturaPdf(f.id)}
-                  >
-                    PDF
-                  </Button>
+                  <div className="factura-item__botones">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon="📄"
+                      onClick={() => abrirFacturaPdf(f.id)}
+                    >
+                      PDF
+                    </Button>
+                    {f.comprobante_id ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon="🧾"
+                        onClick={() => abrirComprobantePdf(f.comprobante_id)}
+                        title={`Boleta ${f.comprobante_numero}`}
+                      >
+                        {f.comprobante_numero}
+                      </Button>
+                    ) : (
+                      f.saldo <= 0 && (
+                        <Button
+                          size="sm"
+                          icon="🧾"
+                          onClick={() => emitirBoleta(f.id)}
+                          disabled={emitiendoId === f.id}
+                        >
+                          {emitiendoId === f.id ? "Emitiendo…" : "Emitir boleta"}
+                        </Button>
+                      )
+                    )}
+                  </div>
                 </div>
               </Card>
             );
