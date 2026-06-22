@@ -38,8 +38,8 @@ export default function CheckoutForm({
   estanciaId,
   fechaCheckin,
   fechaSalidaEsperada,
-  totalFacturado = 0,
-  saldo = 0,
+  precioNoche = 0,
+  pagado = 0,
   onCheckoutHecho,
   onAjuste,
   onCancelar,
@@ -55,9 +55,10 @@ export default function CheckoutForm({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
 
-  const nochesFacturadas = noches(fechaCheckin, fechaSalidaEsperada);
-  const precioNoche = nochesFacturadas > 0 ? totalFacturado / nochesFacturadas : 0;
-  const pagado = Math.round((totalFacturado - saldo) * 100) / 100;
+  // Base: precio REAL de la habitación (igual que el backend). Antes se derivaba
+  // de total/noches, lo que daba un precio inflado si la factura ya fue recalculada.
+  const nochesReservadas = noches(fechaCheckin, fechaSalidaEsperada);
+  const totalReservado = Math.round(nochesReservadas * precioNoche * 100) / 100;
 
   const calc = useMemo(() => {
     const n = noches(fechaCheckin, fecha);
@@ -102,8 +103,11 @@ export default function CheckoutForm({
 
       <div className="checkin-form__resumen">
         <div className="checkin-form__linea">
-          <span>Facturado</span>
-          <span>{fmt(fechaCheckin)} → {fmt(fechaSalidaEsperada)} · {nochesFacturadas} noche(s)</span>
+          <span>Reservado</span>
+          <span>
+            {fmt(fechaCheckin)} → {fmt(fechaSalidaEsperada)} · {nochesReservadas} noche(s) ·{" "}
+            {formatoMoneda.format(totalReservado)}
+          </span>
         </div>
         <div className={"checkin-form__linea" + (difiere ? " checkin-form__linea--alerta" : "")}>
           <span>Real</span>

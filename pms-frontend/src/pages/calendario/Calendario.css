@@ -396,3 +396,13 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+.cal__edit-fechas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+@media (max-width: 480px) {
+  .cal__edit-fechas {
+    grid-template-columns: 1fr;
+  }
+}

@@ -9,7 +9,7 @@ import Modal from "../../components/Modal";
 import Field from "../../components/Field";
 import StateMessage from "../../components/StateMessage";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
-import PagoForm from "../recepcion/PagoForm";
+import CobroEstanciaForm from "../recepcion/CobroEstanciaForm";
 import CheckinForm from "../recepcion/CheckinForm";
 import CheckoutForm from "../recepcion/CheckoutForm";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
@@ -86,6 +86,8 @@ export default function Calendario() {
   const [mostrarCheckout, setMostrarCheckout] = useState(false); // sub-vista de check-out en el modal
   const [mostrarMover, setMostrarMover] = useState(false); // sub-vista de mover de habitación (móvil/teclado)
   const [destinoHab, setDestinoHab] = useState(""); // habitación destino elegida en el selector
+  const [mostrarEditar, setMostrarEditar] = useState(false); // sub-vista de editar fechas/notas
+  const [editForm, setEditForm] = useState({ fecha_entrada: "", fecha_salida: "", notas: "" });
   const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
   const [sobreHab, setSobreHab] = useState(null); // id de habitación bajo el cursor al arrastrar
   const [errorMover, setErrorMover] = useState(null); // aviso si el movimiento se rechaza
@@ -172,6 +174,55 @@ export default function Calendario() {
   function alPagado() {
     setMostrarPago(false);
     recargar();
+  }
+
+  // Abre la sub-vista de edición con las fechas/notas actuales de la reserva.
+  function abrirEditar() {
+    if (!seleccion) return;
+    setErrorAccion(null);
+    setEditForm({
+      fecha_entrada: seleccion.fecha_entrada,
+      fecha_salida: seleccion.fecha_salida,
+      notas: seleccion.notas || "",
+    });
+    setMostrarEditar(true);
+  }
+
+  async function guardarEdicion() {
+    if (!seleccion) return;
+    if (!editForm.fecha_entrada || !editForm.fecha_salida ||
+        new Date(editForm.fecha_salida) <= new Date(editForm.fecha_entrada)) {
+      setErrorAccion("La salida debe ser posterior a la entrada.");
+      return;
+    }
+    setErrorAccion(null);
+    setAccionando(true);
+    try {
+      await api.editarReserva(seleccion.id, editForm);
+      setMostrarEditar(false);
+      recargar(); // el efecto de sync actualiza la reserva seleccionada
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setAccionando(false);
+    }
+  }
+
+  // Cancela la reserva (Pendiente/Confirmada): la quita del calendario.
+  async function cancelarSeleccion() {
+    if (!seleccion) return;
+    if (!window.confirm(`¿Cancelar la reserva de ${seleccion.huesped}?`)) return;
+    setErrorAccion(null);
+    setAccionando(true);
+    try {
+      await api.cancelarReserva(seleccion.id);
+      setSeleccion(null);
+      recargar();
+    } catch (e) {
+      setErrorAccion(e.message);
+    } finally {
+      setAccionando(false);
+    }
   }
 
   // Mantiene la reserva seleccionada al día tras cada recarga (saldo, estado).
@@ -394,7 +445,7 @@ export default function Calendario() {
                         draggable
                         onDragStart={(e) => alIniciarArrastre(r, e)}
                         onDragEnd={() => { setArrastrando(null); setSobreHab(null); }}
-                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); setSeleccion({ ...r, habitacion: hab }); }}
+                        onClick={() => { setErrorAccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); setMostrarEditar(false); setSeleccion({ ...r, habitacion: hab }); }}
                         onMouseEnter={(e) => {
                           if (arrastrando) return;
                           const rc = e.currentTarget.getBoundingClientRect();
@@ -489,14 +540,20 @@ export default function Calendario() {
             : mostrarCheckin ? "Check-in"
             : mostrarCheckout ? "Check-out"
             : mostrarMover ? "Mover de habitación"
+            : mostrarEditar ? "Editar reserva"
             : "Detalle de la reserva"
         }
-        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); }}
+        onClose={() => { setSeleccion(null); setMostrarPago(false); setMostrarCheckin(false); setMostrarCheckout(false); setMostrarMover(false); setMostrarEditar(false); }}
       >
         {seleccion && mostrarPago && (
-          <PagoForm
-            estancia={{ factura_id: seleccion.factura_id, saldo: seleccion.saldo }}
-            onPagado={alPagado}
+          <CobroEstanciaForm
+            estanciaId={seleccion.estancia_id}
+            facturaId={seleccion.factura_id}
+            fechaCheckin={seleccion.checkin_real}
+            fechaSalidaEsperada={seleccion.fecha_salida}
+            precioNoche={seleccion.precio_base}
+            pagado={seleccion.pagado}
+            onCobrado={alPagado}
             onCerrar={() => setMostrarPago(false)}
           />
         )}
@@ -514,8 +571,8 @@ export default function Calendario() {
             estanciaId={seleccion.estancia_id}
             fechaCheckin={seleccion.checkin_real}
             fechaSalidaEsperada={seleccion.fecha_salida}
-            totalFacturado={seleccion.factura_total}
-            saldo={seleccion.saldo}
+            precioNoche={seleccion.precio_base}
+            pagado={seleccion.pagado}
             onCheckoutHecho={alCheckoutHecho}
             onAjuste={recargar}
             onCancelar={() => setMostrarCheckout(false)}
@@ -561,8 +618,57 @@ export default function Calendario() {
           </div>
         )}
 
-        {seleccion && !mostrarPago && !mostrarCheckin && !mostrarCheckout && !mostrarMover && (() => {
+        {seleccion && mostrarEditar && (
+          <div className="cal__modal">
+            <p className="cal__mover-intro">
+              Editar las fechas de la reserva de «{seleccion.huesped}»
+              (Hab. {seleccion.habitacion.numero}).
+            </p>
+            <div className="cal__edit-fechas">
+              <Field id="edit-entrada" label="Entrada">
+                <input
+                  id="edit-entrada"
+                  type="date"
+                  value={editForm.fecha_entrada}
+                  onChange={(e) => setEditForm((f) => ({ ...f, fecha_entrada: e.target.value }))}
+                />
+              </Field>
+              <Field id="edit-salida" label="Salida">
+                <input
+                  id="edit-salida"
+                  type="date"
+                  value={editForm.fecha_salida}
+                  min={editForm.fecha_entrada || undefined}
+                  onChange={(e) => setEditForm((f) => ({ ...f, fecha_salida: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <Field id="edit-notas" label="Notas (opcional)">
+              <input
+                id="edit-notas"
+                type="text"
+                value={editForm.notas}
+                onChange={(e) => setEditForm((f) => ({ ...f, notas: e.target.value }))}
+                placeholder="Ej. llegada tarde, cama extra…"
+              />
+            </Field>
+            {errorAccion && (
+              <p className="cal__modal-error" role="alert">{errorAccion}</p>
+            )}
+            <div className="cal__modal-acciones">
+              <Button variant="secondary" onClick={() => { setMostrarEditar(false); setErrorAccion(null); }}>
+                Cancelar
+              </Button>
+              <Button onClick={guardarEdicion} disabled={accionando}>
+                {accionando ? "Guardando…" : "Guardar cambios"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {seleccion && !mostrarPago && !mostrarCheckin && !mostrarCheckout && !mostrarMover && !mostrarEditar && (() => {
           const esCheckin = seleccion.estado === "Check-in";
+          const editable = seleccion.estado === "Pendiente" || seleccion.estado === "Confirmada";
           const saldo = seleccion.saldo || 0;
           return (
             <div className="cal__modal">
@@ -616,12 +722,22 @@ export default function Calendario() {
                 <Button variant="secondary" onClick={() => setSeleccion(null)}>
                   Cerrar
                 </Button>
+                {editable && (
+                  <Button variant="ghost" onClick={abrirEditar}>
+                    Editar
+                  </Button>
+                )}
                 {seleccion.estado !== "Check-out" && (
                   <Button
                     variant="ghost"
                     onClick={() => { setErrorAccion(null); setDestinoHab(""); setMostrarMover(true); }}
                   >
                     Mover de habitación
+                  </Button>
+                )}
+                {editable && (
+                  <Button variant="ghost" onClick={cancelarSeleccion} disabled={accionando}>
+                    Cancelar reserva
                   </Button>
                 )}
                 {seleccion.estado === "Pendiente" && (
@@ -634,12 +750,12 @@ export default function Calendario() {
                     Hacer check-in
                   </Button>
                 )}
-                {esCheckin && saldo > 0 && (
-                  <Button onClick={() => { setErrorAccion(null); setMostrarPago(true); }}>
-                    Registrar pago
+                {esCheckin && (
+                  <Button variant="secondary" onClick={() => { setErrorAccion(null); setMostrarPago(true); }}>
+                    Cobrar
                   </Button>
                 )}
-                {esCheckin && saldo <= 0 && (
+                {esCheckin && (
                   <Button onClick={() => { setErrorAccion(null); setMostrarCheckout(true); }}>
                     Hacer check-out
                   </Button>

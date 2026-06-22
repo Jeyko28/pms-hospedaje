@@ -161,6 +161,7 @@ export const api = {
 
   // Escrituras — Reservas / Recepcion
   crearReserva: (datos) => post("/api/reservas", datos),
+  editarReserva: (id, datos) => put(`/api/reservas/${id}`, datos),
   cancelarReserva: (id) => post(`/api/reservas/${id}/cancelar`),
   confirmarReserva: (id) => post(`/api/reservas/${id}/confirmar`),
   moverReserva: (id, habitacionId) =>
@@ -171,6 +172,8 @@ export const api = {
     post("/api/recepcion/checkin", { reserva_id: reservaId, fecha_entrada_real: fechaEntradaReal }),
   checkout: (estanciaId, fechaCheckoutReal = "") =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
+  recalcularEstancia: (estanciaId, fechaCheckoutReal = "") =>
+    post("/api/recepcion/recalcular", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
   registrarPago: (datos) => post("/api/pagos", datos),
 
   // Escrituras — Habitaciones (CRUD)

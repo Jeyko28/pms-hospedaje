@@ -138,6 +138,13 @@ class MoverReserva(BaseModel):
     habitacion_id: int
 
 
+class ReservaEdit(BaseModel):
+    # Editar fechas/notas de una reserva (no cambia habitacion ni huesped).
+    fecha_entrada: str
+    fecha_salida: str
+    notas: str = ""
+
+
 class ReservaPublica(BaseModel):
     # Lo que un huesped envia desde la pagina publica de reservas.
     habitacion_id: int
@@ -1087,6 +1094,7 @@ def reservas_calendario(
             """
             SELECT r.id, r.habitacion_id, r.fecha_entrada, r.fecha_salida,
                    r.estado, r.total, h.nombre AS huesped,
+                   hab.precio_base AS precio_base,
                    e.id AS estancia_id,
                    e.fecha_checkin AS checkin_real,
                    f.id AS factura_id,
@@ -1094,6 +1102,7 @@ def reservas_calendario(
                    COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
             FROM reservas r
             JOIN huespedes h ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
             LEFT JOIN estancias e ON e.reserva_id = r.id AND e.estado = 'activa'
             LEFT JOIN facturas f ON f.estancia_id = e.id
             WHERE r.hospedaje_id = ?
@@ -1158,11 +1167,59 @@ def crear_reserva(datos: ReservaNueva, hid: int = Depends(auth.hospedaje_actual)
     return _a_dict(reserva)
 
 
+@app.put("/api/reservas/{reserva_id}")
+def editar_reserva(
+    reserva_id: int, datos: ReservaEdit, hid: int = Depends(auth.hospedaje_actual)
+):
+    """Edita las FECHAS y notas de una reserva (la habitación se cambia con
+    'mover'; el huésped no se edita aquí). Solo para reservas Pendiente o
+    Confirmada; revalida disponibilidad y recalcula el total."""
+    reserva = Reserva.obtener_por_id(reserva_id, hospedaje_id=hid)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    if reserva.estado not in ("Pendiente", "Confirmada"):
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se pueden editar reservas pendientes o confirmadas.",
+        )
+    try:
+        entrada = datetime.strptime(datos.fecha_entrada, "%Y-%m-%d")
+        salida = datetime.strptime(datos.fecha_salida, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Las fechas deben tener formato YYYY-MM-DD.")
+    if salida <= entrada:
+        raise HTTPException(
+            status_code=422, detail="La fecha de salida debe ser posterior a la de entrada."
+        )
+    # Revalidar disponibilidad excluyendo la propia reserva.
+    if not Reserva.verificar_disponibilidad(
+        reserva.habitacion_id, datos.fecha_entrada, datos.fecha_salida, reserva_id_excluir=reserva_id
+    ):
+        raise HTTPException(
+            status_code=409, detail="La habitación no está disponible en esas fechas."
+        )
+    # Recalcular el total por las nuevas noches (guardar() solo autocalcula si total=0).
+    hab = _buscar_habitacion(reserva.habitacion_id, hid)
+    noches = (salida - entrada).days
+    reserva.fecha_entrada = datos.fecha_entrada
+    reserva.fecha_salida = datos.fecha_salida
+    reserva.notas = datos.notas
+    if hab:
+        reserva.total = round(noches * hab.precio_base, 2)
+    reserva.guardar()
+    return _a_dict(reserva)
+
+
 @app.post("/api/reservas/{reserva_id}/cancelar")
 def cancelar_reserva(reserva_id: int, hid: int = Depends(auth.hospedaje_actual)):
     reserva = Reserva.obtener_por_id(reserva_id, hospedaje_id=hid)
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    if reserva.estado in ("Check-in", "Check-out"):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede cancelar una reserva con check-in; usa el check-out.",
+        )
     reserva.cancelar()
     return {"id": reserva_id, "estado": reserva.estado}
 
@@ -1299,6 +1356,7 @@ def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
             """
             SELECT e.id, e.fecha_checkin, e.fecha_checkout_esperado,
                    h.nombre AS huesped, hab.numero AS habitacion, hab.tipo AS tipo,
+                   hab.precio_base AS precio_base,
                    r.fecha_entrada AS reserva_entrada, r.fecha_salida AS reserva_salida,
                    f.id AS factura_id,
                    COALESCE(f.total, 0) AS total,
@@ -1502,6 +1560,72 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
         "total": factura.total,
         "credito": round(max(0, pagado - (factura.total or 0)), 2),  # a favor del huésped
         "pdf": ruta_pdf,
+    }
+
+
+@app.post("/api/recepcion/recalcular")
+def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual)):
+    """Recalcula la factura de una estancia activa por la ESTADÍA REAL
+    (entrada real → fecha de salida indicada) × precio de la habitación, y la
+    persiste. NO cierra la estancia: sirve para que el COBRO refleje las noches
+    reales (entrada antes / salida después) antes de pagar. Devuelve el desglose."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM estancias WHERE id = ? AND hospedaje_id = ? AND estado = 'activa'",
+            (datos.estancia_id, hid),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Estancia activa no encontrada.")
+    estancia = Estancia(**dict(row))
+
+    factura = Factura.obtener_por_estancia(estancia.id)
+    if not factura:
+        raise HTTPException(status_code=409, detail="La estancia no tiene factura.")
+    hab = next(
+        (h for h in Habitacion.obtener_todas(hospedaje_id=hid) if h.id == estancia.habitacion_id), None
+    )
+    if not hab:
+        raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    fecha_real = datos.fecha_checkout_real.strip() or hoy
+    try:
+        fci = datetime.strptime(estancia.fecha_checkin, "%Y-%m-%d")
+        fco = datetime.strptime(fecha_real, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=422, detail="Fecha de salida con formato YYYY-MM-DD.")
+    if fco <= fci:
+        raise HTTPException(status_code=422, detail="La fecha de salida debe ser posterior a la de entrada.")
+
+    noches = (fco - fci).days
+    nuevo_total = round(noches * hab.precio_base, 2)
+    factura.subtotal = nuevo_total
+    factura.total = nuevo_total
+    factura.guardar()
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COALESCE(SUM(monto), 0) AS pagado FROM pagos WHERE factura_id = ?",
+            (factura.id,),
+        )
+        pagado = cursor.fetchone()["pagado"] or 0
+    finally:
+        conn.close()
+    return {
+        "estancia_id": estancia.id,
+        "factura_id": factura.id,
+        "fecha_checkout_real": fecha_real,
+        "noches": noches,
+        "total": nuevo_total,
+        "pagado": round(pagado, 2),
+        "saldo": round(nuevo_total - pagado, 2),
     }
 
 

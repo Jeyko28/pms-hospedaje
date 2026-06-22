@@ -6,7 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
-import PagoForm from "./PagoForm";
+import CobroEstanciaForm from "./CobroEstanciaForm";
 import CheckinForm from "./CheckinForm";
 import CheckoutForm from "./CheckoutForm";
 import { abrirFacturaPdf } from "../../utils/pdf";
@@ -209,16 +209,14 @@ export default function Recepcion() {
                         Factura
                       </Button>
                     )}
-                    {!pagado && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon="💳"
-                        onClick={() => setPagoEstancia(e)}
-                      >
-                        Cobrar
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon="💳"
+                      onClick={() => setPagoEstancia(e)}
+                    >
+                      Cobrar
+                    </Button>
                     <Button
                       size="sm"
                       variant={pagado ? "primary" : "ghost"}
@@ -260,8 +258,8 @@ export default function Recepcion() {
             estanciaId={checkoutEstancia.id}
             fechaCheckin={checkoutEstancia.fecha_checkin}
             fechaSalidaEsperada={checkoutEstancia.fecha_checkout_esperado}
-            totalFacturado={checkoutEstancia.total}
-            saldo={checkoutEstancia.saldo}
+            precioNoche={checkoutEstancia.precio_base}
+            pagado={checkoutEstancia.pagado}
             onCheckoutHecho={alCheckout}
             onAjuste={estancias.recargar}
             onCancelar={() => setCheckoutEstancia(null)}
@@ -276,9 +274,14 @@ export default function Recepcion() {
         onClose={() => setPagoEstancia(null)}
       >
         {pagoEstancia && (
-          <PagoForm
-            estancia={pagoEstancia}
-            onPagado={alPagar}
+          <CobroEstanciaForm
+            estanciaId={pagoEstancia.id}
+            facturaId={pagoEstancia.factura_id}
+            fechaCheckin={pagoEstancia.fecha_checkin}
+            fechaSalidaEsperada={pagoEstancia.fecha_checkout_esperado}
+            precioNoche={pagoEstancia.precio_base}
+            pagado={pagoEstancia.pagado}
+            onCobrado={alPagar}
             onCerrar={() => setPagoEstancia(null)}
           />
         )}
