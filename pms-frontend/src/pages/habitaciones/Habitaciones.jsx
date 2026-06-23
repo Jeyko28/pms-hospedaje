@@ -6,6 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
+import { useToast } from "../../components/Toast";
 import {
   ESTADO_HABITACION,
   ESTADO_LIMPIEZA,
@@ -21,6 +22,7 @@ const formatoMoneda = new Intl.NumberFormat("es-PE", {
 
 export default function Habitaciones() {
   const habitaciones = useApi(api.habitaciones);
+  const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, habitacion}
   const [borrandoId, setBorrandoId] = useState(null);
 
@@ -31,8 +33,10 @@ export default function Habitaciones() {
     setModal({ modo: "editar", habitacion: h });
   }
   function alGuardar() {
+    const creada = modal?.modo === "crear";
     setModal(null);
     habitaciones.recargar();
+    toast.success(creada ? "Habitación creada." : "Habitación actualizada.");
   }
 
   async function eliminar(h) {
@@ -41,9 +45,10 @@ export default function Habitaciones() {
     setBorrandoId(h.id);
     try {
       await api.eliminarHabitacion(h.id);
+      toast.success(`Habitación ${h.numero} eliminada.`);
       habitaciones.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo eliminar la habitación.");
     } finally {
       setBorrandoId(null);
     }

@@ -88,6 +88,23 @@ textarea {
   }
 }
 
+/* Transición de entrada al cambiar de sección (fade + leve subida). Sutil,
+   para que el cambio de pantalla se sienta fluido y no "salte". Se anula sola
+   con prefers-reduced-motion (regla de arriba). */
+.vista-fade {
+  animation: vista-in 160ms ease-out;
+}
+@keyframes vista-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Utilidad: texto solo para lectores de pantalla. */
 .sr-only {
   position: absolute;

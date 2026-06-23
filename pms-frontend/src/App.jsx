@@ -16,11 +16,15 @@ import Reportes from "./pages/reportes/Reportes";
 import Usuarios from "./pages/usuarios/Usuarios";
 import Hospedajes from "./pages/hospedajes/Hospedajes";
 import AsistenteBienvenida from "./components/AsistenteBienvenida";
+import { ToastProvider } from "./components/Toast";
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
  * "usuarios" requiere admin; "hospedajes" requiere superadmin
  * (defensa tambien en el backend).
+ *
+ * El contenido se envuelve en un div con key=ruta para que cada cambio de
+ * sección entre con una transición sutil (fade + leve subida).
  */
 function Vista() {
   const { ruta } = useRuta();
@@ -28,36 +32,54 @@ function Vista() {
 
   // El superadmin (dueño del SaaS) solo opera el panel Hospedajes; no tiene
   // hospedaje propio, así que cualquier ruta operativa lo lleva a Hospedajes.
+  let contenido;
   if (esSuperadmin) {
-    return <Hospedajes />;
+    contenido = <Hospedajes />;
+  } else {
+    switch (ruta) {
+      case "dashboard":
+        contenido = <Dashboard />;
+        break;
+      case "reservas":
+        contenido = <Reservas />;
+        break;
+      case "calendario":
+        contenido = <Calendario />;
+        break;
+      case "recepcion":
+        contenido = <Recepcion />;
+        break;
+      case "habitaciones":
+        contenido = <Habitaciones />;
+        break;
+      case "huespedes":
+        contenido = <Huespedes />;
+        break;
+      case "facturas":
+        contenido = <Facturas />;
+        break;
+      case "sunat":
+        contenido = esAdmin ? <ConfigSunat /> : <Dashboard />;
+        break;
+      case "reportes":
+        contenido = esAdmin ? <Reportes /> : <Dashboard />;
+        break;
+      case "usuarios":
+        contenido = esAdmin ? <Usuarios /> : <Dashboard />;
+        break;
+      case "hospedajes":
+        contenido = esSuperadmin ? <Hospedajes /> : <Dashboard />;
+        break;
+      default:
+        contenido = <Dashboard />;
+    }
   }
 
-  switch (ruta) {
-    case "dashboard":
-      return <Dashboard />;
-    case "reservas":
-      return <Reservas />;
-    case "calendario":
-      return <Calendario />;
-    case "recepcion":
-      return <Recepcion />;
-    case "habitaciones":
-      return <Habitaciones />;
-    case "huespedes":
-      return <Huespedes />;
-    case "facturas":
-      return <Facturas />;
-    case "sunat":
-      return esAdmin ? <ConfigSunat /> : <Dashboard />;
-    case "reportes":
-      return esAdmin ? <Reportes /> : <Dashboard />;
-    case "usuarios":
-      return esAdmin ? <Usuarios /> : <Dashboard />;
-    case "hospedajes":
-      return esSuperadmin ? <Hospedajes /> : <Dashboard />;
-    default:
-      return <Dashboard />;
-  }
+  return (
+    <div className="vista-fade" key={esSuperadmin ? "hospedajes" : ruta}>
+      {contenido}
+    </div>
+  );
 }
 
 /**
@@ -94,17 +116,19 @@ export default function App() {
     );
   }
 
-  if (!usuario) {
-    return <Acceso />;
-  }
-
   return (
-    <RouterProvider>
-      <AppShell>
-        <Vista />
-      </AppShell>
-      <BienvenidaGate />
-    </RouterProvider>
+    <ToastProvider>
+      {!usuario ? (
+        <Acceso />
+      ) : (
+        <RouterProvider>
+          <AppShell>
+            <Vista />
+          </AppShell>
+          <BienvenidaGate />
+        </RouterProvider>
+      )}
+    </ToastProvider>
   );
 }
 

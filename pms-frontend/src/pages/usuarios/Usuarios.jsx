@@ -7,18 +7,22 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
+import { useToast } from "../../components/Toast";
 import UsuarioForm from "./UsuarioForm";
 import "../entidades.css";
 
 export default function Usuarios() {
   const usuarios = useApi(api.usuarios);
   const { usuario: yo } = useAuth();
+  const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, usuario}
   const [borrandoId, setBorrandoId] = useState(null);
 
   function alGuardar() {
+    const creado = modal?.modo === "crear";
     setModal(null);
     usuarios.recargar();
+    toast.success(creado ? "Usuario creado." : "Usuario actualizado.");
   }
 
   async function eliminar(u) {
@@ -26,9 +30,10 @@ export default function Usuarios() {
     setBorrandoId(u.id);
     try {
       await api.eliminarUsuario(u.id);
+      toast.success(`Usuario "${u.nombre}" eliminado.`);
       usuarios.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo eliminar el usuario.");
     } finally {
       setBorrandoId(null);
     }

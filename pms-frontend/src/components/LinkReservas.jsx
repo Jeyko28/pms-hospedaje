@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link2, Copy, Check, ExternalLink, Pencil, X, AlertTriangle } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api/client";
+import { useToast } from "./Toast";
 import Card from "./Card";
 import "./LinkReservas.css";
 
@@ -17,6 +18,7 @@ import "./LinkReservas.css";
  */
 export default function LinkReservas() {
   const { usuario, esAdmin, refrescarUsuario } = useAuth();
+  const toast = useToast();
   const [copiado, setCopiado] = useState(false);
   const [editando, setEditando] = useState(false);
 
@@ -75,6 +77,7 @@ export default function LinkReservas() {
           onGuardado={async () => {
             await refrescarUsuario();
             setEditando(false);
+            toast.success("Link de reservas actualizado.");
           }}
           cambiarSlug={api.cambiarSlug}
         />

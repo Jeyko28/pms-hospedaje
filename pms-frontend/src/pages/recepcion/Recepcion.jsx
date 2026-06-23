@@ -6,6 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
+import { useToast } from "../../components/Toast";
 import CobroEstanciaForm from "./CobroEstanciaForm";
 import CheckinForm from "./CheckinForm";
 import CheckoutForm from "./CheckoutForm";
@@ -31,6 +32,7 @@ const formatoFecha = (iso) => {
 export default function Recepcion() {
   const pendientes = useApi(api.reservasPendientes);
   const estancias = useApi(api.estanciasActivas);
+  const toast = useToast();
 
   const [pagoEstancia, setPagoEstancia] = useState(null); // estancia para modal de pago
   const [checkinReserva, setCheckinReserva] = useState(null); // reserva para modal de check-in
@@ -44,16 +46,19 @@ export default function Recepcion() {
   function alCheckin() {
     setCheckinReserva(null);
     refrescarTodo();
+    toast.success("Check-in registrado.");
   }
 
   function alCheckout() {
     setCheckoutEstancia(null);
     refrescarTodo();
+    toast.success("Check-out completado.");
   }
 
   function alPagar() {
     setPagoEstancia(null);
     estancias.recargar();
+    toast.success("Pago registrado.");
   }
 
   return (

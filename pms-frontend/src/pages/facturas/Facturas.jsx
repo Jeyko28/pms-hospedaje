@@ -6,6 +6,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import { useToast } from "../../components/Toast";
 import { abrirFacturaPdf, abrirComprobantePdf } from "../../utils/pdf";
 import "../entidades.css";
 import "./Facturas.css";
@@ -37,6 +38,7 @@ function estadoFactura(estado, saldo) {
 
 export default function Facturas() {
   const facturas = useApi(api.facturas);
+  const toast = useToast();
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todas");
   const [emitiendoId, setEmitiendoId] = useState(null);
@@ -45,9 +47,10 @@ export default function Facturas() {
     setEmitiendoId(facturaId);
     try {
       await api.emitirBoleta(facturaId);
+      toast.success("Boleta electrónica emitida.");
       facturas.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo emitir la boleta.");
     } finally {
       setEmitiendoId(null);
     }

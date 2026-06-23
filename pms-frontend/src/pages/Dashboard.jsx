@@ -7,7 +7,9 @@ import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import StateMessage from "../components/StateMessage";
+import Skeleton from "../components/Skeleton";
 import LinkReservas from "../components/LinkReservas";
+import { useToast } from "../components/Toast";
 import {
   ESTADO_HABITACION,
   ESTADO_LIMPIEZA,
@@ -37,9 +39,9 @@ export default function Dashboard() {
   const habitaciones = useApi(api.habitaciones);
   const agenda = useApi(api.agendaDashboard);
   const { navegar } = useRuta();
+  const toast = useToast();
 
   const [accionId, setAccionId] = useState(null); // id en proceso (check-in/out)
-  const [errorAccion, setErrorAccion] = useState(null);
 
   // Refresca TODO el panel (tras una acción o por el auto-refresco).
   function recargarTodo() {
@@ -64,26 +66,26 @@ export default function Dashboard() {
   }, []);
 
   async function hacerCheckin(reservaId) {
-    setErrorAccion(null);
     setAccionId("in-" + reservaId);
     try {
       await api.checkin(reservaId);
+      toast.success("Check-in registrado.");
       recargarTodo();
     } catch (e) {
-      setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo hacer el check-in.");
     } finally {
       setAccionId(null);
     }
   }
 
   async function hacerCheckout(estanciaId) {
-    setErrorAccion(null);
     setAccionId("out-" + estanciaId);
     try {
       await api.checkout(estanciaId);
+      toast.success("Check-out completado.");
       recargarTodo();
     } catch (e) {
-      setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo hacer el check-out.");
     } finally {
       setAccionId(null);
     }
@@ -113,8 +115,19 @@ export default function Dashboard() {
           Indicadores principales
         </h2>
 
-        {resumen.loading && (
-          <StateMessage variant="loading" title="Cargando datos…" />
+        {resumen.loading && !resumen.data && (
+          <div className="dashboard__kpis">
+            {[0, 1, 2, 3].map((i) => (
+              <Card key={i} padding="md" className="statcard">
+                <div className="statcard__top">
+                  <Skeleton width={44} height={44} radius="var(--radius-md)" />
+                  <Skeleton width="55%" height={12} />
+                </div>
+                <Skeleton width="50%" height={28} />
+                <Skeleton width="40%" height={12} />
+              </Card>
+            ))}
+          </div>
         )}
 
         {resumen.error && (
@@ -189,12 +202,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {errorAccion && (
-          <Card padding="sm">
-            <p className="dashboard__error" role="alert">{errorAccion}</p>
-          </Card>
-        )}
-
         {agenda.loading && !agenda.data && (
           <Card><StateMessage variant="loading" title="Cargando agenda…" /></Card>
         )}
@@ -222,9 +229,9 @@ export default function Dashboard() {
                       <Button
                         size="sm"
                         onClick={() => hacerCheckin(r.reserva_id)}
-                        disabled={accionId === "in-" + r.reserva_id}
+                        loading={accionId === "in-" + r.reserva_id}
                       >
-                        {accionId === "in-" + r.reserva_id ? "…" : "Check-in"}
+                        Check-in
                       </Button>
                     </li>
                   ))}
@@ -269,9 +276,9 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             onClick={() => hacerCheckout(s.estancia_id)}
-                            disabled={accionId === "out-" + s.estancia_id}
+                            loading={accionId === "out-" + s.estancia_id}
                           >
-                            {accionId === "out-" + s.estancia_id ? "…" : "Check-out"}
+                            Check-out
                           </Button>
                         )}
                       </li>

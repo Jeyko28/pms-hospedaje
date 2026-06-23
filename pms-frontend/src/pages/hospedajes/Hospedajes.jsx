@@ -7,6 +7,7 @@ import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import { useToast } from "../../components/Toast";
 import { ESTADO_HOSPEDAJE, PLAN_HOSPEDAJE, presentar } from "../../config/estados";
 import HospedajeForm from "./HospedajeForm";
 import "../entidades.css";
@@ -25,6 +26,7 @@ const formatoFecha = (iso) => {
  */
 export default function Hospedajes() {
   const hospedajes = useApi(api.hospedajes);
+  const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, hospedaje}
   const [busqueda, setBusqueda] = useState("");
   const [cambiandoId, setCambiandoId] = useState(null);
@@ -47,8 +49,10 @@ export default function Hospedajes() {
   }, [hospedajes.data]);
 
   function alGuardar() {
+    const creado = modal?.modo === "crear";
     setModal(null);
     hospedajes.recargar();
+    toast.success(creado ? "Hospedaje creado." : "Hospedaje actualizado.");
   }
 
   // Activar/suspender rápido desde la tarjeta.
@@ -64,9 +68,10 @@ export default function Hospedajes() {
         estado: nuevoEstado,
         fecha_expira: (h.fecha_expira || "").slice(0, 10),
       });
+      toast.success(nuevoEstado === "suspendido" ? `"${h.nombre}" suspendido.` : `"${h.nombre}" reactivado.`);
       hospedajes.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo cambiar el estado.");
     } finally {
       setCambiandoId(null);
     }

@@ -1,4 +1,5 @@
 import { api } from "../api/client";
+import { toast } from "../components/Toast";
 
 /**
  * Abre un PDF protegido en una pestaña nueva.
@@ -29,7 +30,7 @@ function abrirPdfDesde(promesaBlobUrl, nombreArchivo) {
     })
     .catch((e) => {
       if (ventana && !ventana.closed) ventana.close();
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo abrir el PDF.");
     });
 }
 

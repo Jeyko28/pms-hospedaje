@@ -6,11 +6,13 @@ import Button from "../../components/Button";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import { useToast } from "../../components/Toast";
 import HuespedForm from "./HuespedForm";
 import "../entidades.css";
 
 export default function Huespedes() {
   const huespedes = useApi(api.huespedes);
+  const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, huesped}
   const [borrandoId, setBorrandoId] = useState(null);
   const [busqueda, setBusqueda] = useState("");
@@ -29,8 +31,10 @@ export default function Huespedes() {
   }, [huespedes.data, busqueda]);
 
   function alGuardar() {
+    const creado = modal?.modo === "crear";
     setModal(null);
     huespedes.recargar();
+    toast.success(creado ? "Huésped registrado." : "Huésped actualizado.");
   }
 
   async function eliminar(h) {
@@ -38,9 +42,10 @@ export default function Huespedes() {
     setBorrandoId(h.id);
     try {
       await api.eliminarHuesped(h.id);
+      toast.success(`${h.nombre} eliminado.`);
       huespedes.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo eliminar el huésped.");
     } finally {
       setBorrandoId(null);
     }

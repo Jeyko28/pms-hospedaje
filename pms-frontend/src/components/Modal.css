@@ -8,6 +8,7 @@
   padding: var(--space-8) var(--space-4);
   overflow-y: auto;
   z-index: 50;
+  animation: modal-overlay-in 150ms ease-out;
 }
 
 .modal {
@@ -19,6 +20,26 @@
   margin: auto;
   display: flex;
   flex-direction: column;
+  animation: modal-in 160ms ease-out;
+}
+
+@keyframes modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .modal:focus-visible {

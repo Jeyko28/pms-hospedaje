@@ -7,6 +7,7 @@ import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
+import { useToast } from "../../components/Toast";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import NuevaReservaForm from "./NuevaReservaForm";
 import "./Reservas.css";
@@ -31,6 +32,7 @@ export default function Reservas() {
   const reservas = useApi(api.reservas);
   const huespedes = useApi(api.huespedes);
   const habitaciones = useApi(api.habitaciones);
+  const toast = useToast();
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -56,6 +58,7 @@ export default function Reservas() {
   function alCrear() {
     setModalAbierto(false);
     reservas.recargar();
+    toast.success("Reserva creada.");
   }
 
   async function cancelar(id) {
@@ -63,9 +66,10 @@ export default function Reservas() {
     setCancelandoId(id);
     try {
       await api.cancelarReserva(id);
+      toast.success(`Reserva #${id} cancelada.`);
       reservas.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo cancelar la reserva.");
     } finally {
       setCancelandoId(null);
     }
@@ -75,9 +79,10 @@ export default function Reservas() {
     setConfirmandoId(id);
     try {
       await api.confirmarReserva(id);
+      toast.success(`Reserva #${id} confirmada.`);
       reservas.recargar();
     } catch (e) {
-      window.alert(e.message);
+      toast.error(e.message || "No se pudo confirmar la reserva.");
     } finally {
       setConfirmandoId(null);
     }

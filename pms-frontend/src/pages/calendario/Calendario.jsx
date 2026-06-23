@@ -8,6 +8,7 @@ import Badge from "../../components/Badge";
 import Modal from "../../components/Modal";
 import Field from "../../components/Field";
 import StateMessage from "../../components/StateMessage";
+import { useToast } from "../../components/Toast";
 import NuevaReservaForm from "../reservas/NuevaReservaForm";
 import CobroEstanciaForm from "../recepcion/CobroEstanciaForm";
 import CheckinForm from "../recepcion/CheckinForm";
@@ -73,6 +74,7 @@ function ymd(d) {
  * reservas se dibujan como barras que ocupan sus días.
  */
 export default function Calendario() {
+  const toast = useToast();
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState(hoy.getMonth()); // 0-11
@@ -146,10 +148,12 @@ export default function Calendario() {
     setAccionando(true);
     try {
       await api.confirmarReserva(seleccion.id);
+      toast.success("Reserva confirmada.");
       setSeleccion(null);
       recargar();
     } catch (e) {
       setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo confirmar la reserva.");
     } finally {
       setAccionando(false);
     }
@@ -160,6 +164,7 @@ export default function Calendario() {
   function alCheckinHecho() {
     setMostrarCheckin(false);
     recargar();
+    toast.success("Check-in registrado.");
   }
 
   // Tras el check-out (desde CheckoutForm): cierra el modal y recarga.
@@ -167,6 +172,7 @@ export default function Calendario() {
     setMostrarCheckout(false);
     setSeleccion(null);
     recargar();
+    toast.success("Check-out completado.");
   }
 
   // Tras registrar un pago: vuelve al detalle y recarga (el efecto de sync
@@ -174,6 +180,7 @@ export default function Calendario() {
   function alPagado() {
     setMostrarPago(false);
     recargar();
+    toast.success("Pago registrado.");
   }
 
   // Abre la sub-vista de edición con las fechas/notas actuales de la reserva.
@@ -199,10 +206,12 @@ export default function Calendario() {
     setAccionando(true);
     try {
       await api.editarReserva(seleccion.id, editForm);
+      toast.success("Reserva actualizada.");
       setMostrarEditar(false);
       recargar(); // el efecto de sync actualiza la reserva seleccionada
     } catch (e) {
       setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo actualizar la reserva.");
     } finally {
       setAccionando(false);
     }
@@ -216,10 +225,12 @@ export default function Calendario() {
     setAccionando(true);
     try {
       await api.cancelarReserva(seleccion.id);
+      toast.success("Reserva cancelada.");
       setSeleccion(null);
       recargar();
     } catch (e) {
       setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo cancelar la reserva.");
     } finally {
       setAccionando(false);
     }
@@ -254,11 +265,13 @@ export default function Calendario() {
     setAccionando(true);
     try {
       await api.moverReserva(seleccion.id, habId);
+      toast.success("Reserva movida de habitación.");
       setMostrarMover(false);
       setDestinoHab("");
       recargar(); // el efecto de sync actualiza la reserva a la nueva habitación
     } catch (e) {
       setErrorAccion(e.message);
+      toast.error(e.message || "No se pudo mover la reserva.");
     } finally {
       setAccionando(false);
     }
@@ -272,9 +285,13 @@ export default function Calendario() {
     setErrorMover(null);
     api
       .moverReserva(reserva.id, habId)
-      .then(() => recargar())
+      .then(() => {
+        toast.success("Reserva movida de habitación.");
+        recargar();
+      })
       .catch((err) => {
         setErrorMover(err.message);
+        toast.error(err.message || "No se pudo mover la reserva.");
         setTimeout(() => setErrorMover(null), 5000);
       });
   }

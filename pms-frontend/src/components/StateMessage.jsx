@@ -22,10 +22,18 @@ export default function StateMessage({ variant = "loading", title, message, acti
   };
 
   return (
-    <div className="state" role={variant === "error" ? "alert" : "status"}>
-      <div className="state__icon" aria-hidden="true">
-        {iconos[variant]}
-      </div>
+    <div
+      className="state"
+      role={variant === "error" ? "alert" : "status"}
+      aria-busy={variant === "loading" || undefined}
+    >
+      {variant === "loading" ? (
+        <span className="state__spinner" aria-hidden="true" />
+      ) : (
+        <div className="state__icon" aria-hidden="true">
+          {iconos[variant]}
+        </div>
+      )}
       {title && <p className="state__title">{title}</p>}
       {message && <p className="state__message">{message}</p>}
       {action && <div className="state__action">{action}</div>}

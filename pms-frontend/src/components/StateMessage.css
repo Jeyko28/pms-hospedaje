@@ -13,6 +13,23 @@
   margin-bottom: var(--space-2);
 }
 
+/* Spinner del estado de carga (reemplaza el emoji estático). */
+.state__spinner {
+  width: 30px;
+  height: 30px;
+  margin-bottom: var(--space-3);
+  border: 3px solid var(--border-default);
+  border-top-color: var(--color-brand-600);
+  border-radius: var(--radius-full);
+  animation: state-spin 700ms linear infinite;
+}
+
+@keyframes state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .state__title {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);

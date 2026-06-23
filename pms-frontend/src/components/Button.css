@@ -22,9 +22,33 @@
   cursor: not-allowed;
 }
 
+.btn--loading {
+  cursor: progress;
+}
+/* En carga el botón no debe verse "apagado": el spinner ya comunica el estado. */
+.btn--loading:disabled {
+  opacity: 0.85;
+}
+
 .btn__icon {
   display: inline-flex;
   font-size: 1.1em;
+}
+
+/* Spinner inline: usa currentColor para verse bien en cualquier variante. */
+.btn__spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-full);
+  animation: btn-spin 600ms linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* --- Tamanos --- */
