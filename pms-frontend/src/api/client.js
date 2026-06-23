@@ -193,6 +193,9 @@ export const api = {
   config: () => get("/api/config"),
   yo: () => get("/api/auth/yo"),
 
+  // Link público: personalizar el slug (solo admin, cupo limitado)
+  cambiarSlug: (slug) => put("/api/mi-hospedaje/slug", { slug }),
+
   // Usuarios (solo admin)
   usuarios: () => get("/api/usuarios"),
   crearUsuario: (datos) => post("/api/usuarios", datos),

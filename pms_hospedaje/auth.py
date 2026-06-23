@@ -45,6 +45,11 @@ if os.environ.get("PMS_ENV") == "production" and SECRET_KEY == _DEFAULT_DEV_KEY:
 ALGORITHM = "HS256"
 TOKEN_HORAS = 12  # la sesion dura 12 horas
 
+# Cupo de cambios del slug del link público por hospedaje. El link se comparte
+# (WhatsApp, Instagram, Google); cambiarlo invalida los enlaces ya difundidos,
+# por eso se limita a unas pocas oportunidades.
+MAX_CAMBIOS_SLUG = 3
+
 # ID de cliente de Google (para "Iniciar sesion con Google"). Se define como
 # variable de entorno GOOGLE_CLIENT_ID. Si no esta, el login con Google se
 # desactiva (pero el login normal sigue funcionando).
@@ -326,15 +331,21 @@ def publico(usuario_dict: dict) -> dict:
     hid = usuario_dict.get("hospedaje_id")
     slug = None
     nombre_h = None
+    slug_cambios = 0
     if hid is not None:
         conn = get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT slug, nombre FROM hospedajes WHERE id = ?", (hid,))
+            cursor.execute("SELECT slug, nombre, slug_cambios FROM hospedajes WHERE id = ?", (hid,))
             row = cursor.fetchone()
             if row:
                 slug = row["slug"]
                 nombre_h = row["nombre"]
+                # La columna puede no existir en bases muy antiguas (pre-migración).
+                try:
+                    slug_cambios = row["slug_cambios"] or 0
+                except (KeyError, IndexError):
+                    slug_cambios = 0
         finally:
             conn.close()
     return {
@@ -346,4 +357,6 @@ def publico(usuario_dict: dict) -> dict:
         "hospedaje_id": hid,
         "hospedaje_slug": slug,
         "hospedaje_nombre": nombre_h,
+        "slug_cambios": slug_cambios,
+        "slug_cambios_max": MAX_CAMBIOS_SLUG,
     }

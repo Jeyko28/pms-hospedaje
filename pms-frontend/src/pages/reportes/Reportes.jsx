@@ -54,6 +54,23 @@ export default function Reportes() {
   const fetcherFin = useCallback(() => api.reporteFinanciero(anio, mes), [anio, mes]);
   const financiero = useApi(fetcherFin);
 
+  // Tooltip del gráfico de ocupación: día sobre el que está el cursor/foco.
+  const [tip, setTip] = useState(null);
+
+  function mostrarTip(e, d, total) {
+    const wrap = e.currentTarget.closest(".grafico-wrap");
+    if (!wrap) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const wr = wrap.getBoundingClientRect();
+    // Centramos el tooltip sobre la barra y lo mantenemos dentro del recuadro.
+    const centro = r.left + r.width / 2 - wr.left;
+    const left = Math.max(64, Math.min(centro, wr.width - 64));
+    setTip({ dia: d.dia, pct: d.porcentaje, ocupadas: d.ocupadas, total, left });
+  }
+  function ocultarTip() {
+    setTip(null);
+  }
+
   // Segmentos de la dona de métodos de pago (con su color y etiqueta).
   const segmentosPago = useMemo(() => {
     if (!financiero.data) return [];
@@ -215,6 +232,36 @@ export default function Reportes() {
                 </ol>
               )}
             </Card>
+
+            {/* Origen de reservas (link público vs. recepción) */}
+            <Card>
+              <h2>Origen de reservas</h2>
+              {(() => {
+                const o = financiero.data.origen_reservas || { publico: 0, manual: 0 };
+                const total = (o.publico || 0) + (o.manual || 0);
+                if (total === 0) {
+                  return (
+                    <StateMessage
+                      variant="empty"
+                      title="Sin reservas este mes"
+                      message="Cuando entren reservas verás de dónde vienen (link o recepción)."
+                    />
+                  );
+                }
+                const segmentos = [
+                  { label: "Link público", value: o.publico, color: "var(--color-brand-600)" },
+                  { label: "Recepción (manual)", value: o.manual, color: "var(--color-neutral-500)" },
+                ];
+                return (
+                  <Dona
+                    segmentos={segmentos}
+                    centroValor={String(total)}
+                    centroLabel="reservas"
+                    formato={(v) => `${v}`}
+                  />
+                );
+              })()}
+            </Card>
           </div>
 
           <h2 className="reportes__sep">Ocupación</h2>
@@ -291,26 +338,46 @@ export default function Reportes() {
                 message="Crea habitaciones para poder medir la ocupación."
               />
             ) : (
-              <div
-                className="grafico"
-                role="img"
-                aria-label={`Ocupación diaria de ${MESES[mes - 1]} ${anio}. Promedio ${reporte.data.promedio_ocupacion} por ciento.`}
-              >
-                {reporte.data.dias.map((d) => (
-                  <div
-                    key={d.dia}
-                    className="grafico__col"
-                    title={`Día ${d.dia}: ${d.porcentaje}% (${d.ocupadas} de ${reporte.data.total_habitaciones})`}
-                  >
-                    <div className="grafico__barra-zona">
-                      <div
-                        className={`grafico__barra grafico__barra--${tono(d.porcentaje)}`}
-                        style={{ height: `${(d.porcentaje / maxPct) * 100}%` }}
-                      />
-                    </div>
-                    <span className="grafico__dia">{d.dia}</span>
+              <div className="grafico-wrap">
+                <p className="sr-only">
+                  Ocupación diaria de {MESES[mes - 1]} {anio}. Promedio{" "}
+                  {reporte.data.promedio_ocupacion} por ciento.
+                </p>
+
+                {tip && (
+                  <div className="grafico-tip" style={{ left: tip.left }} role="status">
+                    <span className="grafico-tip__dia">
+                      {MESES[mes - 1]} {tip.dia}
+                    </span>
+                    <span className="grafico-tip__pct">{tip.pct}% ocupación</span>
+                    <span className="grafico-tip__meta">
+                      {tip.ocupadas} de {tip.total} habitaciones
+                    </span>
                   </div>
-                ))}
+                )}
+
+                <div className="grafico">
+                  {reporte.data.dias.map((d) => (
+                    <div
+                      key={d.dia}
+                      className="grafico__col"
+                      tabIndex={0}
+                      aria-label={`Día ${d.dia}: ${d.porcentaje}% de ocupación (${d.ocupadas} de ${reporte.data.total_habitaciones} habitaciones).`}
+                      onMouseEnter={(e) => mostrarTip(e, d, reporte.data.total_habitaciones)}
+                      onMouseLeave={ocultarTip}
+                      onFocus={(e) => mostrarTip(e, d, reporte.data.total_habitaciones)}
+                      onBlur={ocultarTip}
+                    >
+                      <div className="grafico__barra-zona">
+                        <div
+                          className={`grafico__barra grafico__barra--${tono(d.porcentaje)}`}
+                          style={{ height: `${(d.porcentaje / maxPct) * 100}%` }}
+                        />
+                      </div>
+                      <span className="grafico__dia">{d.dia}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </Card>

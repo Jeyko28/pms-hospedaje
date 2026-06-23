@@ -57,6 +57,13 @@ export function AuthProvider({ children }) {
     setUsuario(u);
   }
 
+  // Vuelve a pedir los datos del usuario (p. ej. tras cambiar el slug del link).
+  async function refrescarUsuario() {
+    const u = await api.yo();
+    setUsuario(u);
+    return u;
+  }
+
   function logout() {
     tokenStore.clear();
     setUsuario(null);
@@ -68,7 +75,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ usuario, esAdmin, esSuperadmin, cargando, login, registro, setUsuarioDesdeGoogle, logout }}
+      value={{ usuario, esAdmin, esSuperadmin, cargando, login, registro, setUsuarioDesdeGoogle, refrescarUsuario, logout }}
     >
       {children}
     </AuthContext.Provider>

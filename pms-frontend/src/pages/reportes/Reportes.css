@@ -153,6 +153,12 @@
 }
 
 /* ---------- Grafico de barras (CSS puro) ---------- */
+/* Contenedor con espacio arriba para el tooltip flotante. */
+.grafico-wrap {
+  position: relative;
+  padding-top: 56px;
+}
+
 .grafico {
   display: flex;
   align-items: stretch;
@@ -162,6 +168,48 @@
   padding-bottom: var(--space-2);
 }
 
+/* Tooltip con marca del sistema (reemplaza el title nativo del navegador). */
+.grafico-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-neutral-900);
+  color: var(--color-neutral-0);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Flecha inferior apuntando a la barra. */
+.grafico-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--color-neutral-900);
+}
+.grafico-tip__dia {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  text-transform: capitalize;
+}
+.grafico-tip__pct {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.grafico-tip__meta {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
 .grafico__col {
   flex: 1 1 0;
   min-width: 14px;
@@ -169,6 +217,13 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
+  cursor: default;
+  border-radius: var(--radius-sm);
+}
+/* Realce de la barra al pasar el cursor o enfocarla con teclado. */
+.grafico__col:hover .grafico__barra,
+.grafico__col:focus-visible .grafico__barra {
+  filter: brightness(1.08) saturate(1.1);
 }
 
 /* Zona que reserva la altura completa; la barra crece desde abajo. */

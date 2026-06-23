@@ -113,6 +113,26 @@ def migrar(conn):
 
     conn.commit()
 
+    # ----- 4. Columna 'origen' en reservas ('manual' | 'publico') -----
+    # Para reportes: distinguir reservas creadas a mano vs. por el link público.
+    # Las existentes quedan 'manual' (no podemos saber su origen retroactivo).
+    if _tabla_existe(cursor, "reservas"):
+        cols_reservas = _columnas_de(cursor, "reservas")
+        if "origen" not in cols_reservas:
+            cursor.execute("ALTER TABLE reservas ADD COLUMN origen TEXT DEFAULT 'manual'")
+            cursor.execute("UPDATE reservas SET origen = 'manual' WHERE origen IS NULL")
+            conn.commit()
+
+    # ----- 5. Columna 'slug_cambios' en hospedajes (contador de cambios de link) -----
+    # El admin puede personalizar el slug del link público, pero con un cupo
+    # limitado (el link se comparte; cambiarlo a menudo rompe enlaces ya difundidos).
+    if _tabla_existe(cursor, "hospedajes"):
+        cols_hosp = _columnas_de(cursor, "hospedajes")
+        if "slug_cambios" not in cols_hosp:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN slug_cambios INTEGER DEFAULT 0")
+            cursor.execute("UPDATE hospedajes SET slug_cambios = 0 WHERE slug_cambios IS NULL")
+            conn.commit()
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).

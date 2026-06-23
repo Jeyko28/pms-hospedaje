@@ -244,6 +244,11 @@ class HospedajeEdit(BaseModel):
     fecha_expira: str = ""
 
 
+class SlugNuevo(BaseModel):
+    # El admin personaliza el slug de su link público de reservas.
+    slug: str
+
+
 class RegistroPublico(BaseModel):
     # Lo que un cliente nuevo llena en la pagina publica de registro.
     hospedaje_nombre: str
@@ -384,6 +389,87 @@ def quien_soy(actual: dict = Depends(auth.usuario_actual)):
     """Devuelve los datos del usuario logueado (para que el frontend sepa
     quien es al recargar con un token guardado)."""
     return auth.publico(actual)
+
+
+@app.put("/api/mi-hospedaje/slug")
+def cambiar_slug(datos: SlugNuevo, admin: dict = Depends(auth.solo_admin)):
+    """Personaliza el slug del link público de reservas del hospedaje del admin.
+
+    Reglas (UX + integridad del link compartido):
+      - Solo el admin (no recepción).
+      - Cupo limitado: MAX_CAMBIOS_SLUG cambios efectivos por hospedaje.
+      - Si el slug pedido es igual al actual, no consume cupo (no-op amable).
+      - Debe ser único entre todos los hospedajes.
+    """
+    hid = admin["hospedaje_id"]
+
+    # Normalizamos a un slug seguro para URL (mismo criterio que en el alta).
+    nuevo = _slugify(datos.slug or "")
+    if len(nuevo) < 3:
+        raise HTTPException(
+            status_code=422,
+            detail="El link debe tener al menos 3 caracteres (letras, números o guiones).",
+        )
+    if len(nuevo) > 40:
+        raise HTTPException(status_code=422, detail="El link es demasiado largo (máx. 40 caracteres).")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT slug, COALESCE(slug_cambios, 0) AS slug_cambios FROM hospedajes WHERE id = ?",
+            (hid,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+
+        actual_slug = row["slug"]
+        usados = row["slug_cambios"] or 0
+
+        # No-op amable: pedir el mismo slug no gasta un cambio.
+        if nuevo == actual_slug:
+            return {
+                "slug": actual_slug,
+                "cambios_usados": usados,
+                "cambios_max": auth.MAX_CAMBIOS_SLUG,
+                "cambios_restantes": max(0, auth.MAX_CAMBIOS_SLUG - usados),
+                "sin_cambio": True,
+            }
+
+        if usados >= auth.MAX_CAMBIOS_SLUG:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya usaste tus {auth.MAX_CAMBIOS_SLUG} cambios de link. "
+                "Si necesitas otro, escríbenos para ayudarte.",
+            )
+
+        # Unicidad global del slug (excluyendo el propio hospedaje).
+        cursor.execute(
+            "SELECT id FROM hospedajes WHERE slug = ? AND id != ?", (nuevo, hid)
+        )
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=409,
+                detail="Ese link ya está en uso por otro hospedaje. Prueba con otro.",
+            )
+
+        cursor.execute(
+            "UPDATE hospedajes SET slug = ?, slug_cambios = ? WHERE id = ?",
+            (nuevo, usados + 1, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    usados_final = usados + 1
+    return {
+        "slug": nuevo,
+        "cambios_usados": usados_final,
+        "cambios_max": auth.MAX_CAMBIOS_SLUG,
+        "cambios_restantes": max(0, auth.MAX_CAMBIOS_SLUG - usados_final),
+        "sin_cambio": False,
+    }
 
 
 @app.get("/api/usuarios")
@@ -795,11 +881,12 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
         noches = (fs - fe).days
         total = round(hab["precio_base"] * noches, 2)
 
-        # Reserva en estado 'Pendiente' (la confirma/paga despues).
+        # Reserva en estado 'Pendiente' (la confirma/paga despues). origen
+        # 'publico' = llegó por el link del motor de reservas.
         cursor.execute(
             """
-            INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id)
-            VALUES (?, ?, ?, ?, 'Pendiente', ?, ?, ?)
+            INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id, origen)
+            VALUES (?, ?, ?, ?, 'Pendiente', ?, ?, ?, 'publico')
             """,
             (huesped_id, datos.habitacion_id, datos.fecha_entrada, datos.fecha_salida,
              total, datos.notas, hid),
@@ -1410,6 +1497,19 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
         raise HTTPException(
             status_code=422,
             detail="La fecha de entrada debe ser anterior a la fecha de salida de la reserva.",
+        )
+
+    # Validacion real de disponibilidad (no solo el flag hab.estado, que puede
+    # quedar desincronizado): impide hacer check-in si otra reserva vigente o
+    # estancia activa se solapa con [fecha_real, salida). Se excluye la propia
+    # reserva para que no se bloquee a si misma.
+    if not Reserva.verificar_disponibilidad(
+        reserva.habitacion_id, fecha_real, reserva.fecha_salida,
+        reserva_id_excluir=reserva.id,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="La habitación tiene otra reserva o estancia que se solapa en esas fechas.",
         )
 
     # Cobro por NOCHES REALES (entrada real -> salida esperada) x precio. Así
@@ -2076,7 +2176,7 @@ def reporte_ocupacion(
         ultimo_dia = f"{anio}-{mes:02d}-{num_dias:02d}"
         cursor.execute(
             """
-            SELECT fecha_entrada, fecha_salida
+            SELECT habitacion_id, fecha_entrada, fecha_salida
             FROM reservas
             WHERE estado != 'Cancelada'
             AND hospedaje_id = ?
@@ -2088,19 +2188,24 @@ def reporte_ocupacion(
     finally:
         conn.close()
 
-    ocupadas_por_dia = [0] * num_dias
+    # Ocupacion por dia como CONJUNTO de habitaciones (deduplicado), no contador.
+    # Una habitacion cuenta como maximo 1 por dia aunque se hayan revendido sus
+    # noches (estancia con Check-out + nueva reserva sobre las mismas fechas),
+    # asi la ocupacion nunca puede superar el 100%.
+    habs_por_dia = [set() for _ in range(num_dias)]
     for row in reservas:
         entrada = datetime.strptime(row["fecha_entrada"], "%Y-%m-%d")
         salida = datetime.strptime(row["fecha_salida"], "%Y-%m-%d")
         dia = max(entrada, datetime(anio, mes, 1))
         fin_mes = datetime(anio, mes, num_dias)
         while dia <= min(salida - timedelta(days=1), fin_mes):
-            ocupadas_por_dia[dia.day - 1] += 1
+            habs_por_dia[dia.day - 1].add(row["habitacion_id"])
             dia += timedelta(days=1)
 
     dias = []
     suma_pct = 0.0
-    for i, ocupadas in enumerate(ocupadas_por_dia):
+    for i, habs in enumerate(habs_por_dia):
+        ocupadas = len(habs)
         pct = round((ocupadas / total_habitaciones) * 100, 1) if total_habitaciones else 0
         suma_pct += pct
         dias.append({"dia": i + 1, "ocupadas": ocupadas, "porcentaje": pct})
@@ -2202,6 +2307,23 @@ def reporte_financiero(
             for r in cursor.fetchall()
         ]
 
+        # --- Origen de las reservas del mes (link público vs. creadas a mano). ---
+        cursor.execute(
+            """
+            SELECT origen, COUNT(*) AS n
+            FROM reservas
+            WHERE hospedaje_id = ? AND estado != 'Cancelada'
+            AND substr(fecha_entrada, 1, 7) = ?
+            GROUP BY origen
+            """,
+            (hid, periodo),
+        )
+        por_origen = {(r["origen"] or "manual"): r["n"] for r in cursor.fetchall()}
+        origen_reservas = {
+            "publico": por_origen.get("publico", 0),
+            "manual": por_origen.get("manual", 0),
+        }
+
         return {
             "anio": anio,
             "mes": mes,
@@ -2213,6 +2335,7 @@ def reporte_financiero(
             },
             "metodos_pago": metodos_pago,
             "top_habitaciones": top_habitaciones,
+            "origen_reservas": origen_reservas,
         }
     finally:
         conn.close()
