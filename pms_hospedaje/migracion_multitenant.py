@@ -133,6 +133,21 @@ def migrar(conn):
             cursor.execute("UPDATE hospedajes SET slug_cambios = 0 WHERE slug_cambios IS NULL")
             conn.commit()
 
+    # ----- 6. Tabla 'visitas' (analítica de la página pública de reservas) -----
+    # Cada vez que alguien abre el link público de un hospedaje se registra una
+    # visita. Alimenta el "Visitors Chart" del dashboard. Se llena solo con el
+    # tráfico real del link.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS visitas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).

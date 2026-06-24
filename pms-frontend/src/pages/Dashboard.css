@@ -25,6 +25,20 @@
   gap: var(--space-4);
 }
 
+/* Dos columnas que se apilan en pantallas angostas (disponibilidad+reservas,
+   agenda+huéspedes, booking source+visitas). */
+.dashboard__duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .dashboard__duo {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard__section-head {
   display: flex;
   align-items: baseline;
@@ -102,6 +116,8 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-6) var(--space-2);
 }
 .agenda-col__lista {
   list-style: none;

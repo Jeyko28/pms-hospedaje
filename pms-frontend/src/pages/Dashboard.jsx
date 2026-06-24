@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useApi } from "../hooks/useApi";
 import { useRuta } from "../router/Router";
-import StatCard from "../components/StatCard";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -15,11 +14,21 @@ import {
   ESTADO_LIMPIEZA,
   presentar,
 } from "../config/estados";
+import KpiCard from "./dashboard/KpiCard";
+import CurrentBookingTable from "./dashboard/CurrentBookingTable";
+import GuestList from "./dashboard/GuestList";
+import { SparkBars, MiniLine, MiniPie, C } from "./dashboard/charts";
 import "./Dashboard.css";
+import "./dashboard/widgets.css";
 
 const formatoMoneda = new Intl.NumberFormat("es-PE", {
   style: "currency",
   currency: "PEN",
+});
+const moneda0 = new Intl.NumberFormat("es-PE", {
+  style: "currency",
+  currency: "PEN",
+  maximumFractionDigits: 0,
 });
 
 // Fecha larga y legible: "sábado, 14 de junio".
@@ -38,16 +47,17 @@ export default function Dashboard() {
   const resumen = useApi(api.resumenDashboard);
   const habitaciones = useApi(api.habitaciones);
   const agenda = useApi(api.agendaDashboard);
+  const overview = useApi(api.dashboardOverview);
   const { navegar } = useRuta();
   const toast = useToast();
 
   const [accionId, setAccionId] = useState(null); // id en proceso (check-in/out)
 
-  // Refresca TODO el panel (tras una acción o por el auto-refresco).
   function recargarTodo() {
     resumen.recargar();
     habitaciones.recargar();
     agenda.recargar();
+    overview.recargar();
   }
 
   // Auto-refresco: el subtítulo promete "tiempo real". Cada 60s y al volver a
@@ -91,9 +101,11 @@ export default function Dashboard() {
     }
   }
 
+  const ov = overview.data;
+  const k = ov?.kpis;
   return (
     <div className="dashboard">
-      {/* ---------- Encabezado de pagina ---------- */}
+      {/* ---------- Encabezado ---------- */}
       <header className="dashboard__head">
         <div>
           <h1>Panel de control</h1>
@@ -106,76 +118,93 @@ export default function Dashboard() {
         </Button>
       </header>
 
-      {/* ---------- Link público de reservas (para compartir) ---------- */}
+      {/* ---------- Link público de reservas ---------- */}
       <LinkReservas />
 
-      {/* ---------- Tarjetas de KPI ---------- */}
+      {/* ---------- KPIs con mini-gráficos ---------- */}
       <section aria-labelledby="kpis-title">
-        <h2 id="kpis-title" className="sr-only">
-          Indicadores principales
-        </h2>
+        <h2 id="kpis-title" className="sr-only">Indicadores principales</h2>
 
-        {resumen.loading && !resumen.data && (
+        {overview.loading && !ov && (
           <div className="dashboard__kpis">
             {[0, 1, 2, 3].map((i) => (
-              <Card key={i} padding="md" className="statcard">
-                <div className="statcard__top">
-                  <Skeleton width={44} height={44} radius="var(--radius-md)" />
-                  <Skeleton width="55%" height={12} />
+              <Card key={i} padding="md" className="kpi">
+                <div className="kpi__main">
+                  <Skeleton width="60%" height={12} />
+                  <div style={{ height: 8 }} />
+                  <Skeleton width="45%" height={26} />
+                  <div style={{ height: 8 }} />
+                  <Skeleton width="35%" height={12} />
                 </div>
-                <Skeleton width="50%" height={28} />
-                <Skeleton width="40%" height={12} />
+                <Skeleton width={64} height={48} radius="var(--radius-md)" />
               </Card>
             ))}
           </div>
         )}
 
-        {resumen.error && (
+        {overview.error && (
           <Card>
             <StateMessage
               variant="error"
               title="No se pudieron cargar los indicadores"
-              message={resumen.error}
-              action={
-                <Button variant="secondary" onClick={resumen.recargar}>
-                  Reintentar
-                </Button>
-              }
+              message={overview.error}
+              action={<Button variant="secondary" onClick={overview.recargar}>Reintentar</Button>}
             />
           </Card>
         )}
 
-        {resumen.data && (
-          <div className="dashboard__kpis">
-            <StatCard
-              icon="🏨"
-              accent="brand"
-              label="Habitaciones"
-              value={resumen.data.total_habitaciones}
-              hint={`${resumen.data.disponibles} disponibles`}
-            />
-            <StatCard
-              icon="📈"
-              accent="success"
-              label="Ocupación"
-              value={`${resumen.data.ocupacion_pct}%`}
-              hint={`${resumen.data.ocupadas} ocupadas · ${resumen.data.reservadas ?? 0} reservadas`}
-            />
-            <StatCard
-              icon="🛎️"
-              accent="warning"
-              label="Check-ins pendientes"
-              value={resumen.data.checkins_pendientes}
-              hint={`${resumen.data.estancias_activas} estancias activas`}
-            />
-            <StatCard
-              icon="💰"
-              accent="success"
-              label="Ingresos del mes"
-              value={formatoMoneda.format(resumen.data.ingresos_mes)}
-            />
-          </div>
-        )}
+        {k && (() => {
+          const donut = k.available_rooms.donut;
+          const totalHab = k.available_rooms.total || 0;
+          const ocupPct = totalHab
+            ? Math.round(((donut.ocupadas + donut.reservadas) / totalHab) * 100)
+            : 0;
+          const donutSegs = [
+            { name: "Ocupadas", value: donut.ocupadas, color: C.brand },
+            { name: "Reservadas", value: donut.reservadas, color: C.warning },
+            { name: "Disponibles", value: donut.disponibles, color: C.success },
+            { name: "No listas", value: donut.not_ready, color: C.neutral },
+          ];
+          return (
+            <div className="dashboard__kpis">
+              <KpiCard
+                title="Nuevas reservas"
+                value={k.new_booking.valor}
+                trendPct={k.new_booking.trend_pct}
+                hint="este mes"
+                chart={<SparkBars data={k.new_booking.spark} />}
+              />
+              <KpiCard
+                title="Ocupación hoy"
+                value={`${ocupPct}%`}
+                hint={`${k.available_rooms.valor} libres de ${totalHab}`}
+                chart={<MiniPie inner={16} segments={donutSegs} />}
+              />
+              {/* Revenue solo si el backend lo envía (admin). Recepción ve un KPI operativo. */}
+              {k.revenue ? (
+                <KpiCard
+                  title="Ingresos del mes"
+                  value={moneda0.format(k.revenue.valor)}
+                  trendPct={k.revenue.trend_pct}
+                  hint="cobrado"
+                  chart={<MiniLine data={k.revenue.linea} />}
+                />
+              ) : (
+                <KpiCard
+                  title="Check-ins pendientes"
+                  value={resumen.data?.checkins_pendientes ?? 0}
+                  hint={`${resumen.data?.estancias_activas ?? 0} estancias activas`}
+                />
+              )}
+              <KpiCard
+                title="Check-outs"
+                value={k.checkout.valor}
+                trendPct={k.checkout.trend_pct}
+                hint="este mes"
+              />
+            </div>
+          );
+        })()}
       </section>
 
       {/* Aviso: huéspedes que ya debieron salir y siguen con check-in. */}
@@ -193,112 +222,116 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ---------- Reservas recientes (tabla) ---------- */}
+      {ov && (
+        <CurrentBookingTable
+          bookings={ov.current_bookings}
+          onVerTodas={() => navegar("reservas")}
+          onAccion={() => navegar("calendario")}
+        />
+      )}
+
       {/* ---------- Agenda del día (llegan / salen hoy) ---------- */}
       <section aria-labelledby="agenda-title" className="dashboard__section">
-        <div className="dashboard__section-head">
-          <h2 id="agenda-title">Hoy</h2>
-          {agenda.data && (
-            <span className="dashboard__fecha">{fechaLarga(agenda.data.fecha)}</span>
+          <div className="dashboard__section-head">
+            <h2 id="agenda-title">Hoy</h2>
+            {agenda.data && (
+              <span className="dashboard__fecha">{fechaLarga(agenda.data.fecha)}</span>
+            )}
+          </div>
+
+          {agenda.loading && !agenda.data && (
+            <Card><StateMessage variant="loading" title="Cargando agenda…" /></Card>
           )}
-        </div>
 
-        {agenda.loading && !agenda.data && (
-          <Card><StateMessage variant="loading" title="Cargando agenda…" /></Card>
-        )}
-
-        {agenda.data && (
-          <div className="dashboard__agenda">
-            {/* Llegadas */}
-            <Card padding="sm" className="agenda-col">
-              <div className="agenda-col__head">
-                <span className="agenda-col__titulo">Llegan hoy</span>
-                <span className="agenda-col__contador">{agenda.data.llegadas_hoy.length}</span>
-              </div>
-              {agenda.data.llegadas_hoy.length === 0 ? (
-                <p className="agenda-col__vacio">Sin llegadas para hoy.</p>
-              ) : (
-                <ul className="agenda-col__lista">
-                  {agenda.data.llegadas_hoy.map((r) => (
-                    <li key={r.reserva_id} className="agenda-item">
-                      <div className="agenda-item__info">
-                        <span className="agenda-item__nombre">{r.huesped}</span>
-                        <span className="agenda-item__meta">
-                          Hab. {r.habitacion} · {r.tipo} · {formatoMoneda.format(r.total || 0)}
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => hacerCheckin(r.reserva_id)}
-                        loading={accionId === "in-" + r.reserva_id}
-                      >
-                        Check-in
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            {/* Salidas */}
-            <Card padding="sm" className="agenda-col">
-              <div className="agenda-col__head">
-                <span className="agenda-col__titulo">Salen hoy</span>
-                <span className="agenda-col__contador">{agenda.data.salidas_hoy.length}</span>
-              </div>
-              {agenda.data.salidas_hoy.length === 0 ? (
-                <p className="agenda-col__vacio">Sin salidas para hoy.</p>
-              ) : (
-                <ul className="agenda-col__lista">
-                  {agenda.data.salidas_hoy.map((s) => {
-                    const conSaldo = s.saldo > 0;
-                    return (
-                      <li key={s.estancia_id} className="agenda-item">
+          {agenda.data && (
+            <div className="dashboard__agenda">
+              <Card padding="sm" className="agenda-col">
+                <div className="agenda-col__head">
+                  <span className="agenda-col__titulo">Llegan hoy</span>
+                  <span className="agenda-col__contador">{agenda.data.llegadas_hoy.length}</span>
+                </div>
+                {agenda.data.llegadas_hoy.length === 0 ? (
+                  <p className="agenda-col__vacio">Sin llegadas para hoy.</p>
+                ) : (
+                  <ul className="agenda-col__lista">
+                    {agenda.data.llegadas_hoy.map((r) => (
+                      <li key={r.reserva_id} className="agenda-item">
                         <div className="agenda-item__info">
-                          <span className="agenda-item__nombre">{s.huesped}</span>
+                          <span className="agenda-item__nombre">{r.huesped}</span>
                           <span className="agenda-item__meta">
-                            Hab. {s.habitacion} · {s.tipo}
-                            {conSaldo && (
-                              <> · <strong className="agenda-item__saldo">
-                                Debe {formatoMoneda.format(s.saldo)}
-                              </strong></>
-                            )}
+                            Hab. {r.habitacion} · {r.tipo} · {formatoMoneda.format(r.total || 0)}
                           </span>
                         </div>
-                        {conSaldo ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => navegar("recepcion")}
-                          >
-                            Cobrar
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => hacerCheckout(s.estancia_id)}
-                            loading={accionId === "out-" + s.estancia_id}
-                          >
-                            Check-out
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          onClick={() => hacerCheckin(r.reserva_id)}
+                          loading={accionId === "in-" + r.reserva_id}
+                        >
+                          Check-in
+                        </Button>
                       </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Card>
-          </div>
-        )}
-      </section>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              <Card padding="sm" className="agenda-col">
+                <div className="agenda-col__head">
+                  <span className="agenda-col__titulo">Salen hoy</span>
+                  <span className="agenda-col__contador">{agenda.data.salidas_hoy.length}</span>
+                </div>
+                {agenda.data.salidas_hoy.length === 0 ? (
+                  <p className="agenda-col__vacio">Sin salidas para hoy.</p>
+                ) : (
+                  <ul className="agenda-col__lista">
+                    {agenda.data.salidas_hoy.map((s) => {
+                      const conSaldo = s.saldo > 0;
+                      return (
+                        <li key={s.estancia_id} className="agenda-item">
+                          <div className="agenda-item__info">
+                            <span className="agenda-item__nombre">{s.huesped}</span>
+                            <span className="agenda-item__meta">
+                              Hab. {s.habitacion} · {s.tipo}
+                              {conSaldo && (
+                                <> · <strong className="agenda-item__saldo">
+                                  Debe {formatoMoneda.format(s.saldo)}
+                                </strong></>
+                              )}
+                            </span>
+                          </div>
+                          {conSaldo ? (
+                            <Button size="sm" variant="secondary" onClick={() => navegar("recepcion")}>
+                              Cobrar
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => hacerCheckout(s.estancia_id)}
+                              loading={accionId === "out-" + s.estancia_id}
+                            >
+                              Check-out
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Card>
+            </div>
+          )}
+        </section>
+
+      {/* ---------- Huéspedes recientes ---------- */}
+      {ov && <GuestList guests={ov.guest_list} onVerTodos={() => navegar("huespedes")} />}
 
       {/* ---------- Estado de habitaciones ---------- */}
       <section aria-labelledby="hab-title" className="dashboard__section">
         <h2 id="hab-title">Estado de habitaciones</h2>
 
         {habitaciones.loading && (
-          <Card>
-            <StateMessage variant="loading" title="Cargando habitaciones…" />
-          </Card>
+          <Card><StateMessage variant="loading" title="Cargando habitaciones…" /></Card>
         )}
 
         {habitaciones.error && (
@@ -307,11 +340,7 @@ export default function Dashboard() {
               variant="error"
               title="No se pudieron cargar las habitaciones"
               message={habitaciones.error}
-              action={
-                <Button variant="secondary" onClick={habitaciones.recargar}>
-                  Reintentar
-                </Button>
-              }
+              action={<Button variant="secondary" onClick={habitaciones.recargar}>Reintentar</Button>}
             />
           </Card>
         )}
@@ -322,7 +351,7 @@ export default function Dashboard() {
               variant="empty"
               title="Aún no hay habitaciones"
               message="Crea tu primera habitación para empezar a gestionar reservas."
-              action={<Button icon="+">Crear habitación</Button>}
+              action={<Button icon="+" onClick={() => navegar("habitaciones")}>Crear habitación</Button>}
             />
           </Card>
         )}
@@ -343,12 +372,8 @@ export default function Dashboard() {
                     <span className="room__price-unit"> / noche</span>
                   </div>
                   <div className="room__badges">
-                    <Badge tone={ocup.tone} icon={ocup.icon}>
-                      {ocup.label}
-                    </Badge>
-                    <Badge tone={limp.tone} icon={limp.icon}>
-                      {limp.label}
-                    </Badge>
+                    <Badge tone={ocup.tone} icon={ocup.icon}>{ocup.label}</Badge>
+                    <Badge tone={limp.tone} icon={limp.icon}>{limp.label}</Badge>
                   </div>
                 </Card>
               );

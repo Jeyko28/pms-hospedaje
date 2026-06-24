@@ -126,6 +126,7 @@ export const api = {
   // Lecturas
   resumenDashboard: () => get("/api/dashboard/resumen"),
   agendaDashboard: () => get("/api/dashboard/agenda"),
+  dashboardOverview: () => get("/api/dashboard/overview"),
   habitaciones: () => get("/api/habitaciones"),
   huespedes: () => get("/api/huespedes"),
   reservas: () => get("/api/reservas"),

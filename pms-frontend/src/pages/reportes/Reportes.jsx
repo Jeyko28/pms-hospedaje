@@ -7,7 +7,27 @@ import Button from "../../components/Button";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import Dona from "./Dona";
+import {
+  IngresosChart,
+  ReservationChart,
+  BookingSourceChart,
+  VisitorsChart,
+} from "../dashboard/charts";
 import "./Reportes.css";
+
+const mesCorto = (mes) => {
+  const [y, m] = (mes || "").split("-");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  if (isNaN(d)) return mes;
+  const t = d.toLocaleDateString("es-PE", { month: "short" });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+const diaSemana = (iso) => {
+  const d = new Date((iso || "") + "T00:00:00");
+  if (isNaN(d)) return "";
+  const t = d.toLocaleDateString("es-PE", { weekday: "short" });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -53,6 +73,19 @@ export default function Reportes() {
 
   const fetcherFin = useCallback(() => api.reporteFinanciero(anio, mes), [anio, mes]);
   const financiero = useApi(fetcherFin);
+
+  // Analítica de captación (no depende del selector de mes): origen de reservas
+  // por mes (últimos 6) y visitas al link público (últimos 7 días).
+  const overview = useApi(api.dashboardOverview);
+  const bookingSource = useMemo(
+    () => (overview.data?.booking_source || []).map((x) => ({ ...x, label: mesCorto(x.mes) })),
+    [overview.data]
+  );
+  const visitas = useMemo(
+    () => (overview.data?.visitas || []).map((v) => ({ ...v, label: diaSemana(v.fecha) })),
+    [overview.data]
+  );
+  const visitasVacio = visitas.every((v) => v.n === 0);
 
   // Tooltip del gráfico de ocupación: día sobre el que está el cursor/foco.
   const [tip, setTip] = useState(null);
@@ -233,36 +266,21 @@ export default function Reportes() {
               )}
             </Card>
 
-            {/* Origen de reservas (link público vs. recepción) */}
-            <Card>
-              <h2>Origen de reservas</h2>
-              {(() => {
-                const o = financiero.data.origen_reservas || { publico: 0, manual: 0 };
-                const total = (o.publico || 0) + (o.manual || 0);
-                if (total === 0) {
-                  return (
-                    <StateMessage
-                      variant="empty"
-                      title="Sin reservas este mes"
-                      message="Cuando entren reservas verás de dónde vienen (link o recepción)."
-                    />
-                  );
-                }
-                const segmentos = [
-                  { label: "Link público", value: o.publico, color: "var(--color-brand-600)" },
-                  { label: "Recepción (manual)", value: o.manual, color: "var(--color-neutral-500)" },
-                ];
-                return (
-                  <Dona
-                    segmentos={segmentos}
-                    centroValor={String(total)}
-                    centroLabel="reservas"
-                    formato={(v) => `${v}`}
-                  />
-                );
-              })()}
-            </Card>
           </div>
+
+          {/* Ingresos cobrados por día del mes (tendencia). */}
+          <Card>
+            <h2>Ingresos por día</h2>
+            {(financiero.data.ingresos_por_dia || []).every((d) => d.total === 0) ? (
+              <StateMessage
+                variant="empty"
+                title="Sin cobros este mes"
+                message="La curva de ingresos diarios aparecerá cuando registres pagos."
+              />
+            ) : (
+              <IngresosChart data={financiero.data.ingresos_por_dia} />
+            )}
+          </Card>
 
           <h2 className="reportes__sep">Ocupación</h2>
         </>
@@ -383,6 +401,44 @@ export default function Reportes() {
           </Card>
         </>
       )}
+
+      {/* ---------- Reservas por día (booked vs canceladas, mes en curso) ---------- */}
+      <h2 className="reportes__sep">Reservas</h2>
+      <Card>
+        <h2>Reservas por día (mes en curso)</h2>
+        {overview.loading && !overview.data ? (
+          <StateMessage variant="loading" title="Cargando…" />
+        ) : (
+          <ReservationChart data={overview.data?.reservation_daily || []} />
+        )}
+      </Card>
+
+      {/* ---------- Captación: origen de reservas y visitas al link ---------- */}
+      <h2 className="reportes__sep">Captación y origen</h2>
+      <div className="reportes__financiero">
+        <Card>
+          <h2>Origen de reservas (online vs. recepción)</h2>
+          {overview.loading && !overview.data ? (
+            <StateMessage variant="loading" title="Cargando…" />
+          ) : (
+            <BookingSourceChart data={bookingSource} />
+          )}
+        </Card>
+        <Card>
+          <h2>Visitas a tu link de reservas</h2>
+          {overview.loading && !overview.data ? (
+            <StateMessage variant="loading" title="Cargando…" />
+          ) : visitasVacio ? (
+            <StateMessage
+              variant="empty"
+              title="Aún sin visitas"
+              message="Comparte tu link de reservas para empezar a recibir tráfico."
+            />
+          ) : (
+            <VisitorsChart data={visitas} />
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

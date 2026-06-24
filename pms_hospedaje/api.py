@@ -745,6 +745,14 @@ def hospedaje_publico(slug: str):
                 status_code=404, detail="Este hospedaje no esta disponible."
             )
 
+        # Registrar la visita (alimenta el "Visitors Chart" del dashboard).
+        # Best-effort: un fallo aqui NUNCA debe romper la pagina publica.
+        try:
+            cursor.execute("INSERT INTO visitas (hospedaje_id) VALUES (?)", (h["id"],))
+            conn.commit()
+        except Exception:
+            pass
+
         # Habitaciones activas del hospedaje (datos minimos, sin info interna).
         cursor.execute(
             """
@@ -2033,7 +2041,10 @@ def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
 #  Dashboard: resumen para las tarjetas de estadisticas
 # --------------------------------------------------------------------------- #
 @app.get("/api/dashboard/resumen")
-def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
+def dashboard_resumen(
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     # Ocupacion DERIVADA del calendario (no del flag manual): refleja la
     # realidad de hoy. disponibles = habitaciones realmente libres hoy.
     ocup = _ocupacion_hoy(hid)
@@ -2085,7 +2096,8 @@ def dashboard_resumen(hid: int = Depends(auth.hospedaje_actual)):
             "ocupacion_pct": ocupacion_pct,
             "estancias_activas": estancias_activas,
             "checkins_pendientes": checkins_pendientes,
-            "ingresos_mes": round(ingresos_mes, 2),
+            # Ingresos solo para admin (recepción no ve revenue del negocio).
+            "ingresos_mes": (round(ingresos_mes, 2) if actual.get("rol") in ("admin", "superadmin") else None),
         }
     finally:
         conn.close()
@@ -2145,6 +2157,250 @@ def dashboard_agenda(hid: int = Depends(auth.hospedaje_actual)):
             salidas.append(d)
 
         return {"fecha": hoy, "llegadas_hoy": llegadas, "salidas_hoy": salidas}
+    finally:
+        conn.close()
+
+
+@app.get("/api/dashboard/overview")
+def dashboard_overview(
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Datos del dashboard visual (estilo panel hotelero): KPIs con tendencia y
+    mini-series, disponibilidad, gráfico de reservas por día, origen de
+    reservas por mes (online/offline), visitas al link público, tabla de
+    reservas recientes y lista de huéspedes. Una sola llamada para toda la
+    parte 'nueva' del dashboard (las secciones conservadas usan sus endpoints).
+
+    Significado de cada métrica (importante para no confundir):
+      - new_booking: reservas por FECHA DE RESERVA (creado_en) del mes.
+      - revenue: pagos cobrados (por fecha de pago) del mes.
+      - checkout: estancias cerradas (por fecha_checkout_real) del mes.
+      - reservation_daily: reservas por FECHA DE ENTRADA del mes (booked/cancel).
+      - booking_source: reservas por mes de reserva, online(publico)/offline(manual).
+    """
+    # Revenue solo para admin: recepción NO debe ver ingresos del negocio.
+    es_admin = actual.get("rol") in ("admin", "superadmin")
+    hoy_dt = datetime.now()
+    hoy = hoy_dt.strftime("%Y-%m-%d")
+    mes_actual = hoy_dt.strftime("%Y-%m")
+    primer_dia_mes = hoy_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    mes_anterior = (primer_dia_mes - timedelta(days=1)).strftime("%Y-%m")
+    num_dias_mes = calendar.monthrange(hoy_dt.year, hoy_dt.month)[1]
+
+    def _trend(actual, anterior):
+        """Variación % vs el periodo anterior (evita división por cero)."""
+        if not anterior:
+            return 100.0 if actual else 0.0
+        return round((actual - anterior) / anterior * 100, 1)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # ---------- KPI: New Booking (reservas por creado_en) ----------
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM reservas WHERE hospedaje_id = ? AND substr(creado_en,1,7) = ?",
+            (hid, mes_actual),
+        )
+        nb_actual = cursor.fetchone()["n"] or 0
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM reservas WHERE hospedaje_id = ? AND substr(creado_en,1,7) = ?",
+            (hid, mes_anterior),
+        )
+        nb_anterior = cursor.fetchone()["n"] or 0
+        # Sparkline: nuevas reservas por día, últimos 14 días.
+        cursor.execute(
+            """
+            SELECT substr(creado_en,1,10) AS dia, COUNT(*) AS n
+            FROM reservas WHERE hospedaje_id = ? AND substr(creado_en,1,10) >= ?
+            GROUP BY substr(creado_en,1,10)
+            """,
+            (hid, (hoy_dt - timedelta(days=13)).strftime("%Y-%m-%d")),
+        )
+        nb_por_dia = {r["dia"]: r["n"] for r in cursor.fetchall()}
+        nb_spark = [
+            {"dia": (hoy_dt - timedelta(days=13 - i)).strftime("%Y-%m-%d"),
+             "n": nb_por_dia.get((hoy_dt - timedelta(days=13 - i)).strftime("%Y-%m-%d"), 0)}
+            for i in range(14)
+        ]
+
+        # ---------- KPI: Revenue (pagos del mes) ----------
+        cursor.execute(
+            "SELECT COALESCE(SUM(monto),0) AS t FROM pagos WHERE hospedaje_id = ? AND substr(fecha,1,7) = ?",
+            (hid, mes_actual),
+        )
+        rev_actual = round(cursor.fetchone()["t"] or 0, 2)
+        cursor.execute(
+            "SELECT COALESCE(SUM(monto),0) AS t FROM pagos WHERE hospedaje_id = ? AND substr(fecha,1,7) = ?",
+            (hid, mes_anterior),
+        )
+        rev_anterior = round(cursor.fetchone()["t"] or 0, 2)
+        cursor.execute(
+            """
+            SELECT substr(fecha,1,10) AS dia, COALESCE(SUM(monto),0) AS t
+            FROM pagos WHERE hospedaje_id = ? AND substr(fecha,1,7) = ?
+            GROUP BY substr(fecha,1,10)
+            """,
+            (hid, mes_actual),
+        )
+        rev_por_dia = {r["dia"]: round(r["t"] or 0, 2) for r in cursor.fetchall()}
+        rev_linea = [
+            {"dia": d, "total": rev_por_dia.get(f"{mes_actual}-{d:02d}", 0)}
+            for d in range(1, num_dias_mes + 1)
+        ]
+
+        # ---------- KPI: Checkout (estancias cerradas del mes) ----------
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM estancias WHERE hospedaje_id = ? AND fecha_checkout_real IS NOT NULL AND substr(fecha_checkout_real,1,7) = ?",
+            (hid, mes_actual),
+        )
+        co_actual = cursor.fetchone()["n"] or 0
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM estancias WHERE hospedaje_id = ? AND fecha_checkout_real IS NOT NULL AND substr(fecha_checkout_real,1,7) = ?",
+            (hid, mes_anterior),
+        )
+        co_anterior = cursor.fetchone()["n"] or 0
+
+        # ---------- Disponibilidad (donut + Room Availability) ----------
+        ocup = _ocupacion_hoy(hid)
+        cursor.execute(
+            "SELECT id, estado_limpieza FROM habitaciones WHERE activa = 1 AND hospedaje_id = ?",
+            (hid,),
+        )
+        limpieza = {r["id"]: (r["estado_limpieza"] or "Limpia") for r in cursor.fetchall()}
+        occupied = reserved = available = not_ready = 0
+        for hab_id, v in ocup.items():
+            est = v["estado"]
+            if est == "ocupada":
+                occupied += 1
+            elif est == "reservada":
+                reserved += 1
+            elif est == "mantenimiento":
+                not_ready += 1
+            else:  # libre: lista solo si está limpia, si no "no lista"
+                if limpieza.get(hab_id, "Limpia") == "Limpia":
+                    available += 1
+                else:
+                    not_ready += 1
+        total_hab = len(ocup)
+
+        # ---------- Reservation diaria (booked vs cancelled por fecha_entrada) ----------
+        cursor.execute(
+            """
+            SELECT substr(fecha_entrada,9,2) AS dd,
+                   SUM(CASE WHEN estado = 'Cancelada' THEN 0 ELSE 1 END) AS booked,
+                   SUM(CASE WHEN estado = 'Cancelada' THEN 1 ELSE 0 END) AS cancelled
+            FROM reservas
+            WHERE hospedaje_id = ? AND substr(fecha_entrada,1,7) = ?
+            GROUP BY substr(fecha_entrada,9,2)
+            """,
+            (hid, mes_actual),
+        )
+        res_por_dia = {int(r["dd"]): (r["booked"] or 0, r["cancelled"] or 0) for r in cursor.fetchall()}
+        reservation_daily = [
+            {"dia": d, "booked": res_por_dia.get(d, (0, 0))[0], "cancelled": res_por_dia.get(d, (0, 0))[1]}
+            for d in range(1, num_dias_mes + 1)
+        ]
+
+        # ---------- Booking Source (online/offline por mes, últimos 6) ----------
+        meses = []
+        cur_m = primer_dia_mes
+        for _ in range(6):
+            meses.append(cur_m.strftime("%Y-%m"))
+            cur_m = (cur_m - timedelta(days=1)).replace(day=1)
+        meses = list(reversed(meses))
+        cursor.execute(
+            """
+            SELECT substr(creado_en,1,7) AS mes, origen, COUNT(*) AS n
+            FROM reservas
+            WHERE hospedaje_id = ? AND estado != 'Cancelada' AND substr(creado_en,1,7) >= ?
+            GROUP BY substr(creado_en,1,7), origen
+            """,
+            (hid, meses[0]),
+        )
+        src = {}
+        for r in cursor.fetchall():
+            src.setdefault(r["mes"], {"online": 0, "offline": 0})
+            if (r["origen"] or "manual") == "publico":
+                src[r["mes"]]["online"] += r["n"]
+            else:
+                src[r["mes"]]["offline"] += r["n"]
+        booking_source = [
+            {"mes": m, "online": src.get(m, {}).get("online", 0), "offline": src.get(m, {}).get("offline", 0)}
+            for m in meses
+        ]
+
+        # ---------- Visitas al link público (últimos 7 días) ----------
+        cursor.execute(
+            """
+            SELECT substr(creado_en,1,10) AS dia, COUNT(*) AS n
+            FROM visitas WHERE hospedaje_id = ? AND substr(creado_en,1,10) >= ?
+            GROUP BY substr(creado_en,1,10)
+            """,
+            (hid, (hoy_dt - timedelta(days=6)).strftime("%Y-%m-%d")),
+        )
+        vis_por_dia = {r["dia"]: r["n"] for r in cursor.fetchall()}
+        visitas = [
+            {"fecha": (hoy_dt - timedelta(days=6 - i)).strftime("%Y-%m-%d"),
+             "n": vis_por_dia.get((hoy_dt - timedelta(days=6 - i)).strftime("%Y-%m-%d"), 0)}
+            for i in range(7)
+        ]
+
+        # ---------- Current bookings (tabla, recientes por creado_en) ----------
+        cursor.execute(
+            """
+            SELECT r.id AS reserva_id, hab.numero AS room, h.nombre AS name,
+                   h.telefono AS mobile, r.fecha_entrada AS checkin,
+                   r.fecha_salida AS checkout, r.estado AS estado
+            FROM reservas r
+            JOIN huespedes h     ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ?
+            ORDER BY r.creado_en DESC, r.id DESC
+            LIMIT 8
+            """,
+            (hid,),
+        )
+        current_bookings = [dict(r) for r in cursor.fetchall()]
+
+        # ---------- Guest list (huéspedes recientes por fecha de entrada) ----------
+        cursor.execute(
+            """
+            SELECT h.nombre AS nombre, hab.numero AS room, hab.tipo AS tipo,
+                   r.fecha_entrada AS fecha
+            FROM reservas r
+            JOIN huespedes h     ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ? AND r.estado != 'Cancelada'
+            ORDER BY r.fecha_entrada DESC, r.id DESC
+            LIMIT 6
+            """,
+            (hid,),
+        )
+        guest_list = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "kpis": {
+                "new_booking": {"valor": nb_actual, "trend_pct": _trend(nb_actual, nb_anterior), "spark": nb_spark},
+                "available_rooms": {
+                    "valor": available,
+                    "donut": {"ocupadas": occupied, "reservadas": reserved, "disponibles": available, "not_ready": not_ready},
+                    "total": total_hab,
+                },
+                "revenue": (
+                    {"valor": rev_actual, "trend_pct": _trend(rev_actual, rev_anterior), "linea": rev_linea}
+                    if es_admin
+                    else None
+                ),
+                "checkout": {"valor": co_actual, "trend_pct": _trend(co_actual, co_anterior)},
+            },
+            "reservation_daily": reservation_daily,
+            "booking_source": booking_source,
+            "visitas": visitas,
+            "current_bookings": current_bookings,
+            "guest_list": guest_list,
+        }
     finally:
         conn.close()
 
@@ -2324,6 +2580,22 @@ def reporte_financiero(
             "manual": por_origen.get("manual", 0),
         }
 
+        # --- Ingresos cobrados por DÍA del mes (para la línea de tendencia). ---
+        num_dias = calendar.monthrange(anio, mes)[1]
+        cursor.execute(
+            """
+            SELECT substr(fecha, 9, 2) AS dd, COALESCE(SUM(monto), 0) AS t
+            FROM pagos
+            WHERE hospedaje_id = ? AND substr(fecha, 1, 7) = ?
+            GROUP BY substr(fecha, 9, 2)
+            """,
+            (hid, periodo),
+        )
+        por_dia = {int(r["dd"]): round(r["t"] or 0, 2) for r in cursor.fetchall()}
+        ingresos_por_dia = [
+            {"dia": d, "total": por_dia.get(d, 0)} for d in range(1, num_dias + 1)
+        ]
+
         return {
             "anio": anio,
             "mes": mes,
@@ -2336,6 +2608,7 @@ def reporte_financiero(
             "metodos_pago": metodos_pago,
             "top_habitaciones": top_habitaciones,
             "origen_reservas": origen_reservas,
+            "ingresos_por_dia": ingresos_por_dia,
         }
     finally:
         conn.close()
