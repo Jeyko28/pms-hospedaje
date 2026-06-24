@@ -17,6 +17,7 @@ import Usuarios from "./pages/usuarios/Usuarios";
 import Hospedajes from "./pages/hospedajes/Hospedajes";
 import AsistenteBienvenida from "./components/AsistenteBienvenida";
 import { ToastProvider } from "./components/Toast";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
@@ -75,10 +76,12 @@ function Vista() {
     }
   }
 
+  // ErrorBoundary keyada por ruta: si una sección falla, el menú sigue vivo y
+  // al navegar a otra (cambia la key) la boundary se remonta y limpia el error.
   return (
-    <div className="vista-fade" key={esSuperadmin ? "hospedajes" : ruta}>
-      {contenido}
-    </div>
+    <ErrorBoundary key={esSuperadmin ? "hospedajes" : ruta}>
+      <div className="vista-fade">{contenido}</div>
+    </ErrorBoundary>
   );
 }
 
