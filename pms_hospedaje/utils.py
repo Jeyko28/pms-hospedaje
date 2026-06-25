@@ -126,7 +126,8 @@ def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_de
     c.drawString(2*cm, height - 5.5*cm, "DATOS DEL CLIENTE")
     c.setFont("Helvetica", 10)
     c.drawString(2*cm, height - 6*cm, f"Nombre: {huesped.nombre}")
-    c.drawString(2*cm, height - 6.5*cm, f"Documento: {huesped.documento or 'No especificado'}")
+    _tipo_doc = getattr(huesped, "tipo_documento", "") or "Documento"
+    c.drawString(2*cm, height - 6.5*cm, f"{_tipo_doc}: {huesped.documento or 'No especificado'}")
     c.drawString(2*cm, height - 7*cm, f"Teléfono: {huesped.telefono or 'No especificado'}")
     c.drawString(2*cm, height - 7.5*cm, f"Email: {huesped.email or 'No especificado'}")
 

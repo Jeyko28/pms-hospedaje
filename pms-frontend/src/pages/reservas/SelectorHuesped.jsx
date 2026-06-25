@@ -35,7 +35,7 @@ export default function SelectorHuesped({
   const [texto, setTexto] = useState("");
   const [abierto, setAbierto] = useState(false);
   const [editId, setEditId] = useState(undefined); // undefined=cerrado, null=crear, id=editar
-  const [form, setForm] = useState({ nombre: "", telefono: "", documento: "" });
+  const [form, setForm] = useState({ nombre: "", telefono: "", documento: "", tipo_documento: "DNI" });
   const [guardando, setGuardando] = useState(false);
   const [errMsg, setErrMsg] = useState(null);
   const ref = useRef(null);
@@ -89,7 +89,7 @@ export default function SelectorHuesped({
 
   function abrirCrear() {
     setEditId(null);
-    setForm({ nombre: texto.trim(), telefono: "", documento: "" });
+    setForm({ nombre: texto.trim(), telefono: "", documento: "", tipo_documento: "DNI" });
     setErrMsg(null);
     setAbierto(false);
   }
@@ -101,6 +101,7 @@ export default function SelectorHuesped({
       nombre: sel.nombre || "",
       telefono: sel.telefono || "",
       documento: sel.documento || "",
+      tipo_documento: sel.tipo_documento || "DNI",
     });
     setErrMsg(null);
   }
@@ -120,6 +121,7 @@ export default function SelectorHuesped({
         nombre: form.nombre.trim(),
         telefono: form.telefono.trim(),
         documento: form.documento.trim(),
+        tipo_documento: form.tipo_documento,
       };
       const huesped =
         editId == null
@@ -163,13 +165,20 @@ export default function SelectorHuesped({
               placeholder="Ej. 987 654 321"
             />
           </Field>
-          <Field id="selh-doc" label="DNI / Documento">
+          <Field id="selh-tipo-doc" label="Tipo doc.">
+            <select id="selh-tipo-doc" value={form.tipo_documento} onChange={setCampo("tipo_documento")}>
+              <option value="DNI">DNI</option>
+              <option value="CE">CE</option>
+              <option value="Pasaporte">Pasaporte</option>
+            </select>
+          </Field>
+          <Field id="selh-doc" label="N.º documento">
             <input
               id="selh-doc"
               type="text"
               value={form.documento}
               onChange={setCampo("documento")}
-              placeholder="Ej. 70123456"
+              placeholder={form.tipo_documento === "DNI" ? "8 dígitos" : "Número"}
             />
           </Field>
         </div>

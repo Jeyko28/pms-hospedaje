@@ -93,6 +93,8 @@ export default function Calendario() {
   const [arrastrando, setArrastrando] = useState(null); // reserva que se está arrastrando
   const [sobreHab, setSobreHab] = useState(null); // id de habitación bajo el cursor al arrastrar
   const [errorMover, setErrorMover] = useState(null); // aviso si el movimiento se rechaza
+  const [bloqForm, setBloqForm] = useState(null); // null=cerrado | objeto=modal de bloqueo abierto
+  const [guardandoBloq, setGuardandoBloq] = useState(false);
 
   // Datos para el formulario de nueva reserva (habitaciones con precio + huespedes).
   const habitacionesForm = useApi(api.habitaciones);
@@ -308,6 +310,66 @@ export default function Calendario() {
     recargar();
   }
 
+  // --- Bloqueos de habitación (mantenimiento / uso propio) ---
+  function abrirBloqueo() {
+    const prim = datos.data?.habitaciones?.[0];
+    const manana = ymd(new Date(Date.now() + 86400000));
+    setBloqForm({
+      habitacion_id: prim ? String(prim.id) : "",
+      fecha_inicio: hoyStr,
+      fecha_fin: manana,
+      motivo: "",
+      error: null,
+    });
+  }
+
+  async function guardarBloqueo(ev) {
+    ev.preventDefault();
+    if (!bloqForm.habitacion_id) {
+      setBloqForm((f) => ({ ...f, error: "Elige una habitación." }));
+      return;
+    }
+    if (bloqForm.fecha_fin <= bloqForm.fecha_inicio) {
+      setBloqForm((f) => ({ ...f, error: "La fecha fin debe ser posterior al inicio." }));
+      return;
+    }
+    setGuardandoBloq(true);
+    try {
+      await api.crearBloqueo({
+        habitacion_id: Number(bloqForm.habitacion_id),
+        fecha_inicio: bloqForm.fecha_inicio,
+        fecha_fin: bloqForm.fecha_fin,
+        motivo: bloqForm.motivo,
+      });
+      toast.success("Habitación bloqueada en esas fechas.");
+      setBloqForm(null);
+      recargar();
+    } catch (e) {
+      setBloqForm((f) => ({ ...f, error: e.message || "No se pudo bloquear." }));
+    } finally {
+      setGuardandoBloq(false);
+    }
+  }
+
+  async function eliminarBloqueo(b, hab) {
+    if (!window.confirm(`¿Quitar el bloqueo de Hab. ${hab?.numero || ""}?`)) return;
+    try {
+      await api.eliminarBloqueo(b.id);
+      toast.success("Bloqueo eliminado.");
+      recargar();
+    } catch (e) {
+      toast.error(e.message || "No se pudo eliminar el bloqueo.");
+    }
+  }
+
+  const porHabBloqueos = useMemo(() => {
+    const map = {};
+    (datos.data?.bloqueos || []).forEach((b) => {
+      (map[b.habitacion_id] ||= []).push(b);
+    });
+    return map;
+  }, [datos.data]);
+
   // Para una reserva, calcula en qué columna empieza y cuántos días ocupa
   // DENTRO del mes visible (recorta si entra/sale del mes).
   function tramo(reserva) {
@@ -350,6 +412,7 @@ export default function Calendario() {
             <ChevronRight size={18} />
           </button>
           <Button variant="secondary" size="sm" onClick={irHoy}>Hoy</Button>
+          <Button variant="secondary" size="sm" onClick={abrirBloqueo}>Bloquear</Button>
         </div>
       </header>
 
@@ -479,6 +542,26 @@ export default function Calendario() {
                       </button>
                     );
                   })}
+                  {/* Barras de bloqueo (mantenimiento / uso propio) en gris */}
+                  {(porHabBloqueos[hab.id] || []).map((b) => {
+                    const t = tramo({ fecha_entrada: b.fecha_inicio, fecha_salida: b.fecha_fin });
+                    if (!t) return null;
+                    return (
+                      <button
+                        type="button"
+                        key={"b" + b.id}
+                        className="cal__barra cal__barra--bloqueo"
+                        title={`Bloqueo${b.motivo ? ": " + b.motivo : ""} (clic para quitar)`}
+                        onClick={() => eliminarBloqueo(b, hab)}
+                        style={{
+                          gridRow: fila,
+                          gridColumn: `${t.colInicio + 1} / span ${t.span}`,
+                        }}
+                      >
+                        <span className="cal__barra-txt">🔧 {b.motivo || "Bloqueado"}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -546,6 +629,58 @@ export default function Calendario() {
               onHuespedCreado={huespedesForm.recargar}
             />
           )
+        )}
+      </Modal>
+
+      {/* Modal: bloquear una habitación por fechas (mantenimiento / uso propio) */}
+      <Modal open={!!bloqForm} title="Bloquear habitación" onClose={() => setBloqForm(null)}>
+        {bloqForm && (
+          <form className="cal__modal" onSubmit={guardarBloqueo} noValidate>
+            <Field id="bloq-hab" label="Habitación" required>
+              <select
+                id="bloq-hab"
+                value={bloqForm.habitacion_id}
+                onChange={(e) => setBloqForm((f) => ({ ...f, habitacion_id: e.target.value }))}
+              >
+                {(datos.data?.habitaciones || []).map((h) => (
+                  <option key={h.id} value={h.id}>Hab. {h.numero} · {h.tipo}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="cal__modal-fila">
+              <Field id="bloq-ini" label="Desde" required>
+                <input
+                  id="bloq-ini"
+                  type="date"
+                  value={bloqForm.fecha_inicio}
+                  onChange={(e) => setBloqForm((f) => ({ ...f, fecha_inicio: e.target.value }))}
+                />
+              </Field>
+              <Field id="bloq-fin" label="Hasta (salida)" required>
+                <input
+                  id="bloq-fin"
+                  type="date"
+                  value={bloqForm.fecha_fin}
+                  min={bloqForm.fecha_inicio}
+                  onChange={(e) => setBloqForm((f) => ({ ...f, fecha_fin: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <Field id="bloq-motivo" label="Motivo (opcional)">
+              <input
+                id="bloq-motivo"
+                type="text"
+                value={bloqForm.motivo}
+                onChange={(e) => setBloqForm((f) => ({ ...f, motivo: e.target.value }))}
+                placeholder="Ej. mantenimiento, uso propio…"
+              />
+            </Field>
+            {bloqForm.error && <p className="cal__modal-error" role="alert">{bloqForm.error}</p>}
+            <div className="cal__modal-acciones">
+              <Button type="button" variant="secondary" onClick={() => setBloqForm(null)}>Cancelar</Button>
+              <Button type="submit" loading={guardandoBloq}>Bloquear</Button>
+            </div>
+          </form>
         )}
       </Modal>
 

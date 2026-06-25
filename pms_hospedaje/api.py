@@ -164,6 +164,7 @@ class HuespedDatos(BaseModel):
     telefono: str = ""
     documento: str = ""
     direccion: str = ""
+    tipo_documento: str = "DNI"  # DNI | CE | Pasaporte
 
 
 class HabitacionDatos(BaseModel):
@@ -172,6 +173,13 @@ class HabitacionDatos(BaseModel):
     precio_base: float
     estado_limpieza: str = "Limpia"
     estado: str = "disponible"
+
+
+class BloqueoNuevo(BaseModel):
+    habitacion_id: int
+    fecha_inicio: str  # YYYY-MM-DD (inclusive)
+    fecha_fin: str     # YYYY-MM-DD (exclusivo, igual que salida de reserva)
+    motivo: str = ""
 
 
 class CheckinIn(BaseModel):
@@ -1078,10 +1086,26 @@ def listar_huespedes(hid: int = Depends(auth.hospedaje_actual)):
     return [_a_dict(h) for h in Huesped.obtener_todos(hospedaje_id=hid)]
 
 
+def _validar_documento(tipo, numero):
+    """Normaliza el tipo (DNI/CE/Pasaporte) y valida el número si se proporcionó.
+    Documento opcional: si va vacío, no valida. Devuelve el tipo normalizado."""
+    tipo = (tipo or "DNI").strip()
+    if tipo not in ("DNI", "CE", "Pasaporte"):
+        tipo = "DNI"
+    num = (numero or "").strip()
+    if num:
+        if tipo == "DNI" and not (num.isdigit() and len(num) == 8):
+            raise HTTPException(status_code=422, detail="El DNI debe tener 8 dígitos.")
+        if tipo in ("CE", "Pasaporte") and not (num.isalnum() and 6 <= len(num) <= 15):
+            raise HTTPException(status_code=422, detail=f"El número de {tipo} no es válido (6-15 caracteres).")
+    return tipo
+
+
 @app.post("/api/huespedes", status_code=201)
 def crear_huesped(datos: HuespedDatos, hid: int = Depends(auth.hospedaje_actual)):
     if not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    tipo_doc = _validar_documento(datos.tipo_documento, datos.documento)
     huesped = Huesped(
         nombre=datos.nombre.strip(),
         email=datos.email.strip(),
@@ -1089,6 +1113,7 @@ def crear_huesped(datos: HuespedDatos, hid: int = Depends(auth.hospedaje_actual)
         documento=datos.documento.strip(),
         direccion=datos.direccion.strip(),
         hospedaje_id=hid,
+        tipo_documento=tipo_doc,
     )
     huesped.guardar()
     return _a_dict(huesped)
@@ -1101,11 +1126,13 @@ def editar_huesped(huesped_id: int, datos: HuespedDatos, hid: int = Depends(auth
         raise HTTPException(status_code=404, detail="Huesped no encontrado.")
     if not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    tipo_doc = _validar_documento(datos.tipo_documento, datos.documento)
     huesped.nombre = datos.nombre.strip()
     huesped.email = datos.email.strip()
     huesped.telefono = datos.telefono.strip()
     huesped.documento = datos.documento.strip()
     huesped.direccion = datos.direccion.strip()
+    huesped.tipo_documento = tipo_doc
     huesped.guardar()
     return _a_dict(huesped)
 
@@ -1223,9 +1250,96 @@ def reservas_calendario(
                 d["saldo"] = None
                 d["factura_total"] = None
             reservas.append(d)
-        return {"desde": desde, "hasta": hasta, "habitaciones": habitaciones, "reservas": reservas}
+
+        # Bloqueos (mantenimiento / uso propio) que se solapan con el rango.
+        cursor.execute(
+            """
+            SELECT id, habitacion_id, fecha_inicio, fecha_fin, motivo
+            FROM bloqueos
+            WHERE hospedaje_id = ? AND fecha_inicio < ? AND fecha_fin > ?
+            ORDER BY fecha_inicio
+            """,
+            (hid, hasta, desde),
+        )
+        bloqueos = [dict(r) for r in cursor.fetchall()]
+
+        return {
+            "desde": desde,
+            "hasta": hasta,
+            "habitaciones": habitaciones,
+            "reservas": reservas,
+            "bloqueos": bloqueos,
+        }
     finally:
         conn.close()
+
+
+@app.post("/api/bloqueos", status_code=201)
+def crear_bloqueo(
+    datos: BloqueoNuevo,
+    actual: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Bloquea una habitación en un rango de fechas (mantenimiento / uso propio).
+    El motor de disponibilidad lo respeta: no se puede reservar sobre un bloqueo.
+    Rechaza si ya hay una reserva/estancia vigente en ese rango."""
+    try:
+        fi = datetime.strptime(datos.fecha_inicio, "%Y-%m-%d")
+        ff = datetime.strptime(datos.fecha_fin, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fechas con formato YYYY-MM-DD.")
+    if ff <= fi:
+        raise HTTPException(status_code=422, detail="La fecha fin debe ser posterior a la de inicio.")
+
+    hab = _buscar_habitacion(datos.habitacion_id, hid)
+    if not hab:
+        raise HTTPException(status_code=404, detail="Habitación no encontrada.")
+
+    # No bloquear si hay una reserva/estancia vigente que se solapa (evita
+    # bloquear encima de un huésped). Reusa el motor de disponibilidad.
+    if not Reserva.verificar_disponibilidad(datos.habitacion_id, datos.fecha_inicio, datos.fecha_fin):
+        raise HTTPException(
+            status_code=409,
+            detail="Hay una reserva o estancia en ese rango; no se puede bloquear.",
+        )
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO bloqueos (hospedaje_id, habitacion_id, fecha_inicio, fecha_fin, motivo, creado_por) VALUES (?, ?, ?, ?, ?, ?)",
+            (hid, datos.habitacion_id, datos.fecha_inicio, datos.fecha_fin,
+             (datos.motivo or "").strip(), actual.get("id")),
+        )
+        nuevo_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": nuevo_id, "habitacion_id": datos.habitacion_id,
+            "fecha_inicio": datos.fecha_inicio, "fecha_fin": datos.fecha_fin,
+            "motivo": (datos.motivo or "").strip()}
+
+
+@app.delete("/api/bloqueos/{bloqueo_id}")
+def eliminar_bloqueo(
+    bloqueo_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Elimina (libera) un bloqueo de habitación."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM bloqueos WHERE id = ? AND hospedaje_id = ?", (bloqueo_id, hid)
+        )
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Bloqueo no encontrado.")
+        cursor.execute("DELETE FROM bloqueos WHERE id = ? AND hospedaje_id = ?", (bloqueo_id, hid))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": bloqueo_id, "eliminado": True}
 
 
 @app.post("/api/reservas", status_code=201)

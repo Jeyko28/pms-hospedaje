@@ -220,10 +220,12 @@ def emitir_boleta(hid, factura, huesped, descripcion):
         numero = f"{serie}-{correlativo:08d}"
         fecha = datetime.now().strftime("%Y-%m-%d")
 
-        # Datos del cliente: DNI si lo tiene, si no, "sin documento" (válido en boleta).
+        # Datos del cliente: usa el tipo de documento real (DNI/CE/Pasaporte); si
+        # no hay número, "sin documento" (válido en boleta).
         doc = (huesped.get("documento") or "").strip()
         if doc:
-            cli_tipo, cli_num = "DNI", doc
+            cli_tipo = (huesped.get("tipo_documento") or "DNI").strip() or "DNI"
+            cli_num = doc
         else:
             cli_tipo, cli_num = "SIN", "00000000"
 

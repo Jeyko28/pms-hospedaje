@@ -406,3 +406,15 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Barra de bloqueo (mantenimiento / uso propio) en gris rayado */
+.cal__barra--bloqueo {
+  background: repeating-linear-gradient(45deg, var(--color-neutral-400), var(--color-neutral-400) 6px, var(--color-neutral-300) 6px, var(--color-neutral-300) 12px);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.cal__modal-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}

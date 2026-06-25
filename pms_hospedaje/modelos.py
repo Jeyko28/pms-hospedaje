@@ -148,7 +148,7 @@ class TareaLimpieza:
 
 class Huesped:
     def __init__(self, id=None, nombre="", email="", telefono="", documento="", direccion="",
-                 hospedaje_id=None, creado_en=None):
+                 hospedaje_id=None, creado_en=None, tipo_documento="DNI"):
         # creado_en se acepta por compatibilidad con Huesped(**row); puede ignorarse.
         self.id = id
         self.nombre = nombre
@@ -157,6 +157,7 @@ class Huesped:
         self.documento = documento
         self.direccion = direccion
         self.hospedaje_id = hospedaje_id
+        self.tipo_documento = tipo_documento or "DNI"
 
     @staticmethod
     def obtener_todos(hospedaje_id=None):
@@ -190,17 +191,19 @@ class Huesped:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO huespedes (nombre, email, telefono, documento, direccion, hospedaje_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (self.nombre, self.email, self.telefono, self.documento, self.direccion, hid))
+                INSERT INTO huespedes (nombre, email, telefono, documento, direccion, hospedaje_id, tipo_documento)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (self.nombre, self.email, self.telefono, self.documento, self.direccion, hid,
+                  self.tipo_documento or "DNI"))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:
             cursor.execute('''
                 UPDATE huespedes
-                SET nombre=?, email=?, telefono=?, documento=?, direccion=?
+                SET nombre=?, email=?, telefono=?, documento=?, direccion=?, tipo_documento=?
                 WHERE id=?
-            ''', (self.nombre, self.email, self.telefono, self.documento, self.direccion, self.id))
+            ''', (self.nombre, self.email, self.telefono, self.documento, self.direccion,
+                  self.tipo_documento or "DNI", self.id))
         conn.commit()
         conn.close()
 
@@ -359,9 +362,23 @@ class Reserva:
             query2 += " AND reserva_id != ?"
             params2.append(reserva_id_excluir)
         cursor.execute(query2, params2)
-        ocupada = cursor.fetchone()[0] > 0
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False
+
+        # 3) Bloqueos (mantenimiento / uso propio) que se solapan. La tabla puede
+        #    no existir en bases muy antiguas (pre-migración): si falla, se ignora.
+        try:
+            cursor.execute('''
+                SELECT COUNT(*) FROM bloqueos
+                WHERE habitacion_id = ?
+                AND fecha_inicio < ? AND fecha_fin > ?
+            ''', [habitacion_id, fecha_salida, fecha_entrada])
+            bloqueada = cursor.fetchone()[0] > 0
+        except Exception:
+            bloqueada = False
         conn.close()
-        return not ocupada
+        return not bloqueada
 
 
 # NUEVAS CLASES

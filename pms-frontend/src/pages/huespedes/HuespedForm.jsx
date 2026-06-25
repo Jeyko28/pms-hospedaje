@@ -18,6 +18,7 @@ export default function HuespedForm({ huesped, onGuardado, onCancelar }) {
     nombre: huesped?.nombre ?? "",
     email: huesped?.email ?? "",
     telefono: huesped?.telefono ?? "",
+    tipo_documento: huesped?.tipo_documento ?? "DNI",
     documento: huesped?.documento ?? "",
     direccion: huesped?.direccion ?? "",
   });
@@ -47,6 +48,7 @@ export default function HuespedForm({ huesped, onGuardado, onCancelar }) {
       nombre: form.nombre.trim(),
       email: form.email.trim(),
       telefono: form.telefono.trim(),
+      tipo_documento: form.tipo_documento,
       documento: form.documento.trim(),
       direccion: form.direccion.trim(),
     };
@@ -101,16 +103,26 @@ export default function HuespedForm({ huesped, onGuardado, onCancelar }) {
       </div>
 
       <div className="entidad-form__fila">
-        <Field id="documento" label="Documento (opcional)">
+        <Field id="tipo_documento" label="Tipo de documento">
+          <select id="tipo_documento" value={form.tipo_documento} onChange={set("tipo_documento")}>
+            <option value="DNI">DNI</option>
+            <option value="CE">Carné de extranjería</option>
+            <option value="Pasaporte">Pasaporte</option>
+          </select>
+        </Field>
+
+        <Field id="documento" label="Número de documento (opcional)">
           <input
             id="documento"
             type="text"
             value={form.documento}
             onChange={set("documento")}
-            placeholder="DNI / Pasaporte"
+            placeholder={form.tipo_documento === "DNI" ? "8 dígitos" : "Número / código"}
           />
         </Field>
+      </div>
 
+      <div className="entidad-form__fila">
         <Field id="direccion" label="Dirección (opcional)">
           <input
             id="direccion"

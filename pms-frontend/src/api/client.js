@@ -177,6 +177,8 @@ export const api = {
   checkout: (estanciaId, fechaCheckoutReal = "") =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
   cajaDia: (fecha = "") => get(`/api/recepcion/caja${fecha ? `?fecha=${fecha}` : ""}`),
+  crearBloqueo: (datos) => post("/api/bloqueos", datos),
+  eliminarBloqueo: (id) => del(`/api/bloqueos/${id}`),
   recalcularEstancia: (estanciaId, fechaCheckoutReal = "", descuento = 0, descuentoMotivo = "") =>
     post("/api/recepcion/recalcular", {
       estancia_id: estanciaId,
