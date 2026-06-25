@@ -17,6 +17,7 @@ import calendar
 import csv
 import io
 import json
+import uuid
 from datetime import datetime, timedelta
 
 import os
@@ -131,6 +132,15 @@ def _slug_unico(cursor, base: str, excluir_id=None) -> str:
 class ReservaNueva(BaseModel):
     huesped_id: int
     habitacion_id: int
+    fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD")
+    fecha_salida: str = Field(..., description="Formato YYYY-MM-DD")
+    notas: str = ""
+
+
+class ReservaGrupoNueva(BaseModel):
+    # Reserva de grupo: varias habitaciones para el mismo huésped y fechas.
+    huesped_id: int
+    habitacion_ids: list[int]
     fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD")
     fecha_salida: str = Field(..., description="Formato YYYY-MM-DD")
     notas: str = ""
@@ -1644,6 +1654,64 @@ def crear_reserva(datos: ReservaNueva, hid: int = Depends(auth.hospedaje_actual)
     )
     reserva.guardar()
     return _a_dict(reserva)
+
+
+@app.post("/api/reservas/grupo", status_code=201)
+def crear_reserva_grupo(datos: ReservaGrupoNueva, hid: int = Depends(auth.hospedaje_actual)):
+    """Crea una reserva de GRUPO: varias habitaciones para el mismo huésped y
+    fechas, en una sola operación. Crea N reservas (una por habitación) que
+    comparten un grupo_id. Valida disponibilidad de TODAS antes de crear ninguna
+    (atómico a nivel de validación); si alguna no está libre, no crea nada."""
+    try:
+        entrada = datetime.strptime(datos.fecha_entrada, "%Y-%m-%d")
+        salida = datetime.strptime(datos.fecha_salida, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Las fechas deben tener formato YYYY-MM-DD.")
+    if salida <= entrada:
+        raise HTTPException(
+            status_code=422, detail="La fecha de salida debe ser posterior a la de entrada."
+        )
+    # Quitar duplicados conservando el orden.
+    ids = list(dict.fromkeys(datos.habitacion_ids or []))
+    if not ids:
+        raise HTTPException(status_code=422, detail="Selecciona al menos una habitación.")
+    if not Huesped.obtener_por_id(datos.huesped_id, hospedaje_id=hid):
+        raise HTTPException(status_code=404, detail="Huesped no encontrado.")
+
+    # Validar pertenencia + disponibilidad de TODAS antes de crear ninguna.
+    habs = []
+    no_disponibles = []
+    for hab_id in ids:
+        hab = _buscar_habitacion(hab_id, hid)
+        if not hab:
+            raise HTTPException(status_code=404, detail=f"Habitacion {hab_id} no encontrada.")
+        if not Reserva.verificar_disponibilidad(hab_id, datos.fecha_entrada, datos.fecha_salida):
+            no_disponibles.append(hab.numero)
+        habs.append(hab)
+    if no_disponibles:
+        cuales = ", ".join(str(n) for n in no_disponibles)
+        raise HTTPException(
+            status_code=409,
+            detail=f"No disponibles en esas fechas: habitación(es) {cuales}.",
+        )
+
+    grupo_id = uuid.uuid4().hex
+    reservas = []
+    for hab in habs:
+        r = Reserva(
+            huesped_id=datos.huesped_id,
+            habitacion_id=hab.id,
+            fecha_entrada=datos.fecha_entrada,
+            fecha_salida=datos.fecha_salida,
+            notas=datos.notas,
+            estado="Confirmada",
+            hospedaje_id=hid,
+            grupo_id=grupo_id,
+        )
+        r.guardar()
+        reservas.append(_a_dict(r))
+    total = round(sum(r["total"] or 0 for r in reservas), 2)
+    return {"grupo_id": grupo_id, "n": len(reservas), "total": total, "reservas": reservas}
 
 
 @app.put("/api/reservas/{reserva_id}")

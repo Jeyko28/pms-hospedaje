@@ -220,7 +220,7 @@ class Huesped:
 class Reserva:
     def __init__(self, id=None, huesped_id=None, habitacion_id=None, fecha_entrada="", fecha_salida="",
                  estado="Confirmada", total=0.0, notas="", creado_en=None, hospedaje_id=None,
-                 origen="manual"):
+                 origen="manual", grupo_id=None):
         self.id = id
         self.huesped_id = huesped_id
         self.habitacion_id = habitacion_id
@@ -232,6 +232,9 @@ class Reserva:
         self.creado_en = creado_en
         self.hospedaje_id = hospedaje_id
         self.origen = origen
+        # grupo_id: identifica una reserva de grupo (varias habitaciones creadas
+        # juntas). NULL en reservas individuales.
+        self.grupo_id = grupo_id
 
     @staticmethod
     def obtener_todas(estado=None):
@@ -259,6 +262,7 @@ class Reserva:
                 notas=row["notas"],
                 creado_en=row["creado_en"],
                 origen=row["origen"] if "origen" in row.keys() else "manual",
+                grupo_id=row["grupo_id"] if "grupo_id" in row.keys() else None,
             ))
         return reservas
 
@@ -285,6 +289,7 @@ class Reserva:
                 creado_en=row["creado_en"],
                 hospedaje_id=row["hospedaje_id"] if "hospedaje_id" in row.keys() else None,
                 origen=row["origen"] if "origen" in row.keys() else "manual",
+                grupo_id=row["grupo_id"] if "grupo_id" in row.keys() else None,
             )
         return None
 
@@ -302,9 +307,9 @@ class Reserva:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id, origen)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (self.huesped_id, self.habitacion_id, self.fecha_entrada, self.fecha_salida, self.estado, self.total, self.notas, hid, self.origen or "manual"))
+                INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id, origen, grupo_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (self.huesped_id, self.habitacion_id, self.fecha_entrada, self.fecha_salida, self.estado, self.total, self.notas, hid, self.origen or "manual", self.grupo_id))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:

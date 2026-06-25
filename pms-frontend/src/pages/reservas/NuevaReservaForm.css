@@ -45,3 +45,49 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+/* Multiselección de habitaciones (reserva de grupo) */
+.reserva-form__habs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #d7dbe0);
+  border-radius: var(--radius, 10px);
+  padding: 0.4rem;
+}
+
+.reserva-form__hab {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.reserva-form__hab:hover {
+  background: var(--bg-app, #f5f6f8);
+}
+
+[data-theme="dark"] .reserva-form__hab:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.reserva-form__hab--sel {
+  background: var(--brand-soft, rgba(47, 111, 237, 0.1));
+}
+
+.reserva-form__hab-txt {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.reserva-form__hab-precio {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

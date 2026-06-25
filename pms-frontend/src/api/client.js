@@ -166,6 +166,7 @@ export const api = {
 
   // Escrituras — Reservas / Recepcion
   crearReserva: (datos) => post("/api/reservas", datos),
+  crearReservaGrupo: (datos) => post("/api/reservas/grupo", datos),
   editarReserva: (id, datos) => put(`/api/reservas/${id}`, datos),
   cancelarReserva: (id) => post(`/api/reservas/${id}/cancelar`),
   confirmarReserva: (id) => post(`/api/reservas/${id}/confirmar`),

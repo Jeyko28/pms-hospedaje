@@ -37,7 +37,9 @@ export default function NuevaReservaForm({
 
   const [form, setForm] = useState({
     huesped_id: "",
-    habitacion_id: iniciales.habitacion_id ? String(iniciales.habitacion_id) : "",
+    // Multi-habitación: lista de ids (números). Permite reservar varias a la vez
+    // (familias/grupos). Una sola = reserva individual (retrocompatible).
+    habitacion_ids: iniciales.habitacion_id ? [Number(iniciales.habitacion_id)] : [],
     fecha_entrada: iniciales.fecha_entrada || hoy,
     fecha_salida: iniciales.fecha_salida || "",
     notas: "",
@@ -49,23 +51,39 @@ export default function NuevaReservaForm({
   const set = (campo) => (e) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
 
-  // Calcula noches y total estimado en vivo (feedback inmediato al usuario).
+  function toggleHabitacion(id) {
+    const num = Number(id);
+    setForm((f) => {
+      const ya = f.habitacion_ids.includes(num);
+      return {
+        ...f,
+        habitacion_ids: ya
+          ? f.habitacion_ids.filter((x) => x !== num)
+          : [...f.habitacion_ids, num],
+      };
+    });
+  }
+
+  // Calcula noches y total estimado en vivo (suma de todas las habitaciones
+  // seleccionadas) para feedback inmediato.
   const estimado = useMemo(() => {
-    const hab = habitaciones.find(
-      (h) => String(h.id) === String(form.habitacion_id)
-    );
-    if (!hab || !form.fecha_entrada || !form.fecha_salida) return null;
+    if (!form.habitacion_ids.length || !form.fecha_entrada || !form.fecha_salida)
+      return null;
     const e = new Date(form.fecha_entrada);
     const s = new Date(form.fecha_salida);
     const noches = Math.round((s - e) / (1000 * 60 * 60 * 24));
     if (noches <= 0) return null;
-    return { noches, total: noches * hab.precio_base };
-  }, [form.habitacion_id, form.fecha_entrada, form.fecha_salida, habitaciones]);
+    const precio = form.habitacion_ids.reduce((acc, id) => {
+      const hab = habitaciones.find((h) => Number(h.id) === id);
+      return acc + (hab ? hab.precio_base : 0);
+    }, 0);
+    return { noches, total: noches * precio, n: form.habitacion_ids.length };
+  }, [form.habitacion_ids, form.fecha_entrada, form.fecha_salida, habitaciones]);
 
   function validar() {
     const e = {};
     if (!form.huesped_id) e.huesped_id = "Selecciona un huesped.";
-    if (!form.habitacion_id) e.habitacion_id = "Selecciona una habitacion.";
+    if (!form.habitacion_ids.length) e.habitacion_id = "Selecciona al menos una habitacion.";
     if (!form.fecha_entrada) e.fecha_entrada = "Indica la fecha de entrada.";
     if (!form.fecha_salida) e.fecha_salida = "Indica la fecha de salida.";
     if (
@@ -85,13 +103,25 @@ export default function NuevaReservaForm({
     if (!validar()) return;
     setGuardando(true);
     try {
-      await api.crearReserva({
-        huesped_id: Number(form.huesped_id),
-        habitacion_id: Number(form.habitacion_id),
-        fecha_entrada: form.fecha_entrada,
-        fecha_salida: form.fecha_salida,
-        notas: form.notas,
-      });
+      if (form.habitacion_ids.length === 1) {
+        // Camino individual (endpoint clásico, retrocompatible).
+        await api.crearReserva({
+          huesped_id: Number(form.huesped_id),
+          habitacion_id: form.habitacion_ids[0],
+          fecha_entrada: form.fecha_entrada,
+          fecha_salida: form.fecha_salida,
+          notas: form.notas,
+        });
+      } else {
+        // Reserva de grupo: varias habitaciones en una operación.
+        await api.crearReservaGrupo({
+          huesped_id: Number(form.huesped_id),
+          habitacion_ids: form.habitacion_ids,
+          fecha_entrada: form.fecha_entrada,
+          fecha_salida: form.fecha_salida,
+          notas: form.notas,
+        });
+      }
       onCreada();
     } catch (err) {
       // Errores de negocio del backend (ej. habitacion no disponible).
@@ -124,23 +154,38 @@ export default function NuevaReservaForm({
 
       <Field
         id="habitacion"
-        label="Habitacion"
+        label={
+          form.habitacion_ids.length > 1
+            ? `Habitaciones (${form.habitacion_ids.length} seleccionadas)`
+            : "Habitacion(es)"
+        }
         required
         error={errores.habitacion_id}
+        hint="Marca una o varias (reserva de grupo)"
       >
-        <select
-          id="habitacion"
-          value={form.habitacion_id}
-          onChange={set("habitacion_id")}
-          aria-invalid={!!errores.habitacion_id}
-        >
-          <option value="">Selecciona una habitacion…</option>
-          {habitaciones.map((h) => (
-            <option key={h.id} value={h.id}>
-              Hab. {h.numero} — {h.tipo} ({formatoMoneda.format(h.precio_base)}/noche)
-            </option>
-          ))}
-        </select>
+        <div className="reserva-form__habs" role="group" aria-label="Habitaciones">
+          {habitaciones.map((h) => {
+            const sel = form.habitacion_ids.includes(Number(h.id));
+            return (
+              <label
+                key={h.id}
+                className={`reserva-form__hab${sel ? " reserva-form__hab--sel" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={sel}
+                  onChange={() => toggleHabitacion(h.id)}
+                />
+                <span className="reserva-form__hab-txt">
+                  Hab. {h.numero} — {h.tipo}
+                </span>
+                <span className="reserva-form__hab-precio">
+                  {formatoMoneda.format(h.precio_base)}/noche
+                </span>
+              </label>
+            );
+          })}
+        </div>
       </Field>
 
       <div className="reserva-form__fechas">
@@ -190,6 +235,7 @@ export default function NuevaReservaForm({
       {/* Estimacion en vivo: el usuario ve el costo antes de confirmar. */}
       {estimado && (
         <p className="reserva-form__estimado">
+          {estimado.n > 1 ? `${estimado.n} habitaciones · ` : ""}
           {estimado.noches} {estimado.noches === 1 ? "noche" : "noches"} ·
           Total estimado <strong>{formatoMoneda.format(estimado.total)}</strong>
         </p>
@@ -206,7 +252,11 @@ export default function NuevaReservaForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={guardando}>
-          {guardando ? "Guardando…" : "Crear reserva"}
+          {guardando
+            ? "Guardando…"
+            : form.habitacion_ids.length > 1
+            ? `Crear ${form.habitacion_ids.length} reservas`
+            : "Crear reserva"}
         </Button>
       </div>
     </form>

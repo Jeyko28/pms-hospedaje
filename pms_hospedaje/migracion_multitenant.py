@@ -231,6 +231,15 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 14. Columna 'grupo_id' en reservas (reserva multi-habitación/grupo) -----
+    # Una reserva de grupo crea N reservas (una por habitación) que comparten
+    # huésped+fechas y este grupo_id. Las reservas individuales lo dejan NULL
+    # (retrocompatible). Cada habitación conserva su propio folio/lifecycle.
+    if _tabla_existe(cursor, "reservas"):
+        if "grupo_id" not in _columnas_de(cursor, "reservas"):
+            cursor.execute("ALTER TABLE reservas ADD COLUMN grupo_id TEXT")
+            conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -269,6 +278,7 @@ _INDICES = [
     ("idx_usuarios_hosp", "usuarios", "hospedaje_id"),
     ("idx_comprobantes_hosp", "comprobantes", "hospedaje_id"),
     ("idx_cierres_hosp", "cierres_turno", "hospedaje_id"),
+    ("idx_reservas_grupo", "reservas", "grupo_id"),
 ]
 
 
