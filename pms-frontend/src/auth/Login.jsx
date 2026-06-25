@@ -89,6 +89,12 @@ export default function Login({ onIrARegistro }) {
             Crea tu hospedaje gratis
           </button>
         </p>
+        <p className="login__alt">
+          ¿Quieres ver los planes?{" "}
+          <a className="login__link" href="#/precios">
+            Ver precios
+          </a>
+        </p>
       </form>
     </div>
   );

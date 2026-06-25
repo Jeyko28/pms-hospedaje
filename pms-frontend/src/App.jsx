@@ -87,9 +87,13 @@ function Vista() {
 
 /**
  * Acceso — alterna entre iniciar sesión y registro (onboarding self-service).
+ * Si se llega con el hash #/registro (p. ej. desde la página de precios) abre
+ * directo el registro; #/login (o cualquier otro) muestra el inicio de sesión.
  */
 function Acceso() {
-  const [vista, setVista] = useState("login"); // 'login' | 'registro'
+  const [vista, setVista] = useState(() =>
+    /^#\/registro\b/.test(window.location.hash) ? "registro" : "login"
+  );
   if (vista === "registro") {
     return <Registro onIrALogin={() => setVista("login")} />;
   }

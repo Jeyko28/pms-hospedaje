@@ -3,31 +3,38 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import ReservaPublica from "./publico/ReservaPublica";
+import Precios from "./publico/Precios";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./styles/global.css";
 
 /**
- * Decide qué montar según la URL:
- *  - #/reservar/<slug>  -> pagina PUBLICA de reservas (sin login, sin AuthProvider).
+ * Decide qué montar según la URL (todas PÚBLICAS, sin login ni AuthProvider):
+ *  - #/reservar/<slug>  -> pagina publica de reservas del hospedaje.
+ *  - #/precios          -> pagina publica de precios (marketing).
  *  - cualquier otra      -> la app normal (con autenticacion).
  */
-function leerSlugPublico() {
-  const m = window.location.hash.match(/^#\/reservar\/([^/?]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+function leerRutaPublica() {
+  const hash = window.location.hash;
+  const m = hash.match(/^#\/reservar\/([^/?]+)/);
+  if (m) return { tipo: "reservar", slug: decodeURIComponent(m[1]) };
+  if (/^#\/precios\b/.test(hash)) return { tipo: "precios" };
+  return null;
 }
 
 function Raiz() {
-  const [slug, setSlug] = React.useState(leerSlugPublico());
+  const [publica, setPublica] = React.useState(leerRutaPublica());
 
   React.useEffect(() => {
-    const onHash = () => setSlug(leerSlugPublico());
+    const onHash = () => setPublica(leerRutaPublica());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  if (slug) {
-    // Pagina publica: no requiere sesion.
-    return <ReservaPublica slug={slug} />;
+  if (publica?.tipo === "reservar") {
+    return <ReservaPublica slug={publica.slug} />;
+  }
+  if (publica?.tipo === "precios") {
+    return <Precios />;
   }
   return (
     <AuthProvider>
