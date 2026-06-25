@@ -206,6 +206,31 @@ def migrar(conn):
                 cursor.execute(f"ALTER TABLE hospedajes ADD COLUMN {col} TEXT DEFAULT ''")
         conn.commit()
 
+    # ----- 13. Tabla 'cierres_turno' (arqueo firmado de caja por turno/día) -----
+    # Snapshot de lo cobrado al cerrar el turno: total y desglose por método,
+    # efectivo esperado vs contado y diferencia, con quién y cuándo. NO bloquea
+    # pagos (un cobro tardío legítimo debe poder registrarse igual).
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cierres_turno (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            usuario_id INTEGER,
+            usuario_nombre TEXT DEFAULT '',
+            fecha TEXT NOT NULL,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+            total_sistema REAL DEFAULT 0,
+            efectivo_sistema REAL DEFAULT 0,
+            efectivo_contado REAL,
+            diferencia REAL,
+            num_pagos INTEGER DEFAULT 0,
+            por_metodo TEXT DEFAULT '[]',
+            notas TEXT DEFAULT ''
+        )
+        """
+    )
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -243,6 +268,7 @@ _INDICES = [
     ("idx_usuarios_usuario", "usuarios", "usuario"),
     ("idx_usuarios_hosp", "usuarios", "hospedaje_id"),
     ("idx_comprobantes_hosp", "comprobantes", "hospedaje_id"),
+    ("idx_cierres_hosp", "cierres_turno", "hospedaje_id"),
 ]
 
 

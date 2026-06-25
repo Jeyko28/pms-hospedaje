@@ -99,3 +99,52 @@
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* Cierre de turno */
+.caja__acciones {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.caja__cierres summary {
+  font-weight: 500;
+}
+
+.caja__cierre-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.caja__cierre-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  border-radius: var(--radius, 10px);
+  background: var(--bg-app, #f5f6f8);
+}
+
+[data-theme="dark"] .caja__cierre-resumen {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.caja__cierre-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.caja__cierre-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.caja__cierre-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

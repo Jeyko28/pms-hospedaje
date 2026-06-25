@@ -16,6 +16,7 @@ Documentacion interactiva automatica en:  http://localhost:8000/docs
 import calendar
 import csv
 import io
+import json
 from datetime import datetime, timedelta
 
 import os
@@ -217,6 +218,13 @@ class PagoNuevo(BaseModel):
     monto: float
     metodo: str = "efectivo"
     referencia: str = ""
+
+
+class CierreTurnoDatos(BaseModel):
+    # Cierre de turno: arqueo firmado del día. fecha vacía = hoy.
+    fecha: str = ""
+    efectivo_contado: float | None = None  # None = no se contó el efectivo
+    notas: str = ""
 
 
 class SunatConfigDatos(BaseModel):
@@ -2461,16 +2469,9 @@ def registrar_pago(
     }
 
 
-@app.get("/api/recepcion/caja")
-def caja_del_dia(fecha: str = "", hid: int = Depends(auth.hospedaje_actual)):
-    """Arqueo del día: pagos cobrados en una fecha, agrupados por método + total.
-    Lo usa recepción para cuadrar el efectivo del cajón. Visible a admin y
-    recepción (es el dinero que recepción maneja, no el revenue del negocio)."""
-    dia = (fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
-    try:
-        datetime.strptime(dia, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+def _caja_data(hid, dia, incluir_detalle=True):
+    """Calcula el arqueo de un día: pagos por método + total (+ detalle opcional).
+    Reutilizado por el endpoint de caja y por el cierre de turno (DRY)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -2488,32 +2489,139 @@ def caja_del_dia(fecha: str = "", hid: int = Depends(auth.hospedaje_actual)):
             {"metodo": r["metodo"] or "otro", "total": round(r["total"] or 0, 2), "n": r["n"]}
             for r in cursor.fetchall()
         ]
-        # Detalle de los pagos del día (incluye quién los registró = auditoría).
-        cursor.execute(
-            """
-            SELECT p.fecha, p.monto, p.metodo, p.referencia,
-                   u.nombre AS usuario_nombre, h.nombre AS huesped
-            FROM pagos p
-            LEFT JOIN usuarios u  ON p.usuario_id = u.id
-            LEFT JOIN facturas f  ON p.factura_id = f.id
-            LEFT JOIN huespedes h ON f.huesped_id = h.id
-            WHERE p.hospedaje_id = ? AND substr(p.fecha, 1, 10) = ?
-            ORDER BY p.fecha DESC
-            """,
-            (hid, dia),
-        )
-        detalle = [dict(r) for r in cursor.fetchall()]
+        detalle = []
+        if incluir_detalle:
+            # Detalle de los pagos del día (incluye quién los registró = auditoría).
+            cursor.execute(
+                """
+                SELECT p.fecha, p.monto, p.metodo, p.referencia,
+                       u.nombre AS usuario_nombre, h.nombre AS huesped
+                FROM pagos p
+                LEFT JOIN usuarios u  ON p.usuario_id = u.id
+                LEFT JOIN facturas f  ON p.factura_id = f.id
+                LEFT JOIN huespedes h ON f.huesped_id = h.id
+                WHERE p.hospedaje_id = ? AND substr(p.fecha, 1, 10) = ?
+                ORDER BY p.fecha DESC
+                """,
+                (hid, dia),
+            )
+            detalle = [dict(r) for r in cursor.fetchall()]
     finally:
         conn.close()
     total = round(sum(m["total"] for m in por_metodo), 2)
     num_pagos = sum(m["n"] for m in por_metodo)
+    efectivo = round(sum(m["total"] for m in por_metodo if m["metodo"] == "efectivo"), 2)
     return {
         "fecha": dia,
         "total": total,
+        "efectivo": efectivo,
         "num_pagos": num_pagos,
         "por_metodo": por_metodo,
         "detalle": detalle,
     }
+
+
+@app.get("/api/recepcion/caja")
+def caja_del_dia(fecha: str = "", hid: int = Depends(auth.hospedaje_actual)):
+    """Arqueo del día: pagos cobrados en una fecha, agrupados por método + total.
+    Lo usa recepción para cuadrar el efectivo del cajón. Visible a admin y
+    recepción (es el dinero que recepción maneja, no el revenue del negocio)."""
+    dia = (fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(dia, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+    return _caja_data(hid, dia, incluir_detalle=True)
+
+
+@app.post("/api/recepcion/cierres", status_code=201)
+def crear_cierre_turno(
+    datos: CierreTurnoDatos,
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Registra un cierre de turno: snapshot firmado de lo cobrado en el día
+    (total y por método) + efectivo contado y diferencia, con quién y cuándo.
+    No bloquea pagos posteriores; es un arqueo de control."""
+    dia = (datos.fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(dia, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+
+    caja = _caja_data(hid, dia, incluir_detalle=False)
+    contado = datos.efectivo_contado
+    if contado is not None and contado < 0:
+        raise HTTPException(status_code=422, detail="El efectivo contado no puede ser negativo.")
+    diferencia = round(contado - caja["efectivo"], 2) if contado is not None else None
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO cierres_turno
+                (hospedaje_id, usuario_id, usuario_nombre, fecha, total_sistema,
+                 efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                hid, actual.get("id"), actual.get("nombre", ""), dia,
+                caja["total"], caja["efectivo"], contado, diferencia,
+                caja["num_pagos"], json.dumps(caja["por_metodo"]), (datos.notas or "").strip(),
+            ),
+        )
+        nuevo_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {
+        "id": nuevo_id,
+        "fecha": dia,
+        "usuario_nombre": actual.get("nombre", ""),
+        "total_sistema": caja["total"],
+        "efectivo_sistema": caja["efectivo"],
+        "efectivo_contado": contado,
+        "diferencia": diferencia,
+        "num_pagos": caja["num_pagos"],
+        "por_metodo": caja["por_metodo"],
+        "notas": (datos.notas or "").strip(),
+    }
+
+
+@app.get("/api/recepcion/cierres")
+def listar_cierres_turno(
+    limite: int = 30,
+    _actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Historial de cierres de turno del hospedaje (más recientes primero)."""
+    limite = max(1, min(limite, 100))
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, usuario_nombre, fecha, creado_en, total_sistema,
+                   efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas
+            FROM cierres_turno
+            WHERE hospedaje_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (hid, limite),
+        )
+        cierres = []
+        for r in cursor.fetchall():
+            c = dict(r)
+            try:
+                c["por_metodo"] = json.loads(c.get("por_metodo") or "[]")
+            except (ValueError, TypeError):
+                c["por_metodo"] = []
+            cierres.append(c)
+    finally:
+        conn.close()
+    return cierres
 
 
 # --------------------------------------------------------------------------- #

@@ -178,6 +178,9 @@ export const api = {
   checkout: (estanciaId, fechaCheckoutReal = "") =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
   cajaDia: (fecha = "") => get(`/api/recepcion/caja${fecha ? `?fecha=${fecha}` : ""}`),
+  // Cierre de turno (arqueo firmado)
+  crearCierreTurno: (datos) => post("/api/recepcion/cierres", datos),
+  cierresTurno: (limite = 30) => get(`/api/recepcion/cierres?limite=${limite}`),
   crearBloqueo: (datos) => post("/api/bloqueos", datos),
   eliminarBloqueo: (id) => del(`/api/bloqueos/${id}`),
 
