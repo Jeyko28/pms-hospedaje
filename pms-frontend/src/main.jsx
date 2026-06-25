@@ -1,11 +1,32 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
-import ReservaPublica from "./publico/ReservaPublica";
-import Precios from "./publico/Precios";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./styles/global.css";
+
+// Code-splitting: cada vista grande se carga bajo demanda. Así un huésped que
+// abre el link público (#/reservar/...) NO descarga toda la app de administración,
+// y la app interna no carga las páginas públicas de marketing.
+const App = lazy(() => import("./App"));
+const ReservaPublica = lazy(() => import("./publico/ReservaPublica"));
+const Precios = lazy(() => import("./publico/Precios"));
+
+// Fallback mínimo mientras se descarga el chunk de la vista.
+function Cargando() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        color: "var(--text-muted)",
+        backgroundColor: "var(--bg-app)",
+      }}
+    >
+      Cargando…
+    </div>
+  );
+}
 
 /**
  * Decide qué montar según la URL (todas PÚBLICAS, sin login ni AuthProvider):
@@ -31,14 +52,24 @@ function Raiz() {
   }, []);
 
   if (publica?.tipo === "reservar") {
-    return <ReservaPublica slug={publica.slug} />;
+    return (
+      <Suspense fallback={<Cargando />}>
+        <ReservaPublica slug={publica.slug} />
+      </Suspense>
+    );
   }
   if (publica?.tipo === "precios") {
-    return <Precios />;
+    return (
+      <Suspense fallback={<Cargando />}>
+        <Precios />
+      </Suspense>
+    );
   }
   return (
     <AuthProvider>
-      <App />
+      <Suspense fallback={<Cargando />}>
+        <App />
+      </Suspense>
     </AuthProvider>
   );
 }

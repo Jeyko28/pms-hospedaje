@@ -1,25 +1,29 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { RouterProvider, useRuta } from "./router/Router";
 import { useAuth } from "./auth/AuthContext";
 import Login from "./auth/Login";
 import Registro from "./auth/Registro";
 import AppShell from "./components/AppShell";
-import Dashboard from "./pages/Dashboard";
-import Reservas from "./pages/reservas/Reservas";
-import Calendario from "./pages/calendario/Calendario";
-import Recepcion from "./pages/recepcion/Recepcion";
-import Habitaciones from "./pages/habitaciones/Habitaciones";
-import Housekeeping from "./pages/housekeeping/Housekeeping";
-import Huespedes from "./pages/huespedes/Huespedes";
-import Facturas from "./pages/facturas/Facturas";
-import ConfigSunat from "./pages/sunat/ConfigSunat";
-import Configuracion from "./pages/configuracion/Configuracion";
-import Reportes from "./pages/reportes/Reportes";
-import Usuarios from "./pages/usuarios/Usuarios";
-import Hospedajes from "./pages/hospedajes/Hospedajes";
 import AsistenteBienvenida from "./components/AsistenteBienvenida";
 import { ToastProvider } from "./components/Toast";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+// Code-splitting por ruta: cada página se descarga al navegar a ella, no en la
+// carga inicial. Reduce el bundle inicial (sobre todo Recharts en Dashboard/
+// Reportes), clave en móvil/conexiones lentas.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Reservas = lazy(() => import("./pages/reservas/Reservas"));
+const Calendario = lazy(() => import("./pages/calendario/Calendario"));
+const Recepcion = lazy(() => import("./pages/recepcion/Recepcion"));
+const Habitaciones = lazy(() => import("./pages/habitaciones/Habitaciones"));
+const Housekeeping = lazy(() => import("./pages/housekeeping/Housekeeping"));
+const Huespedes = lazy(() => import("./pages/huespedes/Huespedes"));
+const Facturas = lazy(() => import("./pages/facturas/Facturas"));
+const ConfigSunat = lazy(() => import("./pages/sunat/ConfigSunat"));
+const Configuracion = lazy(() => import("./pages/configuracion/Configuracion"));
+const Reportes = lazy(() => import("./pages/reportes/Reportes"));
+const Usuarios = lazy(() => import("./pages/usuarios/Usuarios"));
+const Hospedajes = lazy(() => import("./pages/hospedajes/Hospedajes"));
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
@@ -88,7 +92,15 @@ function Vista() {
   // al navegar a otra (cambia la key) la boundary se remonta y limpia el error.
   return (
     <ErrorBoundary key={esSuperadmin ? "hospedajes" : ruta}>
-      <div className="vista-fade">{contenido}</div>
+      <Suspense
+        fallback={
+          <div className="vista-fade" style={{ padding: "2rem", color: "var(--text-muted)" }}>
+            Cargando…
+          </div>
+        }
+      >
+        <div className="vista-fade">{contenido}</div>
+      </Suspense>
     </ErrorBoundary>
   );
 }
