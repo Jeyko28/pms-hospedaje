@@ -88,10 +88,14 @@ def formatear_moneda(valor):
     """Convierte un número a formato de moneda (ej: $45.00)."""
     return f"${valor:.2f}"
 
-def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_destino=None):
+def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_destino=None, hospedaje=None):
     """
     Genera un PDF de factura.
     Retorna la ruta del archivo generado.
+
+    `hospedaje` (dict opcional): datos reales del negocio (nombre, ruc,
+    razon_social, direccion, telefono). Si no se pasa o faltan campos, se usa
+    un fallback neutro (sin datos falsos).
     """
     if ruta_destino is None:
         # Crear carpeta facturas si no existe
@@ -102,17 +106,32 @@ def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_de
     c = canvas.Canvas(ruta_destino, pagesize=A4)
     width, height = A4
 
-    # Datos del hospedaje
-    hospedaje_nombre = "Mi Pequeño Hospedaje"
-    hospedaje_direccion = "Calle Ejemplo 123, Ciudad"
-    hospedaje_telefono = "+123 456 789"
+    # Datos reales del hospedaje (con fallback neutro si faltan).
+    h = hospedaje or {}
+    hospedaje_nombre = (h.get("nombre") or "Mi hospedaje").strip()
+    hospedaje_razon = (h.get("razon_social") or "").strip()
+    hospedaje_ruc = (h.get("ruc") or "").strip()
+    hospedaje_direccion = (h.get("direccion") or "").strip()
+    hospedaje_telefono = (h.get("telefono") or "").strip()
 
     # Encabezado
+    y_cab = height - 2*cm
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(2*cm, height - 2*cm, hospedaje_nombre)
+    c.drawString(2*cm, y_cab, hospedaje_nombre)
     c.setFont("Helvetica", 10)
-    c.drawString(2*cm, height - 2.5*cm, hospedaje_direccion)
-    c.drawString(2*cm, height - 3*cm, f"Tel: {hospedaje_telefono}")
+    y_cab -= 0.5*cm
+    if hospedaje_razon and hospedaje_razon != hospedaje_nombre:
+        c.drawString(2*cm, y_cab, hospedaje_razon)
+        y_cab -= 0.5*cm
+    if hospedaje_ruc:
+        c.drawString(2*cm, y_cab, f"RUC: {hospedaje_ruc}")
+        y_cab -= 0.5*cm
+    if hospedaje_direccion:
+        c.drawString(2*cm, y_cab, hospedaje_direccion)
+        y_cab -= 0.5*cm
+    if hospedaje_telefono:
+        c.drawString(2*cm, y_cab, f"Tel: {hospedaje_telefono}")
+        y_cab -= 0.5*cm
 
     c.line(2*cm, height - 3.2*cm, width - 2*cm, height - 3.2*cm)
 

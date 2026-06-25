@@ -1,0 +1,116 @@
+/* Configuración del negocio — datos de la factura + estado de suscripción. */
+
+.cfg {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 760px;
+}
+
+.cfg__head h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cfg__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.cfg__card-title {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cfg__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cfg__fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.cfg__acciones {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cfg__error {
+  margin: 0;
+  color: var(--danger, #c0392b);
+  font-size: 0.875rem;
+}
+
+.cfg__ok {
+  margin: 0;
+  color: var(--success, #1e8449);
+  font-size: 0.875rem;
+}
+
+/* --- Tarjeta "Tu plan" --- */
+.cfg__plan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.cfg__plan-datos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 220px;
+}
+
+.cfg__plan-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cfg__plan-label {
+  display: inline-block;
+  min-width: 72px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.cfg__vence {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.cfg__vence--urge {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+
+.cfg__plan-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  max-width: 320px;
+}
+
+.cfg__plan-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  .cfg__fila {
+    grid-template-columns: 1fr;
+  }
+}

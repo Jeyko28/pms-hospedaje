@@ -208,6 +208,10 @@ export const api = {
   // Link público: personalizar el slug (solo admin, cupo limitado)
   cambiarSlug: (slug) => put("/api/mi-hospedaje/slug", { slug }),
 
+  // Configuración del negocio (datos de la factura + estado de suscripción)
+  miHospedaje: () => get("/api/mi-hospedaje"),
+  guardarMiHospedaje: (datos) => put("/api/mi-hospedaje", datos),
+
   // Usuarios (solo admin)
   usuarios: () => get("/api/usuarios"),
   crearUsuario: (datos) => post("/api/usuarios", datos),

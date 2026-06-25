@@ -262,6 +262,17 @@ class SlugNuevo(BaseModel):
     slug: str
 
 
+class MiHospedajeDatos(BaseModel):
+    # Identidad del negocio que el admin edita desde "Configuración".
+    # Alimenta la factura/comprobante y pre-llena la config SUNAT.
+    nombre: str = ""
+    ruc: str = ""
+    razon_social: str = ""
+    direccion: str = ""
+    telefono: str = ""
+    email_contacto: str = ""
+
+
 class RegistroPublico(BaseModel):
     # Lo que un cliente nuevo llena en la pagina publica de registro.
     hospedaje_nombre: str
@@ -483,6 +494,98 @@ def cambiar_slug(datos: SlugNuevo, admin: dict = Depends(auth.solo_admin)):
         "cambios_restantes": max(0, auth.MAX_CAMBIOS_SLUG - usados_final),
         "sin_cambio": False,
     }
+
+
+def _obtener_hospedaje(hid):
+    """Datos del hospedaje (dict) para la factura/comprobante. {} si no existe."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT nombre, ruc, razon_social, direccion, telefono FROM hospedajes WHERE id = ?",
+            (hid,),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else {}
+
+
+def _dias_restantes(fecha_expira):
+    """Días que faltan para que venza la suscripción/prueba (None si no aplica)."""
+    if not fecha_expira:
+        return None
+    try:
+        fin = datetime.strptime(str(fecha_expira)[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+    return (fin.date() - datetime.now().date()).days
+
+
+@app.get("/api/mi-hospedaje")
+def obtener_mi_hospedaje(admin: dict = Depends(auth.solo_admin)):
+    """Datos del negocio + estado de suscripción del hospedaje del admin.
+    Alimenta la pantalla de Configuración (identidad para la factura + plan)."""
+    hid = admin["hospedaje_id"]
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT nombre, slug, ruc, razon_social, direccion, telefono,
+                      email_contacto, plan, estado, fecha_expira
+               FROM hospedajes WHERE id = ?""",
+            (hid,),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+    datos = dict(row)
+    datos["dias_restantes"] = _dias_restantes(datos.get("fecha_expira"))
+    return datos
+
+
+@app.put("/api/mi-hospedaje")
+def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.solo_admin)):
+    """Actualiza la identidad del negocio (nombre, RUC, razón social, dirección,
+    teléfono, email). Sincroniza RUC/razón social/dirección con la config SUNAT
+    sin tocar serie/correlativo/modo/activo (merge)."""
+    hid = admin["hospedaje_id"]
+
+    nombre = (datos.nombre or "").strip()
+    if not nombre:
+        raise HTTPException(status_code=422, detail="El nombre del negocio es obligatorio.")
+    ruc = (datos.ruc or "").strip()
+    if ruc and (not ruc.isdigit() or len(ruc) != 11):
+        raise HTTPException(status_code=422, detail="El RUC debe tener 11 dígitos.")
+
+    razon_social = (datos.razon_social or "").strip()
+    direccion = (datos.direccion or "").strip()
+    telefono = (datos.telefono or "").strip()
+    email_contacto = (datos.email_contacto or "").strip()
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM hospedajes WHERE id = ?", (hid,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+        cursor.execute(
+            """UPDATE hospedajes SET nombre=?, ruc=?, razon_social=?, direccion=?,
+                      telefono=?, email_contacto=? WHERE id=?""",
+            (nombre, ruc, razon_social, direccion, telefono, email_contacto, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Sincronizar con SUNAT (merge: conserva serie/modo/activo existentes).
+    config = sunat.obtener_config(hid)
+    config.update({"ruc": ruc, "razon_social": razon_social, "direccion": direccion})
+    sunat.guardar_config(hid, config)
+
+    return obtener_mi_hospedaje(admin)
 
 
 @app.get("/api/usuarios")
@@ -1791,7 +1894,10 @@ def hacer_checkout(
     ruta_pdf = None
     try:
         if hab and huesped and reserva:
-            ruta_pdf = generar_factura_pdf(factura, estancia, huesped, hab, reserva)
+            ruta_pdf = generar_factura_pdf(
+                factura, estancia, huesped, hab, reserva,
+                hospedaje=_obtener_hospedaje(hid),
+            )
             factura.pdf_generado = 1
             factura.guardar()
     except Exception:
@@ -1997,7 +2103,10 @@ def descargar_factura_pdf(factura_id: int, hid: int = Depends(auth.hospedaje_act
 
     # 4. Generar el PDF (reutiliza la logica existente) y devolverlo.
     try:
-        ruta = generar_factura_pdf(factura, estancia, huesped, habitacion, reserva)
+        ruta = generar_factura_pdf(
+            factura, estancia, huesped, habitacion, reserva,
+            hospedaje=_obtener_hospedaje(hid),
+        )
     except Exception:
         raise HTTPException(status_code=500, detail="No se pudo generar el PDF.")
     if not ruta or not os.path.exists(ruta):

@@ -196,6 +196,16 @@ def migrar(conn):
             cursor.execute("ALTER TABLE huespedes ADD COLUMN tipo_documento TEXT DEFAULT 'DNI'")
             conn.commit()
 
+    # ----- 11. Identidad del negocio en hospedajes (para la factura/comprobante) -----
+    # Datos reales de cada hospedaje que antes estaban "quemados" en el PDF.
+    # 'hospedajes' es la fuente de verdad; estos campos pre-llenan la config SUNAT.
+    if _tabla_existe(cursor, "hospedajes"):
+        cols_hosp_id = _columnas_de(cursor, "hospedajes")
+        for col in ("ruc", "razon_social", "direccion", "telefono", "email_contacto"):
+            if col not in cols_hosp_id:
+                cursor.execute(f"ALTER TABLE hospedajes ADD COLUMN {col} TEXT DEFAULT ''")
+        conn.commit()
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).

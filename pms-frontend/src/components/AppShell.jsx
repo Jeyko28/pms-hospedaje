@@ -18,6 +18,7 @@ import {
   Sun,
   Hotel,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
 import { useTheme } from "../hooks/useTheme";
@@ -54,6 +55,7 @@ const NAV = [
   { id: "sunat", icon: FileText, label: "Facturación", soloAdmin: true, operativa: true },
   { id: "reportes", icon: BarChart3, label: "Reportes", soloAdmin: true, operativa: true },
   { id: "usuarios", icon: ShieldCheck, label: "Usuarios", soloAdmin: true, operativa: true },
+  { id: "configuracion", icon: Settings, label: "Configuración", soloAdmin: true, operativa: true },
   { id: "hospedajes", icon: Building2, label: "Hospedajes", soloSuperadmin: true },
 ];
 

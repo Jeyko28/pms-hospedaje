@@ -52,7 +52,15 @@ export default function Dashboard() {
   const overview = useApi(api.dashboardOverview);
   const { navegar } = useRuta();
   const toast = useToast();
-  const { usuario } = useAuth();
+  const { usuario, esAdmin } = useAuth();
+
+  // Datos del negocio: solo el admin los consulta (recepción no tiene acceso),
+  // para mostrar el aviso de "completa tu RUC" si aún faltan datos fiscales.
+  const miHosp = useApi(
+    () => (esAdmin ? api.miHospedaje() : Promise.resolve(null)),
+    [esAdmin]
+  );
+  const faltaRuc = esAdmin && miHosp.data && !((miHosp.data.ruc || "").trim());
 
   const [accionId, setAccionId] = useState(null); // id en proceso (check-in/out/confirmar)
 
@@ -149,6 +157,23 @@ export default function Dashboard() {
           Nueva reserva
         </Button>
       </header>
+
+      {/* ---------- Onboarding: completar datos del negocio ---------- */}
+      {faltaRuc && (
+        <div className="dashboard__aviso-negocio" role="status">
+          <span className="dashboard__aviso-negocio-texto">
+            <strong>Completa los datos de tu negocio</strong> (RUC, razón social,
+            dirección) para que tus facturas y comprobantes salgan correctos.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navegar("configuracion")}
+          >
+            Completar ahora
+          </Button>
+        </div>
+      )}
 
       {/* ---------- Link público de reservas ---------- */}
       <LinkReservas />
