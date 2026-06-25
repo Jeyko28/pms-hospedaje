@@ -10,6 +10,7 @@ import { useToast } from "../../components/Toast";
 import CobroEstanciaForm from "./CobroEstanciaForm";
 import CheckinForm from "./CheckinForm";
 import CheckoutForm from "./CheckoutForm";
+import CajaDia from "./CajaDia";
 import { abrirFacturaPdf } from "../../utils/pdf";
 import "./Recepcion.css";
 
@@ -69,6 +70,9 @@ export default function Recepcion() {
           Gestiona las entradas y salidas de huéspedes.
         </p>
       </header>
+
+      {/* Arqueo de caja del día (recepción cuadra el efectivo) */}
+      <CajaDia />
 
       <div className="recepcion__cols">
         {/* ============ Columna 1: Check-in (reservas pendientes) ============ */}

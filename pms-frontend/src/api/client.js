@@ -176,6 +176,7 @@ export const api = {
     post("/api/recepcion/checkin", { reserva_id: reservaId, fecha_entrada_real: fechaEntradaReal }),
   checkout: (estanciaId, fechaCheckoutReal = "") =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
+  cajaDia: (fecha = "") => get(`/api/recepcion/caja${fecha ? `?fecha=${fecha}` : ""}`),
   recalcularEstancia: (estanciaId, fechaCheckoutReal = "", descuento = 0, descuentoMotivo = "") =>
     post("/api/recepcion/recalcular", {
       estancia_id: estanciaId,

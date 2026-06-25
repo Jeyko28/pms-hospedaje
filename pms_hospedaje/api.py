@@ -1484,7 +1484,11 @@ def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
 
 
 @app.post("/api/recepcion/checkin", status_code=201)
-def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
+def hacer_checkin(
+    datos: CheckinIn,
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     """Registra el check-in: crea estancia + factura inicial, marca la
     habitacion como ocupada. Reusa la logica de modelos.py."""
     reserva = Reserva.obtener_por_id(datos.reserva_id, hospedaje_id=hid)
@@ -1539,6 +1543,7 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
         fecha_checkout_esperado=reserva.fecha_salida,
         estado="activa",
         hospedaje_id=hid,
+        usuario_checkin_id=actual.get("id"),
     )
     estancia.guardar()
 
@@ -1570,7 +1575,11 @@ def hacer_checkin(datos: CheckinIn, hid: int = Depends(auth.hospedaje_actual)):
 
 
 @app.post("/api/recepcion/checkout")
-def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual)):
+def hacer_checkout(
+    datos: CheckoutIn,
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     """Finaliza una estancia: exige saldo 0, libera y ensucia la habitacion,
     marca la reserva como Check-out y genera la factura PDF."""
     conn = get_connection()
@@ -1592,7 +1601,9 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
         fecha_checkout_esperado=row["fecha_checkout_esperado"],
         fecha_checkout_real=row["fecha_checkout_real"], estado=row["estado"],
         hospedaje_id=row["hospedaje_id"] if "hospedaje_id" in row.keys() else hid,
+        usuario_checkin_id=row["usuario_checkin_id"] if "usuario_checkin_id" in row.keys() else None,
     )
+    estancia.usuario_checkout_id = actual.get("id")
 
     factura = Factura.obtener_por_estancia(estancia.id)
     if not factura:
@@ -1813,7 +1824,14 @@ def listar_pagos(factura_id: int, hid: int = Depends(auth.hospedaje_actual)):
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Factura no encontrada.")
         cursor.execute(
-            "SELECT id, monto, metodo, fecha, referencia FROM pagos WHERE factura_id = ? ORDER BY fecha",
+            """
+            SELECT p.id, p.monto, p.metodo, p.fecha, p.referencia,
+                   u.nombre AS usuario_nombre
+            FROM pagos p
+            LEFT JOIN usuarios u ON p.usuario_id = u.id
+            WHERE p.factura_id = ?
+            ORDER BY p.fecha
+            """,
             (factura_id,),
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -2008,7 +2026,11 @@ def sunat_comprobante_pdf(comprobante_id: int, hid: int = Depends(auth.hospedaje
 
 
 @app.post("/api/pagos", status_code=201)
-def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
+def registrar_pago(
+    datos: PagoNuevo,
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     if datos.monto <= 0:
         raise HTTPException(status_code=422, detail="El monto debe ser mayor a cero.")
 
@@ -2035,6 +2057,7 @@ def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
         fecha=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         referencia=datos.referencia,
         hospedaje_id=hid,
+        usuario_id=actual.get("id"),
     )
     pago.guardar()
 
@@ -2059,6 +2082,61 @@ def registrar_pago(datos: PagoNuevo, hid: int = Depends(auth.hospedaje_actual)):
         "pagado": round(pagado, 2),
         "saldo": saldo,
         "estado_factura": nuevo_estado,
+    }
+
+
+@app.get("/api/recepcion/caja")
+def caja_del_dia(fecha: str = "", hid: int = Depends(auth.hospedaje_actual)):
+    """Arqueo del día: pagos cobrados en una fecha, agrupados por método + total.
+    Lo usa recepción para cuadrar el efectivo del cajón. Visible a admin y
+    recepción (es el dinero que recepción maneja, no el revenue del negocio)."""
+    dia = (fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(dia, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT metodo, COALESCE(SUM(monto), 0) AS total, COUNT(*) AS n
+            FROM pagos
+            WHERE hospedaje_id = ? AND substr(fecha, 1, 10) = ?
+            GROUP BY metodo
+            ORDER BY total DESC
+            """,
+            (hid, dia),
+        )
+        por_metodo = [
+            {"metodo": r["metodo"] or "otro", "total": round(r["total"] or 0, 2), "n": r["n"]}
+            for r in cursor.fetchall()
+        ]
+        # Detalle de los pagos del día (incluye quién los registró = auditoría).
+        cursor.execute(
+            """
+            SELECT p.fecha, p.monto, p.metodo, p.referencia,
+                   u.nombre AS usuario_nombre, h.nombre AS huesped
+            FROM pagos p
+            LEFT JOIN usuarios u  ON p.usuario_id = u.id
+            LEFT JOIN facturas f  ON p.factura_id = f.id
+            LEFT JOIN huespedes h ON f.huesped_id = h.id
+            WHERE p.hospedaje_id = ? AND substr(p.fecha, 1, 10) = ?
+            ORDER BY p.fecha DESC
+            """,
+            (hid, dia),
+        )
+        detalle = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+    total = round(sum(m["total"] for m in por_metodo), 2)
+    num_pagos = sum(m["n"] for m in por_metodo)
+    return {
+        "fecha": dia,
+        "total": total,
+        "num_pagos": num_pagos,
+        "por_metodo": por_metodo,
+        "detalle": detalle,
     }
 
 

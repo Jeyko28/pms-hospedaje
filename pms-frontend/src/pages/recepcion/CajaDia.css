@@ -1,0 +1,101 @@
+.caja {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.caja__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.caja__titulo {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.caja__metodos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+.caja__metodo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+}
+.caja__metodo-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.caja__metodo-monto {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.caja__metodo-n {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.caja__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-default);
+}
+.caja__total strong {
+  font-size: var(--text-xl);
+  color: var(--color-success-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.caja__vacio {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.caja__detalle summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-brand-600);
+}
+.caja__lista {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.caja__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-default);
+  flex-wrap: wrap;
+}
+.caja__item:first-child {
+  border-top: none;
+}
+.caja__item-info {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.caja__item-meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}

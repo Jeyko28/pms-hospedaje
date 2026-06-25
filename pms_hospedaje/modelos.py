@@ -369,7 +369,7 @@ class Reserva:
 class Estancia:
     def __init__(self, id=None, reserva_id=None, huesped_id=None, habitacion_id=None,
                  fecha_checkin="", fecha_checkout_esperado="", fecha_checkout_real=None, estado="activa",
-                 hospedaje_id=None):
+                 hospedaje_id=None, usuario_checkin_id=None, usuario_checkout_id=None):
         self.id = id
         self.reserva_id = reserva_id
         self.huesped_id = huesped_id
@@ -379,6 +379,9 @@ class Estancia:
         self.fecha_checkout_real = fecha_checkout_real
         self.estado = estado
         self.hospedaje_id = hospedaje_id
+        # Auditoría: quién registró el check-in y el check-out.
+        self.usuario_checkin_id = usuario_checkin_id
+        self.usuario_checkout_id = usuario_checkout_id
 
     @staticmethod
     def obtener_activa_por_habitacion(habitacion_id):
@@ -411,21 +414,24 @@ class Estancia:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO estancias (reserva_id, huesped_id, habitacion_id, fecha_checkin, fecha_checkout_esperado, estado, hospedaje_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO estancias (reserva_id, huesped_id, habitacion_id, fecha_checkin, fecha_checkout_esperado, estado, hospedaje_id, usuario_checkin_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (self.reserva_id, self.huesped_id, self.habitacion_id,
-                  self.fecha_checkin, self.fecha_checkout_esperado, self.estado, hid))
+                  self.fecha_checkin, self.fecha_checkout_esperado, self.estado, hid,
+                  self.usuario_checkin_id))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:
             cursor.execute('''
                 UPDATE estancias
                 SET reserva_id=?, huesped_id=?, habitacion_id=?, fecha_checkin=?,
-                    fecha_checkout_esperado=?, fecha_checkout_real=?, estado=?
+                    fecha_checkout_esperado=?, fecha_checkout_real=?, estado=?,
+                    usuario_checkin_id=?, usuario_checkout_id=?
                 WHERE id=?
             ''', (self.reserva_id, self.huesped_id, self.habitacion_id,
                   self.fecha_checkin, self.fecha_checkout_esperado,
-                  self.fecha_checkout_real, self.estado, self.id))
+                  self.fecha_checkout_real, self.estado,
+                  self.usuario_checkin_id, self.usuario_checkout_id, self.id))
         conn.commit()
         conn.close()
 
@@ -492,7 +498,7 @@ class Factura:
 
 class Pago:
     def __init__(self, id=None, factura_id=None, monto=0.0, metodo="efectivo", fecha="", referencia="",
-                 hospedaje_id=None):
+                 hospedaje_id=None, usuario_id=None):
         self.id = id
         self.factura_id = factura_id
         self.monto = monto
@@ -500,6 +506,7 @@ class Pago:
         self.fecha = fecha
         self.referencia = referencia
         self.hospedaje_id = hospedaje_id
+        self.usuario_id = usuario_id  # auditoría: quién registró el pago
 
     def guardar(self):
         conn = get_connection()
@@ -507,9 +514,9 @@ class Pago:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO pagos (factura_id, monto, metodo, fecha, referencia, hospedaje_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (self.factura_id, self.monto, self.metodo, self.fecha, self.referencia, hid))
+                INSERT INTO pagos (factura_id, monto, metodo, fecha, referencia, hospedaje_id, usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (self.factura_id, self.monto, self.metodo, self.fecha, self.referencia, hid, self.usuario_id))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:

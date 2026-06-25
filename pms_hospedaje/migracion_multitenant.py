@@ -160,6 +160,42 @@ def migrar(conn):
             cursor.execute("ALTER TABLE facturas ADD COLUMN descuento_motivo TEXT DEFAULT ''")
         conn.commit()
 
+    # ----- 8. Auditoría por usuario: quién cobró / hizo check-in / check-out -----
+    if _tabla_existe(cursor, "pagos"):
+        if "usuario_id" not in _columnas_de(cursor, "pagos"):
+            cursor.execute("ALTER TABLE pagos ADD COLUMN usuario_id INTEGER")
+            conn.commit()
+    if _tabla_existe(cursor, "estancias"):
+        cols_est = _columnas_de(cursor, "estancias")
+        if "usuario_checkin_id" not in cols_est:
+            cursor.execute("ALTER TABLE estancias ADD COLUMN usuario_checkin_id INTEGER")
+        if "usuario_checkout_id" not in cols_est:
+            cursor.execute("ALTER TABLE estancias ADD COLUMN usuario_checkout_id INTEGER")
+        conn.commit()
+
+    # ----- 9. Tabla 'bloqueos' (habitación fuera de servicio por rango de fechas) -----
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bloqueos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            habitacion_id INTEGER NOT NULL,
+            fecha_inicio TEXT NOT NULL,
+            fecha_fin TEXT NOT NULL,
+            motivo TEXT DEFAULT '',
+            creado_por INTEGER,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
+    # ----- 10. Columna 'tipo_documento' en huespedes (DNI/CE/Pasaporte) -----
+    if _tabla_existe(cursor, "huespedes"):
+        if "tipo_documento" not in _columnas_de(cursor, "huespedes"):
+            cursor.execute("ALTER TABLE huespedes ADD COLUMN tipo_documento TEXT DEFAULT 'DNI'")
+            conn.commit()
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).
