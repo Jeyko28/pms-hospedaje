@@ -968,6 +968,18 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
         raise HTTPException(
             status_code=422, detail="La salida debe ser posterior a la entrada."
         )
+    # Endpoint PÚBLICO (sin auth): no confiar en que el front limite las fechas.
+    # Rechaza entradas en el pasado (con 1 día de margen por la zona horaria del
+    # servidor en UTC vs Perú −5) y estadías absurdas (anti-abuso/datos basura).
+    hoy = datetime.now().date()
+    if fe.date() < hoy - timedelta(days=1):
+        raise HTTPException(
+            status_code=422, detail="La fecha de entrada no puede estar en el pasado."
+        )
+    if (fs - fe).days > 60:
+        raise HTTPException(
+            status_code=422, detail="La estadía no puede superar las 60 noches por reserva."
+        )
     if not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
     # Al menos una forma de contacto (correo o telefono) para poder ubicar al huesped.
