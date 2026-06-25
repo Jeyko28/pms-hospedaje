@@ -14,6 +14,8 @@ Documentacion interactiva automatica en:  http://localhost:8000/docs
 """
 
 import calendar
+import csv
+import io
 from datetime import datetime, timedelta
 
 import os
@@ -40,7 +42,7 @@ _cargar_env_local()
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 import database
@@ -184,6 +186,9 @@ class CheckoutIn(BaseModel):
     # Fecha real de salida (YYYY-MM-DD). Si va vacía se usa hoy. Permite cerrar
     # con la estadía real (salida adelantada o extendida) y cobrar correcto.
     fecha_checkout_real: str = ""
+    # Descuento/cortesía opcional aplicado en el COBRO (lo usa /recalcular).
+    descuento: float = 0
+    descuento_motivo: str = ""
 
 
 class PagoNuevo(BaseModel):
@@ -1145,7 +1150,8 @@ def listar_reservas(hid: int = Depends(auth.hospedaje_actual)):
             """
             SELECT r.id, r.huesped_id, r.habitacion_id,
                    r.fecha_entrada, r.fecha_salida, r.estado, r.total,
-                   h.nombre AS huesped, hab.numero AS habitacion, hab.tipo AS tipo
+                   h.nombre AS huesped, h.telefono AS telefono,
+                   hab.numero AS habitacion, hab.tipo AS tipo
             FROM reservas r
             JOIN huespedes h    ON r.huesped_id = h.id
             JOIN habitaciones hab ON r.habitacion_id = hab.id
@@ -1618,9 +1624,14 @@ def hacer_checkout(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_actual))
     # (cobra menos / queda saldo a favor) o estadía extendida (cobra más).
     noches_reales = (fco - fci).days
     if hab:
-        nuevo_total = round(noches_reales * hab.precio_base, 2)
-        if abs(nuevo_total - (factura.total or 0)) > 0.001:
-            factura.subtotal = nuevo_total
+        nuevo_subtotal = round(noches_reales * hab.precio_base, 2)
+        # Preservar el descuento ya aplicado en el cobro (no se pierde al cerrar).
+        desc = round(min(factura.descuento or 0, nuevo_subtotal), 2)
+        nuevo_total = round(nuevo_subtotal - desc, 2)
+        if (abs(nuevo_total - (factura.total or 0)) > 0.001
+                or abs(nuevo_subtotal - (factura.subtotal or 0)) > 0.001):
+            factura.subtotal = nuevo_subtotal
+            factura.descuento = desc
             factura.total = nuevo_total
             factura.guardar()
 
@@ -1711,8 +1722,20 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
         raise HTTPException(status_code=422, detail="La fecha de salida debe ser posterior a la de entrada.")
 
     noches = (fco - fci).days
-    nuevo_total = round(noches * hab.precio_base, 2)
-    factura.subtotal = nuevo_total
+    subtotal = round(noches * hab.precio_base, 2)
+
+    # Descuento/cortesía: 0 ≤ descuento ≤ subtotal. total = subtotal - descuento.
+    descuento = round(max(0.0, datos.descuento or 0), 2)
+    if descuento > subtotal:
+        raise HTTPException(
+            status_code=422,
+            detail=f"El descuento (S/ {descuento:.2f}) no puede superar el subtotal (S/ {subtotal:.2f}).",
+        )
+    nuevo_total = round(subtotal - descuento, 2)
+
+    factura.subtotal = subtotal
+    factura.descuento = descuento
+    factura.descuento_motivo = (datos.descuento_motivo or "").strip()
     factura.total = nuevo_total
     factura.guardar()
 
@@ -1731,6 +1754,8 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
         "factura_id": factura.id,
         "fecha_checkout_real": fecha_real,
         "noches": noches,
+        "subtotal": subtotal,
+        "descuento": descuento,
         "total": nuevo_total,
         "pagado": round(pagado, 2),
         "saldo": round(nuevo_total - pagado, 2),
@@ -2380,6 +2405,23 @@ def dashboard_overview(
         )
         guest_list = [dict(r) for r in cursor.fetchall()]
 
+        # ---------- Reservas PENDIENTES por confirmar (sobre todo del link público) ----------
+        cursor.execute(
+            """
+            SELECT r.id AS reserva_id, h.nombre AS huesped, h.telefono AS telefono,
+                   hab.numero AS room, hab.tipo AS tipo,
+                   r.fecha_entrada AS checkin, r.fecha_salida AS checkout,
+                   r.total AS total, r.origen AS origen
+            FROM reservas r
+            JOIN huespedes h     ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ? AND r.estado = 'Pendiente'
+            ORDER BY r.creado_en DESC, r.id DESC
+            """,
+            (hid,),
+        )
+        pendientes = [dict(r) for r in cursor.fetchall()]
+
         return {
             "kpis": {
                 "new_booking": {"valor": nb_actual, "trend_pct": _trend(nb_actual, nb_anterior), "spark": nb_spark},
@@ -2400,9 +2442,114 @@ def dashboard_overview(
             "visitas": visitas,
             "current_bookings": current_bookings,
             "guest_list": guest_list,
+            "pendientes_por_confirmar": pendientes,
         }
     finally:
         conn.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Exportación a CSV (el dueño puede sacar sus datos; "no ser rehén")
+# --------------------------------------------------------------------------- #
+def _csv_response(nombre_archivo, encabezados, filas):
+    """Arma un CSV descargable (UTF-8 con BOM para que Excel abra bien las tildes)."""
+    buffer = io.StringIO()
+    buffer.write("﻿")  # BOM para Excel
+    escritor = csv.writer(buffer)
+    escritor.writerow(encabezados)
+    for fila in filas:
+        escritor.writerow(fila)
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
+
+
+@app.get("/api/export/reservas.csv")
+def export_reservas_csv(
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual)
+):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT r.id, h.nombre AS huesped, h.telefono, hab.numero AS habitacion,
+                   hab.tipo, r.fecha_entrada, r.fecha_salida, r.estado, r.total,
+                   r.origen, r.creado_en
+            FROM reservas r
+            JOIN huespedes h     ON r.huesped_id = h.id
+            JOIN habitaciones hab ON r.habitacion_id = hab.id
+            WHERE r.hospedaje_id = ?
+            ORDER BY r.fecha_entrada DESC
+            """,
+            (hid,),
+        )
+        filas = [
+            [r["id"], r["huesped"], r["telefono"], r["habitacion"], r["tipo"],
+             r["fecha_entrada"], r["fecha_salida"], r["estado"], r["total"],
+             r["origen"], r["creado_en"]]
+            for r in cursor.fetchall()
+        ]
+    finally:
+        conn.close()
+    encab = ["ID", "Huésped", "Teléfono", "Habitación", "Tipo", "Entrada",
+             "Salida", "Estado", "Total", "Origen", "Creada"]
+    return _csv_response("reservas.csv", encab, filas)
+
+
+@app.get("/api/export/huespedes.csv")
+def export_huespedes_csv(
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual)
+):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT nombre, email, telefono, documento, direccion FROM huespedes WHERE hospedaje_id = ? ORDER BY nombre",
+            (hid,),
+        )
+        filas = [
+            [r["nombre"], r["email"], r["telefono"], r["documento"], r["direccion"]]
+            for r in cursor.fetchall()
+        ]
+    finally:
+        conn.close()
+    return _csv_response(
+        "huespedes.csv", ["Nombre", "Email", "Teléfono", "Documento", "Dirección"], filas
+    )
+
+
+@app.get("/api/export/pagos.csv")
+def export_pagos_csv(
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual)
+):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT p.id, p.fecha, p.factura_id, p.monto, p.metodo, p.referencia,
+                   h.nombre AS huesped
+            FROM pagos p
+            LEFT JOIN facturas f  ON p.factura_id = f.id
+            LEFT JOIN huespedes h ON f.huesped_id = h.id
+            WHERE p.hospedaje_id = ?
+            ORDER BY p.fecha DESC
+            """,
+            (hid,),
+        )
+        filas = [
+            [r["id"], r["fecha"], r["factura_id"], r["huesped"], r["monto"],
+             r["metodo"], r["referencia"]]
+            for r in cursor.fetchall()
+        ]
+    finally:
+        conn.close()
+    encab = ["ID", "Fecha", "Factura", "Huésped", "Monto", "Método", "Referencia"]
+    return _csv_response("pagos.csv", encab, filas)
 
 
 # --------------------------------------------------------------------------- #

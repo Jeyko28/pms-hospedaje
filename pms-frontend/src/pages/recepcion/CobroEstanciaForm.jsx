@@ -60,12 +60,18 @@ export default function CobroEstanciaForm({
   const nochesReservadas = noches(fechaCheckin, fechaSalidaEsperada);
   const totalReservado = Math.round(nochesReservadas * precioNoche * 100) / 100;
 
+  // Descuento / cortesía (opcional). Se descuenta del subtotal por noches reales.
+  const [descuento, setDescuento] = useState("");
+  const [descuentoMotivo, setDescuentoMotivo] = useState("");
+
   const calc = useMemo(() => {
     const n = noches(fechaCheckin, fecha);
-    const total = n > 0 ? Math.round(n * precioNoche * 100) / 100 : 0;
+    const subtotal = n > 0 ? Math.round(n * precioNoche * 100) / 100 : 0;
+    const desc = Math.min(Math.max(0, Number(descuento) || 0), subtotal);
+    const total = Math.round((subtotal - desc) * 100) / 100;
     const saldo = Math.round((total - pagado) * 100) / 100;
-    return { noches: n, total, saldo, valido: n > 0 };
-  }, [fecha, fechaCheckin, precioNoche, pagado]);
+    return { noches: n, subtotal, descuento: desc, total, saldo, valido: n > 0 };
+  }, [fecha, fechaCheckin, precioNoche, pagado, descuento]);
 
   const [monto, setMonto] = useState("");
   const [metodo, setMetodo] = useState("efectivo");
@@ -97,8 +103,8 @@ export default function CobroEstanciaForm({
     }
     setGuardando(true);
     try {
-      // 1) Persistir la factura por la estadía real elegida.
-      await api.recalcularEstancia(estanciaId, fecha);
+      // 1) Persistir la factura por la estadía real elegida (con descuento).
+      await api.recalcularEstancia(estanciaId, fecha, calc.descuento, descuentoMotivo);
       // 2) Registrar el pago.
       await api.registrarPago({ factura_id: facturaId, monto: valor, metodo, referencia });
       onCobrado();
@@ -131,8 +137,17 @@ export default function CobroEstanciaForm({
         </div>
         <div className={"checkin-form__linea" + (difiere ? " checkin-form__linea--alerta" : "")}>
           <span>Real</span>
-          <span>{fmt(fechaCheckin)} → {fmt(fecha)} · {calc.noches} noche(s)</span>
+          <span>
+            {fmt(fechaCheckin)} → {fmt(fecha)} · {calc.noches} noche(s) ·{" "}
+            {formatoMoneda.format(calc.subtotal)}
+          </span>
         </div>
+        {calc.descuento > 0 && (
+          <div className="checkin-form__linea">
+            <span>Descuento</span>
+            <span>− {formatoMoneda.format(calc.descuento)}</span>
+          </div>
+        )}
         <div className="checkin-form__total">
           <span>Total por estadía real</span>
           <strong>{formatoMoneda.format(calc.total)}</strong>
@@ -146,6 +161,31 @@ export default function CobroEstanciaForm({
           <strong>{formatoMoneda.format(Math.max(0, calc.saldo))}</strong>
         </div>
       </div>
+
+      <Field id="cobro-descuento" label="Descuento / cortesía (opcional, S/)">
+        <input
+          id="cobro-descuento"
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.01"
+          value={descuento}
+          onChange={(e) => { setDescuento(e.target.value); setMonto(""); }}
+          placeholder="0.00"
+        />
+      </Field>
+
+      {calc.descuento > 0 && (
+        <Field id="cobro-descuento-motivo" label="Motivo del descuento (opcional)">
+          <input
+            id="cobro-descuento-motivo"
+            type="text"
+            value={descuentoMotivo}
+            onChange={(e) => setDescuentoMotivo(e.target.value)}
+            placeholder="Ej. cliente frecuente, cortesía agencia"
+          />
+        </Field>
+      )}
 
       <Field id="cobro-monto" label="Monto a cobrar" required>
         <input

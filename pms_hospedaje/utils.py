@@ -161,6 +161,16 @@ def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_de
     c.drawString(12*cm, y, "SUBTOTAL:")
     c.drawString(16*cm, y, f"{factura.subtotal:.2f}")
     y -= 0.6*cm
+    # Línea de descuento/cortesía (solo si se aplicó alguno).
+    descuento = getattr(factura, "descuento", 0) or 0
+    if descuento > 0:
+        etiqueta = "DESCUENTO:"
+        motivo = getattr(factura, "descuento_motivo", "") or ""
+        if motivo:
+            etiqueta = f"DESCUENTO ({motivo}):"
+        c.drawString(12*cm, y, etiqueta)
+        c.drawString(16*cm, y, f"-{descuento:.2f}")
+        y -= 0.6*cm
     c.drawString(12*cm, y, "IMPUESTOS (0%):")
     c.drawString(16*cm, y, f"{factura.impuestos:.2f}")
     y -= 0.6*cm

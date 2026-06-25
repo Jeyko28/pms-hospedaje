@@ -148,6 +148,18 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 7. Columnas 'descuento' y 'descuento_motivo' en facturas -----
+    # Permiten aplicar un descuento/cortesía al cobro (total = subtotal - descuento)
+    # sin tocar el precio base de la habitación. Las facturas previas quedan con 0.
+    if _tabla_existe(cursor, "facturas"):
+        cols_fact = _columnas_de(cursor, "facturas")
+        if "descuento" not in cols_fact:
+            cursor.execute("ALTER TABLE facturas ADD COLUMN descuento REAL DEFAULT 0")
+            cursor.execute("UPDATE facturas SET descuento = 0 WHERE descuento IS NULL")
+        if "descuento_motivo" not in cols_fact:
+            cursor.execute("ALTER TABLE facturas ADD COLUMN descuento_motivo TEXT DEFAULT ''")
+        conn.commit()
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).

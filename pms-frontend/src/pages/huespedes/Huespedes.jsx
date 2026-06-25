@@ -7,14 +7,25 @@ import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
+import { useAuth } from "../../auth/AuthContext";
+import { descargarCSV } from "../../utils/exportar";
 import HuespedForm from "./HuespedForm";
 import "../entidades.css";
 
 export default function Huespedes() {
   const huespedes = useApi(api.huespedes);
   const toast = useToast();
+  const { esAdmin } = useAuth();
   const [modal, setModal] = useState(null); // null | {modo, huesped}
   const [borrandoId, setBorrandoId] = useState(null);
+
+  async function exportar() {
+    try {
+      await descargarCSV("huespedes", "huespedes.csv");
+    } catch (e) {
+      toast.error(e.message || "No se pudo exportar.");
+    }
+  }
   const [busqueda, setBusqueda] = useState("");
 
   const filtrados = useMemo(() => {
@@ -69,9 +80,16 @@ export default function Huespedes() {
             Tu directorio de huéspedes registrados.
           </p>
         </div>
-        <Button icon="+" onClick={() => setModal({ modo: "crear", huesped: null })}>
-          Nuevo huésped
-        </Button>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          {esAdmin && (
+            <Button variant="secondary" onClick={exportar}>
+              Exportar
+            </Button>
+          )}
+          <Button icon="+" onClick={() => setModal({ modo: "crear", huesped: null })}>
+            Nuevo huésped
+          </Button>
+        </div>
       </header>
 
       <Card padding="sm">

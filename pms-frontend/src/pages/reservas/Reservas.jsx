@@ -8,6 +8,9 @@ import Modal from "../../components/Modal";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
+import { useAuth } from "../../auth/AuthContext";
+import { abrirWhatsApp, mensajeConfirmacion } from "../../utils/whatsapp";
+import { descargarCSV } from "../../utils/exportar";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import NuevaReservaForm from "./NuevaReservaForm";
 import "./Reservas.css";
@@ -33,6 +36,15 @@ export default function Reservas() {
   const huespedes = useApi(api.huespedes);
   const habitaciones = useApi(api.habitaciones);
   const toast = useToast();
+  const { usuario, esAdmin } = useAuth();
+
+  async function exportar() {
+    try {
+      await descargarCSV("reservas", "reservas.csv");
+    } catch (e) {
+      toast.error(e.message || "No se pudo exportar.");
+    }
+  }
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -75,11 +87,25 @@ export default function Reservas() {
     }
   }
 
-  async function confirmar(id) {
-    setConfirmandoId(id);
+  async function confirmar(r) {
+    setConfirmandoId(r.id);
     try {
-      await api.confirmarReserva(id);
-      toast.success(`Reserva #${id} confirmada.`);
+      await api.confirmarReserva(r.id);
+      const texto = mensajeConfirmacion({
+        hospedaje: usuario?.hospedaje_nombre,
+        huesped: r.huesped,
+        room: r.habitacion,
+        tipo: r.tipo,
+        checkin: r.fecha_entrada,
+        checkout: r.fecha_salida,
+        total: r.total,
+      });
+      const abrio = abrirWhatsApp(r.telefono, texto);
+      toast.success(
+        abrio
+          ? "Reserva confirmada. Abriendo WhatsApp para avisar al huésped…"
+          : "Reserva confirmada (este huésped no dejó teléfono para WhatsApp)."
+      );
       reservas.recargar();
     } catch (e) {
       toast.error(e.message || "No se pudo confirmar la reserva.");
@@ -102,9 +128,16 @@ export default function Reservas() {
             Gestiona las reservas de tu hospedaje.
           </p>
         </div>
-        <Button icon="+" onClick={() => setModalAbierto(true)}>
-          Nueva reserva
-        </Button>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          {esAdmin && (
+            <Button variant="secondary" onClick={exportar}>
+              Exportar
+            </Button>
+          )}
+          <Button icon="+" onClick={() => setModalAbierto(true)}>
+            Nueva reserva
+          </Button>
+        </div>
       </header>
 
       {/* ---------- Filtros ---------- */}
@@ -218,10 +251,10 @@ export default function Reservas() {
                   {r.estado === "Pendiente" && (
                     <Button
                       size="sm"
-                      onClick={() => confirmar(r.id)}
-                      disabled={confirmandoId === r.id}
+                      onClick={() => confirmar(r)}
+                      loading={confirmandoId === r.id}
                     >
-                      {confirmandoId === r.id ? "Confirmando…" : "Confirmar"}
+                      Confirmar y avisar
                     </Button>
                   )}
                   {cancelable && (

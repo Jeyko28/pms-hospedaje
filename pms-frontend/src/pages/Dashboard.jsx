@@ -9,6 +9,8 @@ import StateMessage from "../components/StateMessage";
 import Skeleton from "../components/Skeleton";
 import LinkReservas from "../components/LinkReservas";
 import { useToast } from "../components/Toast";
+import { useAuth } from "../auth/AuthContext";
+import { abrirWhatsApp, mensajeConfirmacion } from "../utils/whatsapp";
 import {
   ESTADO_HABITACION,
   ESTADO_LIMPIEZA,
@@ -50,8 +52,38 @@ export default function Dashboard() {
   const overview = useApi(api.dashboardOverview);
   const { navegar } = useRuta();
   const toast = useToast();
+  const { usuario } = useAuth();
 
-  const [accionId, setAccionId] = useState(null); // id en proceso (check-in/out)
+  const [accionId, setAccionId] = useState(null); // id en proceso (check-in/out/confirmar)
+
+  // Confirmar una reserva pendiente (típicamente del link) y avisar al huésped
+  // por WhatsApp con el mensaje ya armado. Cierra el ciclo del canal directo.
+  async function confirmarYAvisar(p) {
+    setAccionId("conf-" + p.reserva_id);
+    try {
+      await api.confirmarReserva(p.reserva_id);
+      const texto = mensajeConfirmacion({
+        hospedaje: usuario?.hospedaje_nombre,
+        huesped: p.huesped,
+        room: p.room,
+        tipo: p.tipo,
+        checkin: p.checkin,
+        checkout: p.checkout,
+        total: p.total,
+      });
+      const abrio = abrirWhatsApp(p.telefono, texto);
+      toast.success(
+        abrio
+          ? "Reserva confirmada. Abriendo WhatsApp para avisar al huésped…"
+          : "Reserva confirmada (este huésped no dejó teléfono para WhatsApp)."
+      );
+      recargarTodo();
+    } catch (e) {
+      toast.error(e.message || "No se pudo confirmar la reserva.");
+    } finally {
+      setAccionId(null);
+    }
+  }
 
   function recargarTodo() {
     resumen.recargar();
@@ -120,6 +152,57 @@ export default function Dashboard() {
 
       {/* ---------- Link público de reservas ---------- */}
       <LinkReservas />
+
+      {/* ---------- Reservas nuevas por confirmar (cierre del ciclo del link) ---------- */}
+      {ov && ov.pendientes_por_confirmar?.length > 0 && (
+        <Card padding="md" className="pendientes">
+          <div className="pendientes__head">
+            <span className="pendientes__titulo">
+              🔔 {ov.pendientes_por_confirmar.length}{" "}
+              {ov.pendientes_por_confirmar.length === 1
+                ? "reserva nueva por confirmar"
+                : "reservas nuevas por confirmar"}
+            </span>
+            <button className="widget__link" onClick={() => navegar("reservas")}>
+              Ver en Reservas
+            </button>
+          </div>
+          <ul className="pendientes__lista">
+            {ov.pendientes_por_confirmar.slice(0, 5).map((p) => (
+              <li key={p.reserva_id} className="pendientes__item">
+                <div className="pendientes__info">
+                  <span className="pendientes__nombre">
+                    {p.huesped}
+                    {p.origen === "publico" && (
+                      <Badge tone="brand" icon="🔗">Link</Badge>
+                    )}
+                  </span>
+                  <span className="pendientes__meta">
+                    Hab. {p.room} · {p.tipo} ·{" "}
+                    {new Date(p.checkin + "T00:00:00").toLocaleDateString("es-PE", {
+                      day: "2-digit",
+                      month: "short",
+                    })}{" "}
+                    →{" "}
+                    {new Date(p.checkout + "T00:00:00").toLocaleDateString("es-PE", {
+                      day: "2-digit",
+                      month: "short",
+                    })}{" "}
+                    · {formatoMoneda.format(p.total || 0)}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => confirmarYAvisar(p)}
+                  loading={accionId === "conf-" + p.reserva_id}
+                >
+                  Confirmar y avisar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* ---------- KPIs con mini-gráficos ---------- */}
       <section aria-labelledby="kpis-title">

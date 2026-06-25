@@ -440,7 +440,7 @@ class Estancia:
 class Factura:
     def __init__(self, id=None, estancia_id=None, huesped_id=None, fecha_emision="",
                  subtotal=0.0, impuestos=0.0, total=0.0, estado="pendiente", pdf_generado=0,
-                 hospedaje_id=None):
+                 hospedaje_id=None, descuento=0.0, descuento_motivo=""):
         self.id = id
         self.estancia_id = estancia_id
         self.huesped_id = huesped_id
@@ -451,6 +451,9 @@ class Factura:
         self.estado = estado
         self.pdf_generado = pdf_generado
         self.hospedaje_id = hospedaje_id
+        # Descuento/cortesía aplicado al cobro (total = subtotal - descuento).
+        self.descuento = descuento or 0.0
+        self.descuento_motivo = descuento_motivo or ""
 
     @staticmethod
     def obtener_por_estancia(estancia_id):
@@ -469,18 +472,20 @@ class Factura:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO facturas (estancia_id, huesped_id, fecha_emision, subtotal, impuestos, total, estado, pdf_generado, hospedaje_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO facturas (estancia_id, huesped_id, fecha_emision, subtotal, impuestos, total, estado, pdf_generado, hospedaje_id, descuento, descuento_motivo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (self.estancia_id, self.huesped_id, self.fecha_emision,
-                  self.subtotal, self.impuestos, self.total, self.estado, self.pdf_generado, hid))
+                  self.subtotal, self.impuestos, self.total, self.estado, self.pdf_generado, hid,
+                  self.descuento or 0.0, self.descuento_motivo or ""))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:
             cursor.execute('''
                 UPDATE facturas
-                SET subtotal=?, impuestos=?, total=?, estado=?, pdf_generado=?
+                SET subtotal=?, impuestos=?, total=?, estado=?, pdf_generado=?, descuento=?, descuento_motivo=?
                 WHERE id=?
-            ''', (self.subtotal, self.impuestos, self.total, self.estado, self.pdf_generado, self.id))
+            ''', (self.subtotal, self.impuestos, self.total, self.estado, self.pdf_generado,
+                  self.descuento or 0.0, self.descuento_motivo or "", self.id))
         conn.commit()
         conn.close()
 

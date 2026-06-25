@@ -7,7 +7,9 @@ import Badge from "../../components/Badge";
 import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
+import { useAuth } from "../../auth/AuthContext";
 import { abrirFacturaPdf, abrirComprobantePdf } from "../../utils/pdf";
+import { descargarCSV } from "../../utils/exportar";
 import "../entidades.css";
 import "./Facturas.css";
 
@@ -39,6 +41,16 @@ function estadoFactura(estado, saldo) {
 export default function Facturas() {
   const facturas = useApi(api.facturas);
   const toast = useToast();
+  const { esAdmin } = useAuth();
+
+  async function exportarPagos() {
+    try {
+      await descargarCSV("pagos", "pagos.csv");
+    } catch (e) {
+      toast.error(e.message || "No se pudo exportar.");
+    }
+  }
+
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todas");
   const [emitiendoId, setEmitiendoId] = useState(null);
@@ -99,6 +111,11 @@ export default function Facturas() {
             Historial de facturación de tu hospedaje.
           </p>
         </div>
+        {esAdmin && (
+          <Button variant="secondary" onClick={exportarPagos}>
+            Exportar pagos
+          </Button>
+        )}
       </header>
 
       {/* Resumen rapido */}

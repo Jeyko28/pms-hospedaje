@@ -94,7 +94,7 @@ const put = (path, body) => enviar("PUT", path, body);
 const del = (path) => enviar("DELETE", path);
 
 // Descarga un PDF protegido (con token) y devuelve una URL de blob para abrirlo.
-async function descargarPdf(path) {
+async function descargarBlob(path) {
   let respuesta;
   try {
     respuesta = await fetch(`${BASE_URL}${path}`, { headers: cabeceras(false) });
@@ -109,7 +109,7 @@ async function descargarPdf(path) {
     throw new Error("Tu sesion expiro. Inicia sesion de nuevo.");
   }
   if (!respuesta.ok) {
-    let detalle = `No se pudo generar el PDF (error ${respuesta.status}).`;
+    let detalle = `No se pudo descargar el archivo (error ${respuesta.status}).`;
     try {
       const datos = await respuesta.json();
       if (datos && datos.detail) detalle = datos.detail;
@@ -147,9 +147,12 @@ export const api = {
   // Descarga un PDF protegido CON el token (fetch autenticado) y devuelve una
   // URL de blob lista para abrir/descargar. Resuelve el "Not authenticated"
   // que aparecía al abrir la URL del PDF directo (la navegación no manda token).
-  facturaPdfBlobUrl: (facturaId) => descargarPdf(`/api/facturas/${facturaId}/pdf`),
+  facturaPdfBlobUrl: (facturaId) => descargarBlob(`/api/facturas/${facturaId}/pdf`),
   comprobantePdfBlobUrl: (comprobanteId) =>
-    descargarPdf(`/api/comprobantes/${comprobanteId}/pdf`),
+    descargarBlob(`/api/comprobantes/${comprobanteId}/pdf`),
+
+  // Exportación a CSV (descarga autenticada → blob). recurso: reservas|huespedes|pagos
+  exportCsvBlobUrl: (recurso) => descargarBlob(`/api/export/${recurso}.csv`),
 
   // Facturas (historial completo)
   facturas: () => get("/api/facturas"),
@@ -173,8 +176,13 @@ export const api = {
     post("/api/recepcion/checkin", { reserva_id: reservaId, fecha_entrada_real: fechaEntradaReal }),
   checkout: (estanciaId, fechaCheckoutReal = "") =>
     post("/api/recepcion/checkout", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
-  recalcularEstancia: (estanciaId, fechaCheckoutReal = "") =>
-    post("/api/recepcion/recalcular", { estancia_id: estanciaId, fecha_checkout_real: fechaCheckoutReal }),
+  recalcularEstancia: (estanciaId, fechaCheckoutReal = "", descuento = 0, descuentoMotivo = "") =>
+    post("/api/recepcion/recalcular", {
+      estancia_id: estanciaId,
+      fecha_checkout_real: fechaCheckoutReal,
+      descuento,
+      descuento_motivo: descuentoMotivo,
+    }),
   registrarPago: (datos) => post("/api/pagos", datos),
 
   // Escrituras — Habitaciones (CRUD)
