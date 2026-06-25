@@ -206,10 +206,66 @@ def migrar(conn):
                 cursor.execute(f"ALTER TABLE hospedajes ADD COLUMN {col} TEXT DEFAULT ''")
         conn.commit()
 
+    # ----- 12. Índices para rendimiento multi-tenant -----
+    # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
+    # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
+    # que se degrada al crecer los datos. Idempotente (CREATE INDEX IF NOT EXISTS,
+    # válido en SQLite y PostgreSQL) y barato.
+    _crear_indices(cursor, conn)
+
     # Quitar la restriccion UNIQUE global de habitaciones.numero (de antes del
     # multi-tenant). En un SaaS, dos hospedajes distintos pueden tener su propia
     # habitacion "101"; la unicidad correcta es POR hospedaje (validada en la API).
     _quitar_unique_numero_habitaciones(cursor, conn)
+
+
+# Índices: (nombre, tabla, columna). Cubren el filtro de tenant (hospedaje_id),
+# las FK usadas en JOINs y los campos de filtrado más frecuentes.
+_INDICES = [
+    ("idx_habitaciones_hosp", "habitaciones", "hospedaje_id"),
+    ("idx_huespedes_hosp", "huespedes", "hospedaje_id"),
+    ("idx_reservas_hosp", "reservas", "hospedaje_id"),
+    ("idx_reservas_hab", "reservas", "habitacion_id"),
+    ("idx_reservas_estado", "reservas", "estado"),
+    ("idx_estancias_hab", "estancias", "habitacion_id"),
+    ("idx_estancias_reserva", "estancias", "reserva_id"),
+    ("idx_estancias_estado", "estancias", "estado"),
+    ("idx_facturas_hosp", "facturas", "hospedaje_id"),
+    ("idx_facturas_estancia", "facturas", "estancia_id"),
+    ("idx_facturas_huesped", "facturas", "huesped_id"),
+    ("idx_pagos_factura", "pagos", "factura_id"),
+    ("idx_pagos_hosp", "pagos", "hospedaje_id"),
+    ("idx_bloqueos_hab", "bloqueos", "habitacion_id"),
+    ("idx_bloqueos_hosp", "bloqueos", "hospedaje_id"),
+    ("idx_tareas_hosp", "tareas_limpieza", "hospedaje_id"),
+    ("idx_tareas_hab", "tareas_limpieza", "habitacion_id"),
+    ("idx_visitas_hosp", "visitas", "hospedaje_id"),
+    ("idx_usuarios_usuario", "usuarios", "usuario"),
+    ("idx_usuarios_hosp", "usuarios", "hospedaje_id"),
+    ("idx_comprobantes_hosp", "comprobantes", "hospedaje_id"),
+]
+
+
+def _crear_indices(cursor, conn):
+    """Crea los índices de rendimiento de forma idempotente y segura.
+    Verifica que la tabla y la columna existan antes (algunas tablas, como
+    comprobantes, se crean en otro módulo). Nunca rompe el arranque."""
+    creados = 0
+    for nombre, tabla, columna in _INDICES:
+        if not _tabla_existe(cursor, tabla):
+            continue
+        if columna not in _columnas_de(cursor, tabla):
+            continue
+        try:
+            cursor.execute(
+                f"CREATE INDEX IF NOT EXISTS {nombre} ON {tabla} ({columna})"
+            )
+            creados += 1
+        except Exception:
+            # Un índice que falla no debe impedir el arranque de la app.
+            pass
+    conn.commit()
+    return creados
 
 
 def _quitar_unique_numero_habitaciones(cursor, conn):
