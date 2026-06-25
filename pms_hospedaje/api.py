@@ -175,6 +175,19 @@ class HabitacionDatos(BaseModel):
     estado: str = "disponible"
 
 
+class LimpiezaEstado(BaseModel):
+    # Cambio rápido del estado de limpieza de una habitación.
+    estado_limpieza: str  # Limpia | Sucia | Revisión
+
+
+class TareaLimpiezaDatos(BaseModel):
+    # Asignación opcional de una tarea de limpieza a una habitación.
+    habitacion_id: int
+    asignado_a: str = ""
+    notas: str = ""
+    fecha: str = ""  # YYYY-MM-DD; si va vacía se usa hoy
+
+
 class BloqueoNuevo(BaseModel):
     habitacion_id: int
     fecha_inicio: str  # YYYY-MM-DD (inclusive)
@@ -1179,6 +1192,134 @@ def eliminar_habitacion(
         )
     hab.eliminar()
     return {"id": habitacion_id, "eliminada": True}
+
+
+# --------------------------------------------------------------------------- #
+#  Housekeeping / Limpieza
+#  Visible a admin y recepción (usuario logueado del hospedaje), no solo admin.
+#  El personal de limpieza NO accede al PMS: recepción/admin coordinan.
+# --------------------------------------------------------------------------- #
+_ESTADOS_LIMPIEZA = ("Limpia", "Sucia", "Revisión")
+
+
+@app.patch("/api/habitaciones/{habitacion_id}/limpieza")
+def cambiar_limpieza_habitacion(
+    habitacion_id: int,
+    datos: LimpiezaEstado,
+    _actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Cambio rápido del estado de limpieza de una habitación (1 clic)."""
+    estado = (datos.estado_limpieza or "").strip()
+    if estado not in _ESTADOS_LIMPIEZA:
+        raise HTTPException(
+            status_code=422,
+            detail="Estado de limpieza inválido (usa Limpia, Sucia o Revisión).",
+        )
+    hab = _buscar_habitacion(habitacion_id, hid)
+    if not hab:
+        raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+    hab.cambiar_estado_limpieza(estado)
+    return _a_dict(hab)
+
+
+@app.get("/api/tareas-limpieza")
+def listar_tareas_limpieza(
+    habitacion_id: int = 0,
+    incluir_completadas: bool = False,
+    _actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Tareas de limpieza del hospedaje (por defecto solo las pendientes).
+    Con habitacion_id>0 devuelve el historial de esa habitación."""
+    where = ["t.hospedaje_id = ?"]
+    params = [hid]
+    if habitacion_id:
+        where.append("t.habitacion_id = ?")
+        params.append(habitacion_id)
+    if not incluir_completadas:
+        where.append("t.estado = 'Pendiente'")
+    sql = (
+        "SELECT t.id, t.habitacion_id, t.fecha, t.estado, t.asignado_a, t.notas, "
+        "h.numero AS habitacion_numero, h.tipo AS habitacion_tipo "
+        "FROM tareas_limpieza t LEFT JOIN habitaciones h ON h.id = t.habitacion_id "
+        "WHERE " + " AND ".join(where) + " ORDER BY t.id DESC"
+    )
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/tareas-limpieza", status_code=201)
+def crear_tarea_limpieza(
+    datos: TareaLimpiezaDatos,
+    _actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Crea una tarea de limpieza (responsable + nota) y marca la habitación
+    como Sucia. Para hospedajes que coordinan a su personal de limpieza."""
+    hab = _buscar_habitacion(datos.habitacion_id, hid)
+    if not hab:
+        raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+    fecha = (datos.fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO tareas_limpieza (habitacion_id, fecha, estado, asignado_a, notas, hospedaje_id) "
+            "VALUES (?, ?, 'Pendiente', ?, ?, ?)",
+            (datos.habitacion_id, fecha, (datos.asignado_a or "").strip(),
+             (datos.notas or "").strip(), hid),
+        )
+        nueva_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    # La habitación queda pendiente de limpieza.
+    hab.cambiar_estado_limpieza("Sucia")
+    return {
+        "id": nueva_id,
+        "habitacion_id": datos.habitacion_id,
+        "fecha": fecha,
+        "estado": "Pendiente",
+        "asignado_a": (datos.asignado_a or "").strip(),
+        "notas": (datos.notas or "").strip(),
+    }
+
+
+@app.post("/api/tareas-limpieza/{tarea_id}/completar")
+def completar_tarea_limpieza(
+    tarea_id: int,
+    _actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Marca la tarea como Completada y deja la habitación Limpia."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, habitacion_id FROM tareas_limpieza WHERE id = ? AND hospedaje_id = ?",
+            (tarea_id, hid),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Tarea no encontrada.")
+        habitacion_id = row["habitacion_id"]
+        cursor.execute(
+            "UPDATE tareas_limpieza SET estado = 'Completada' WHERE id = ? AND hospedaje_id = ?",
+            (tarea_id, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    hab = _buscar_habitacion(habitacion_id, hid)
+    if hab:
+        hab.cambiar_estado_limpieza("Limpia")
+    return {"id": tarea_id, "habitacion_id": habitacion_id, "estado": "Completada"}
 
 
 # --------------------------------------------------------------------------- #

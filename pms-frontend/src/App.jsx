@@ -9,6 +9,7 @@ import Reservas from "./pages/reservas/Reservas";
 import Calendario from "./pages/calendario/Calendario";
 import Recepcion from "./pages/recepcion/Recepcion";
 import Habitaciones from "./pages/habitaciones/Habitaciones";
+import Housekeeping from "./pages/housekeeping/Housekeeping";
 import Huespedes from "./pages/huespedes/Huespedes";
 import Facturas from "./pages/facturas/Facturas";
 import ConfigSunat from "./pages/sunat/ConfigSunat";
@@ -53,6 +54,9 @@ function Vista() {
         break;
       case "habitaciones":
         contenido = <Habitaciones />;
+        break;
+      case "housekeeping":
+        contenido = <Housekeeping />;
         break;
       case "huespedes":
         contenido = <Huespedes />;

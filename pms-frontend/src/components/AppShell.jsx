@@ -19,6 +19,7 @@ import {
   Hotel,
   LogOut,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
 import { useTheme } from "../hooks/useTheme";
@@ -50,6 +51,7 @@ const NAV = [
   { id: "calendario", icon: CalendarRange, label: "Calendario", operativa: true },
   { id: "recepcion", icon: ConciergeBell, label: "Recepción", operativa: true },
   { id: "habitaciones", icon: BedDouble, label: "Habitaciones", operativa: true },
+  { id: "housekeeping", icon: Sparkles, label: "Limpieza", operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", operativa: true },
   { id: "facturas", icon: Receipt, label: "Facturas", operativa: true },
   { id: "sunat", icon: FileText, label: "Facturación", soloAdmin: true, operativa: true },

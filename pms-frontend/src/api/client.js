@@ -91,6 +91,7 @@ async function enviar(metodo, path, body) {
 
 const post = (path, body) => enviar("POST", path, body);
 const put = (path, body) => enviar("PUT", path, body);
+const patch = (path, body) => enviar("PATCH", path, body);
 const del = (path) => enviar("DELETE", path);
 
 // Descarga un PDF protegido (con token) y devuelve una URL de blob para abrirlo.
@@ -179,6 +180,14 @@ export const api = {
   cajaDia: (fecha = "") => get(`/api/recepcion/caja${fecha ? `?fecha=${fecha}` : ""}`),
   crearBloqueo: (datos) => post("/api/bloqueos", datos),
   eliminarBloqueo: (id) => del(`/api/bloqueos/${id}`),
+
+  // Housekeeping / limpieza
+  cambiarLimpieza: (id, estado) =>
+    patch(`/api/habitaciones/${id}/limpieza`, { estado_limpieza: estado }),
+  tareasLimpieza: (habitacionId = 0) =>
+    get(`/api/tareas-limpieza${habitacionId ? `?habitacion_id=${habitacionId}` : ""}`),
+  crearTareaLimpieza: (datos) => post("/api/tareas-limpieza", datos),
+  completarTareaLimpieza: (id) => post(`/api/tareas-limpieza/${id}/completar`),
   recalcularEstancia: (estanciaId, fechaCheckoutReal = "", descuento = 0, descuentoMotivo = "") =>
     post("/api/recepcion/recalcular", {
       estancia_id: estanciaId,
