@@ -10,6 +10,7 @@ import { useToast } from "../../components/Toast";
 import { useAuth } from "../../auth/AuthContext";
 import { abrirFacturaPdf, abrirComprobantePdf } from "../../utils/pdf";
 import { descargarCSV } from "../../utils/exportar";
+import { normalizar } from "../../utils/normalizar";
 import "../entidades.css";
 import "./Facturas.css";
 
@@ -70,12 +71,12 @@ export default function Facturas() {
 
   const filtradas = useMemo(() => {
     if (!facturas.data) return [];
-    const t = busqueda.trim().toLowerCase();
+    const t = normalizar(busqueda.trim());
     return facturas.data.filter((f) => {
       const texto =
         !t ||
-        f.huesped.toLowerCase().includes(t) ||
-        String(f.habitacion).toLowerCase().includes(t) ||
+        normalizar(f.huesped).includes(t) ||
+        normalizar(String(f.habitacion)).includes(t) ||
         String(f.id).includes(t);
       const pagada = f.estado === "pagada" || f.saldo <= 0;
       const estado =
@@ -105,12 +106,6 @@ export default function Facturas() {
   return (
     <div className="entidad">
       <header className="entidad__head">
-        <div>
-          <h1>Facturas</h1>
-          <p className="entidad__subtitle">
-            Historial de facturación de tu hospedaje.
-          </p>
-        </div>
         {esAdmin && (
           <Button variant="secondary" onClick={exportarPagos}>
             Exportar pagos

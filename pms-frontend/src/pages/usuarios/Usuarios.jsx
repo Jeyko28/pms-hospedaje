@@ -50,12 +50,6 @@ export default function Usuarios() {
   return (
     <div className="entidad">
       <header className="entidad__head">
-        <div>
-          <h1>Usuarios</h1>
-          <p className="entidad__subtitle">
-            Gestiona quién puede acceder al sistema y con qué permisos.
-          </p>
-        </div>
         <Button icon="+" onClick={() => setModal({ modo: "crear", usuario: null })}>
           Nuevo usuario
         </Button>

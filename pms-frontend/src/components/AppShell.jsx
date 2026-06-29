@@ -20,6 +20,8 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Coffee,
+  Bell,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
 import { useTheme } from "../hooks/useTheme";
@@ -46,19 +48,20 @@ import "./AppShell.css";
 //    del SaaS) NO las ve: él gestiona cuentas, no opera hoteles ajenos.
 //  - soloAdmin: solo admin (de hospedaje). soloSuperadmin: solo el dueño del SaaS.
 const NAV = [
-  { id: "dashboard", icon: LayoutDashboard, label: "Panel", operativa: true },
-  { id: "reservas", icon: CalendarDays, label: "Reservas", operativa: true },
-  { id: "calendario", icon: CalendarRange, label: "Calendario", operativa: true },
-  { id: "recepcion", icon: ConciergeBell, label: "Recepción", operativa: true },
-  { id: "habitaciones", icon: BedDouble, label: "Habitaciones", operativa: true },
-  { id: "housekeeping", icon: Sparkles, label: "Limpieza", operativa: true },
-  { id: "huespedes", icon: Users, label: "Huéspedes", operativa: true },
-  { id: "facturas", icon: Receipt, label: "Facturas", operativa: true },
-  { id: "sunat", icon: FileText, label: "Facturación", soloAdmin: true, operativa: true },
-  { id: "reportes", icon: BarChart3, label: "Reportes", soloAdmin: true, operativa: true },
-  { id: "usuarios", icon: ShieldCheck, label: "Usuarios", soloAdmin: true, operativa: true },
-  { id: "configuracion", icon: Settings, label: "Configuración", soloAdmin: true, operativa: true },
-  { id: "hospedajes", icon: Building2, label: "Hospedajes", soloSuperadmin: true },
+  { id: "dashboard", icon: LayoutDashboard, label: "Panel", title: "Panel de control", subtitle: "Resumen de tu hospedaje en tiempo real.", operativa: true },
+  { id: "reservas", icon: CalendarDays, label: "Reservas", title: "Reservas", subtitle: "Gestiona las reservas de tu hospedaje.", operativa: true },
+  { id: "calendario", icon: CalendarRange, label: "Calendario", title: "Calendario", subtitle: "Vista de ocupación por habitación.", operativa: true },
+  { id: "recepcion", icon: ConciergeBell, label: "Recepción", title: "Recepción", subtitle: "Gestiona las entradas y salidas de huéspedes.", operativa: true },
+  { id: "habitaciones", icon: BedDouble, label: "Habitaciones", title: "Habitaciones", subtitle: "Administra las habitaciones de tu hospedaje.", operativa: true },
+  { id: "housekeeping", icon: Sparkles, label: "Limpieza", title: "Limpieza", subtitle: "Estado de limpieza de las habitaciones.", operativa: true },
+  { id: "servicios", icon: Coffee, label: "Servicios", title: "Catálogo de servicios", subtitle: "Productos y servicios disponibles para huéspedes.", soloAdmin: true, operativa: true },
+  { id: "huespedes", icon: Users, label: "Huéspedes", title: "Huéspedes", subtitle: "Tu directorio de huéspedes registrados.", operativa: true },
+  { id: "facturas", icon: Receipt, label: "Facturas", title: "Facturas", subtitle: "Historial de facturación de tu hospedaje.", operativa: true },
+  { id: "sunat", icon: FileText, label: "Facturación", title: "Facturación electrónica", subtitle: "Emite boletas de venta electrónicas (SUNAT).", soloAdmin: true, operativa: true },
+  { id: "reportes", icon: BarChart3, label: "Reportes", title: "Reportes", subtitle: "Finanzas y ocupación de tu hospedaje.", soloAdmin: true, operativa: true },
+  { id: "usuarios", icon: ShieldCheck, label: "Usuarios", title: "Usuarios", subtitle: "Gestiona quién puede acceder al sistema.", soloAdmin: true, operativa: true },
+  { id: "configuracion", icon: Settings, label: "Configuración", title: "Configuración del negocio", subtitle: "Estos datos aparecen en tus facturas y comprobantes.", soloAdmin: true, operativa: true },
+  { id: "hospedajes", icon: Building2, label: "Hospedajes", title: "Hospedajes", subtitle: "Panel de administración del servicio.", soloSuperadmin: true },
 ];
 
 // Tamano e impreso consistente para todos los iconos de la barra.
@@ -181,8 +184,6 @@ export default function AppShell({ children }) {
                       (activo ? " shell__nav-link--active" : "")
                     }
                     aria-current={activo ? "page" : undefined}
-                    // En modo rail (colapsado) el texto se oculta; el tooltip
-                    // (data-tooltip + title) muestra el nombre al pasar el cursor.
                     title={item.label}
                     data-tooltip={item.label}
                     onClick={(e) => {
@@ -200,12 +201,24 @@ export default function AppShell({ children }) {
             })}
           </ul>
         </nav>
+      </aside>
 
-        {/* Pie de la barra: usuario + tema + cerrar sesion. */}
-        <div className="shell__footer">
-          {/* Tarjeta del usuario logueado. */}
-          <div className="shell__user" title={`${usuario?.nombre} (${usuario?.rol})`}>
-            <span className="shell__user-avatar" aria-hidden="true">
+      {/* Header de escritorio: titulo/subtitulo de la seccion + acciones. */}
+      <header className="shell__header">
+        <div className="shell__header-left">
+          {(() => {
+            const navItem = navVisible.find((n) => n.id === ruta);
+            return navItem ? (
+              <>
+                <h1 className="shell__header-title">{navItem.title}</h1>
+                <p className="shell__header-subtitle">{navItem.subtitle}</p>
+              </>
+            ) : null;
+          })()}
+        </div>
+        <div className="shell__header-right">
+          <div className="shell__header-user" title={`${usuario?.nombre} (${usuario?.rol})`}>
+            <span className="shell__header-avatar" aria-hidden="true">
               {(usuario?.nombre || "?")
                 .split(" ")
                 .filter(Boolean)
@@ -213,41 +226,31 @@ export default function AppShell({ children }) {
                 .map((p) => p[0].toUpperCase())
                 .join("")}
             </span>
-            <span className="shell__user-info shell__nav-label">
-              <span className="shell__user-name">{usuario?.nombre}</span>
-              <span className="shell__user-rol">
+            <span className="shell__header-user-info">
+              <span className="shell__header-user-name">{usuario?.nombre}</span>
+              <span className="shell__header-user-rol">
                 {usuario?.rol === "admin" ? "Administrador" : "Recepción"}
               </span>
             </span>
           </div>
-
-          {/* Fila de acciones: Cerrar sesión (con texto, ocupa el ancho) +
-              botón de tema (solo icono, al lado). */}
-          <div className="shell__footer-acciones">
-            <button
-              type="button"
-              className="shell__logout-btn"
-              onClick={logout}
-              title="Cerrar sesión"
-            >
-              <span className="shell__nav-icon">
-                <LogOut {...ICON_PROPS} />
-              </span>
-              <span className="shell__nav-label">Cerrar sesión</span>
-            </button>
-
-            <button
-              type="button"
-              className="shell__theme-icon-btn"
-              onClick={toggleTema}
-              aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
-              title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-            >
-              {theme === "dark" ? <Sun {...ICON_PROPS} /> : <Moon {...ICON_PROPS} />}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="shell__header-icon-btn"
+            aria-label="Notificaciones"
+            title="Notificaciones"
+          >
+            <Bell size={18} />
+          </button>
+          <button
+            type="button"
+            className="shell__header-icon-btn shell__header-logout"
+            onClick={logout}
+            title="Cerrar sesión"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
-      </aside>
+      </header>
 
       <main className="shell__main">
         <div className="shell__content">{children}</div>

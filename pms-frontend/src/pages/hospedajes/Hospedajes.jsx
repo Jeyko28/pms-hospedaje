@@ -9,6 +9,7 @@ import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
 import { ESTADO_HOSPEDAJE, PLAN_HOSPEDAJE, presentar } from "../../config/estados";
+import { normalizar } from "../../utils/normalizar";
 import HospedajeForm from "./HospedajeForm";
 import "../entidades.css";
 
@@ -33,9 +34,9 @@ export default function Hospedajes() {
 
   const filtrados = useMemo(() => {
     if (!hospedajes.data) return [];
-    const t = busqueda.trim().toLowerCase();
+    const t = normalizar(busqueda.trim());
     if (!t) return hospedajes.data;
-    return hospedajes.data.filter((h) => h.nombre.toLowerCase().includes(t));
+    return hospedajes.data.filter((h) => normalizar(h.nombre).includes(t));
   }, [hospedajes.data, busqueda]);
 
   // Resumen rápido del negocio.
@@ -80,12 +81,6 @@ export default function Hospedajes() {
   return (
     <div className="entidad">
       <header className="entidad__head">
-        <div>
-          <h1>Hospedajes</h1>
-          <p className="entidad__subtitle">
-            Panel de administración del servicio. Gestiona los hospedajes clientes.
-          </p>
-        </div>
         <Button icon="+" onClick={() => setModal({ modo: "crear", hospedaje: null })}>
           Nuevo hospedaje
         </Button>

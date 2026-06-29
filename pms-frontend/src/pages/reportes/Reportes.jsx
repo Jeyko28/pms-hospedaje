@@ -125,14 +125,7 @@ export default function Reportes() {
 
   return (
     <div className="reportes">
-      <header className="reportes__head">
-        <div>
-          <h1>Reportes</h1>
-          <p className="reportes__subtitle">
-            Finanzas y ocupación de tu hospedaje.
-          </p>
-        </div>
-      </header>
+      <header className="reportes__head" />
 
       {/* Selector de periodo */}
       <Card padding="sm" className="reportes__filtros">

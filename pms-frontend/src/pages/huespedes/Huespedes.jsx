@@ -9,6 +9,7 @@ import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
 import { useAuth } from "../../auth/AuthContext";
 import { descargarCSV } from "../../utils/exportar";
+import { normalizar } from "../../utils/normalizar";
 import HuespedForm from "./HuespedForm";
 import "../entidades.css";
 
@@ -30,14 +31,14 @@ export default function Huespedes() {
 
   const filtrados = useMemo(() => {
     if (!huespedes.data) return [];
-    const t = busqueda.trim().toLowerCase();
+    const t = normalizar(busqueda.trim());
     if (!t) return huespedes.data;
     return huespedes.data.filter(
       (h) =>
-        h.nombre.toLowerCase().includes(t) ||
-        (h.email || "").toLowerCase().includes(t) ||
-        (h.documento || "").toLowerCase().includes(t) ||
-        (h.telefono || "").toLowerCase().includes(t)
+        normalizar(h.nombre).includes(t) ||
+        normalizar(h.email || "").includes(t) ||
+        normalizar(h.documento || "").includes(t) ||
+        normalizar(h.telefono || "").includes(t)
     );
   }, [huespedes.data, busqueda]);
 
@@ -74,12 +75,6 @@ export default function Huespedes() {
   return (
     <div className="entidad">
       <header className="entidad__head">
-        <div>
-          <h1>Huéspedes</h1>
-          <p className="entidad__subtitle">
-            Tu directorio de huéspedes registrados.
-          </p>
-        </div>
         <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
           {esAdmin && (
             <Button variant="secondary" onClick={exportar}>

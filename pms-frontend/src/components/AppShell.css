@@ -1,11 +1,22 @@
+/* ==========================================================================
+ *  APP SHELL — Layout: sidebar izquierda + header arriba + contenido.
+ *
+ *  Desktop: sidebar fija a la izquierda, header fijo arriba del contenido.
+ *  Mobile:  sidebar como drawer deslizante, header colapsado en topbar.
+ * ========================================================================== */
+
+/* --- Grid principal (desktop) --- */
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "sidebar header"
+    "sidebar main";
   min-height: 100vh;
   transition: grid-template-columns var(--transition-base);
 }
 
-/* Modo colapsado (rail): la columna de la barra se estrecha. */
 .shell--colapsado {
   grid-template-columns: var(--sidebar-width-collapsed) 1fr;
 }
@@ -57,8 +68,124 @@
   z-index: 40;
 }
 
+/* ---------- Header de escritorio ---------- */
+.shell__header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-8);
+  background-color: var(--bg-app);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.shell__header-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shell__header-title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+  line-height: var(--leading-tight);
+}
+
+.shell__header-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.shell__header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Botones de icono en el header (tema, notificaciones, logout). */
+.shell__header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+.shell__header-icon-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+/* Tarjeta del usuario en el header. */
+.shell__header-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--radius-full);
+  cursor: default;
+  transition: background-color var(--transition-fast);
+}
+.shell__header-user:hover {
+  background-color: var(--bg-subtle);
+}
+
+.shell__header-avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-brand-600);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.shell__header-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shell__header-user-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell__header-user-rol {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Logout en el header: sutil, solo icono. */
+.shell__header-logout {
+  margin-left: var(--space-1);
+}
+
 /* ---------- Barra lateral ---------- */
 .shell__sidebar {
+  grid-area: sidebar;
   background-color: var(--bg-surface);
   border-right: 1px solid var(--border-default);
   padding: var(--space-6) var(--space-4);
@@ -68,8 +195,6 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  /* La barra no se corta: el menú hace scroll si hace falta y el footer
-     (usuario + tema + cerrar sesión) queda siempre visible abajo. */
   overflow: hidden;
 }
 
@@ -95,8 +220,7 @@
   flex: 1;
 }
 
-/* Boton de colapso/expansion (escritorio): pequeño, discreto, integrado en
-   la cabecera. Sin recuadro grande ni texto. */
+/* Boton de colapso/expansion (escritorio). */
 .shell__collapse-btn {
   display: inline-flex;
   align-items: center;
@@ -117,16 +241,15 @@
   color: var(--text-primary);
 }
 
+/* ---------- Navegacion ---------- */
 .shell__nav {
   flex: 1;
-  min-height: 0; /* permite que el nav encoja si hiciera falta */
+  min-height: 0;
   overflow-y: auto;
-  /* Ocultar la barra de scroll visualmente (sigue siendo desplazable si
-     llegara a hacer falta). Evita la scrollbar fea en escritorio y móvil. */
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
 }
 .shell__nav::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Edge */
+  display: none;
 }
 
 .shell__nav ul {
@@ -173,119 +296,11 @@
   flex-shrink: 0;
 }
 
-/* Pie: usuario + tema + cerrar sesion. Siempre visible (no se encoge). */
-.shell__footer {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border-default);
-  padding-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/* Tarjeta del usuario logueado. */
-.shell__user {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-1);
-}
-
-.shell__user-avatar {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-brand-600);
-  color: #fff;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-}
-
-.shell__user-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.shell__user-name {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.shell__user-rol {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-/* Fila de acciones del pie: Cerrar sesión + tema, lado a lado. */
-.shell__footer-acciones {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-/* Cerrar sesión: ocupa el ancho disponible, con icono + texto. */
-.shell__logout-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--tap-target-min);
-  padding: 0 var(--space-3);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background-color var(--transition-fast),
-    color var(--transition-fast);
-}
-.shell__logout-btn:hover {
-  background-color: var(--bg-subtle);
-  color: var(--text-primary);
-}
-
-/* Tema: solo icono (sol/luna), cuadrado, al lado de Cerrar sesión. */
-.shell__theme-icon-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--tap-target-min);
-  height: var(--tap-target-min);
-  border: 1px solid var(--border-default);
-  background: transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background-color var(--transition-fast),
-    color var(--transition-fast);
-}
-.shell__theme-icon-btn:hover {
-  background-color: var(--bg-subtle);
-  color: var(--text-primary);
-}
-
 /* ---------- Modo COLAPSADO (rail de iconos, escritorio) ---------- */
-/* Se oculta el TEXTO, pero el boton de colapsar permanece visible (centrado)
-   para poder re-expandir. */
 .shell--colapsado .shell__brand-name,
 .shell--colapsado .shell__nav-label {
   display: none;
 }
-/* En rail ocultamos el logo y dejamos solo el botón de expandir, centrado. */
 .shell--colapsado .shell__brand-mark {
   display: none;
 }
@@ -297,22 +312,13 @@
 .shell--colapsado .shell__brand {
   justify-content: center;
 }
-/* En rail, la fila de acciones se apila (logout icono arriba, tema abajo). */
-.shell--colapsado .shell__footer-acciones {
-  flex-direction: column;
-}
-.shell--colapsado .shell__theme-icon-btn {
-  width: 100%;
-}
 .shell--colapsado .shell__nav-link,
-.shell--colapsado .shell__logout-btn,
 .shell--colapsado .shell__collapse-btn {
   justify-content: center;
   padding: 0;
 }
 
-/* Tooltip instantáneo en modo colapsado: muestra el nombre al pasar el cursor
-   sobre el icono, sin esperar al tooltip lento del navegador. */
+/* Tooltip instantaneo en modo colapsado. */
 .shell--colapsado .shell__nav-link {
   position: relative;
 }
@@ -333,20 +339,17 @@
   box-shadow: var(--shadow-md);
   pointer-events: none;
 }
-/* En rail, la tarjeta de usuario se reduce a solo el avatar centrado. */
-.shell--colapsado .shell__user {
-  justify-content: center;
-  padding: var(--space-2) 0;
-}
-/* En rail mostramos un mini boton de expandir reutilizando el footer. */
+
+/* En rail, el nav-icon mantiene su tamano para que los iconos no se encojan. */
 .shell--colapsado .shell__nav-icon {
   width: auto;
 }
 
 /* ---------- Contenido ---------- */
 .shell__main {
+  grid-area: main;
   background-color: var(--bg-app);
-  min-width: 0; /* permite que el contenido encoja sin desbordar el grid */
+  min-width: 0;
 }
 
 .shell__content {
@@ -355,14 +358,24 @@
   padding: var(--space-8);
 }
 
-/* ---------- Responsive: barra lateral como cajon (drawer) en movil ---------- */
+/* ==========================================================================
+ *  RESPONSIVE — sidebar como drawer en movil (< 860px)
+ * ========================================================================== */
 @media (max-width: 860px) {
   .shell {
-    grid-template-columns: 1fr; /* una sola columna; la barra flota encima */
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "topbar"
+      "main";
   }
 
   .shell__topbar {
     display: flex;
+  }
+
+  .shell__header {
+    display: none;
   }
 
   /* La barra se vuelve un panel deslizante fuera de pantalla. */
@@ -374,6 +387,7 @@
     width: min(82vw, var(--sidebar-width));
     transform: translateX(-100%);
     transition: transform var(--transition-base);
+    grid-area: unset;
   }
 
   /* Al abrir el drawer: la barra entra y aparece el fondo oscuro. */
@@ -389,8 +403,7 @@
   .shell--colapsado .shell__nav-label {
     display: inline;
   }
-  .shell--colapsado .shell__nav-link,
-  .shell--colapsado .shell__theme-btn {
+  .shell--colapsado .shell__nav-link {
     justify-content: flex-start;
     padding: 0 var(--space-3);
   }

@@ -1,0 +1,95 @@
+/* Servicios — catálogo de servicios/productos */
+
+.servicios__filtros {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+@media (max-width: 560px) {
+  .servicios__filtros {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Item de lista */
+.servicio-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.servicio-item__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.servicio-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.servicio-item__nombre {
+  font-weight: var(--weight-medium);
+  font-size: var(--text-sm);
+}
+
+.servicio-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.servicio-item__cat {
+  font-weight: var(--weight-medium);
+}
+
+.servicio-item__sub {
+  color: var(--text-secondary);
+}
+
+.servicio-item__precio {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.servicio-item__acciones {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Formulario */
+.servicios__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.servicios__form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 560px) {
+  .servicios__form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.servicios__form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+}

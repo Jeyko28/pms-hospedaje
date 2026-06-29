@@ -18,10 +18,10 @@
   color: var(--text-muted);
 }
 
-/* Barra de filtros: busqueda ancha + selector de estado. */
+/* Barra de filtros: busqueda ancha + selector de estado + año. */
 .reservas__filtros {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: var(--space-4);
   align-items: end;
 }
@@ -34,6 +34,34 @@
 
 /* Lista */
 .reservas__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* Grupo de mes */
+.reservas__mes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reservas__mes-titulo {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.reservas__mes-conteo {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.reservas__mes-items {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

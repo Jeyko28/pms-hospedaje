@@ -102,14 +102,7 @@ export default function Housekeeping() {
 
   return (
     <div className="entidad hk">
-      <header className="entidad__head">
-        <div>
-          <h1>Limpieza</h1>
-          <p className="entidad__subtitle">
-            Estado de limpieza de las habitaciones. Marca con un clic o asigna a tu personal.
-          </p>
-        </div>
-      </header>
+      <header className="entidad__head" />
 
       {/* Filtros rápidos */}
       <div className="hk__filtros" role="tablist" aria-label="Filtrar habitaciones">

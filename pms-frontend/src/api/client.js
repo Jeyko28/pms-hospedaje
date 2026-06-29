@@ -225,6 +225,20 @@ export const api = {
   miHospedaje: () => get("/api/mi-hospedaje"),
   guardarMiHospedaje: (datos) => put("/api/mi-hospedaje", datos),
 
+  // Detalle de reserva (estancia, factura, pagos, consumos)
+  reservaDetalle: (id) => get(`/api/reservas/${id}/detalle`),
+
+  // Consumos (servicios y pedidos de una reserva)
+  consumosPorReserva: (reservaId) => get(`/api/consumos?reserva_id=${reservaId}`),
+  crearConsumo: (datos) => post("/api/consumos", datos),
+  eliminarConsumo: (id) => del(`/api/consumos/${id}`),
+
+  // Catálogo de servicios de habitación
+  serviciosHabitacion: () => get("/api/servicios-habitacion"),
+  crearServicioHabitacion: (datos) => post("/api/servicios-habitacion", datos),
+  editarServicioHabitacion: (id, datos) => put(`/api/servicios-habitacion/${id}`, datos),
+  eliminarServicioHabitacion: (id) => del(`/api/servicios-habitacion/${id}`),
+
   // Usuarios (solo admin)
   usuarios: () => get("/api/usuarios"),
   crearUsuario: (datos) => post("/api/usuarios", datos),

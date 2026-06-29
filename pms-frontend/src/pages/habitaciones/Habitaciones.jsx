@@ -57,12 +57,6 @@ export default function Habitaciones() {
   return (
     <div className="entidad">
       <header className="entidad__head">
-        <div>
-          <h1>Habitaciones</h1>
-          <p className="entidad__subtitle">
-            Administra las habitaciones de tu hospedaje.
-          </p>
-        </div>
         <Button icon="+" onClick={abrirCrear}>
           Nueva habitación
         </Button>

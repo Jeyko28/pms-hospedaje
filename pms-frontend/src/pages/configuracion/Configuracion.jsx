@@ -112,14 +112,7 @@ export default function Configuracion() {
 
   return (
     <div className="cfg">
-      <header className="cfg__head">
-        <div>
-          <h1>Configuración del negocio</h1>
-          <p className="cfg__subtitle">
-            Estos datos aparecen en tus facturas y comprobantes. Manténlos al día.
-          </p>
-        </div>
-      </header>
+      <header className="cfg__head" />
 
       {/* ---------- Datos del negocio ---------- */}
       <Card>

@@ -64,12 +64,7 @@ export default function Recepcion() {
 
   return (
     <div className="recepcion">
-      <header className="recepcion__head">
-        <h1>Recepción</h1>
-        <p className="recepcion__subtitle">
-          Gestiona las entradas y salidas de huéspedes.
-        </p>
-      </header>
+      <header className="recepcion__head" />
 
       {/* Arqueo de caja del día (recepción cuadra el efectivo) */}
       <CajaDia />

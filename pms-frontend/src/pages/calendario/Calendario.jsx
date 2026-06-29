@@ -399,10 +399,6 @@ export default function Calendario() {
   return (
     <div className="cal">
       <header className="cal__head">
-        <div>
-          <h1>Calendario</h1>
-          <p className="cal__subtitle">Vista de ocupación por habitación.</p>
-        </div>
         <div className="cal__nav">
           <button className="cal__nav-btn" onClick={() => mover(-1)} aria-label="Mes anterior">
             <ChevronLeft size={18} />
@@ -414,6 +410,16 @@ export default function Calendario() {
           <Button variant="secondary" size="sm" onClick={irHoy}>Hoy</Button>
           <Button variant="secondary" size="sm" onClick={abrirBloqueo}>Bloquear</Button>
         </div>
+        {datos.data && datos.data.habitaciones.length > 0 && (
+          <div className="cal__leyenda">
+            {["Pendiente", "Confirmada", "Check-in", "Check-out"].map((e) => (
+              <span className="cal__leyenda-item" key={e}>
+                <span className="cal__leyenda-dot" style={{ backgroundColor: TONO_BARRA[e] }} />
+                {presentar(ESTADO_RESERVA, e).label}
+              </span>
+            ))}
+          </div>
+        )}
       </header>
 
       {errorMover && (
@@ -567,18 +573,6 @@ export default function Calendario() {
             })}
           </div>
         </Card>
-      )}
-
-      {/* Leyenda */}
-      {datos.data && datos.data.habitaciones.length > 0 && (
-        <div className="cal__leyenda">
-          {["Pendiente", "Confirmada", "Check-in", "Check-out"].map((e) => (
-            <span className="cal__leyenda-item" key={e}>
-              <span className="cal__leyenda-color" style={{ backgroundColor: TONO_BARRA[e] }} />
-              {presentar(ESTADO_RESERVA, e).label}
-            </span>
-          ))}
-        </div>
       )}
 
       {/* Tooltip flotante al pasar el cursor sobre una reserva (preview rápido).

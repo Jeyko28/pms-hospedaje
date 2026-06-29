@@ -145,18 +145,12 @@ export default function Dashboard() {
   const k = ov?.kpis;
   return (
     <div className="dashboard">
-      {/* ---------- Encabezado ---------- */}
-      <header className="dashboard__head">
-        <div>
-          <h1>Panel de control</h1>
-          <p className="dashboard__subtitle">
-            Resumen de tu hospedaje en tiempo real.
-          </p>
-        </div>
+      {/* ---------- Accion rapida ---------- */}
+      <div className="dashboard__head">
         <Button icon="+" onClick={() => navegar("reservas")}>
           Nueva reserva
         </Button>
-      </header>
+      </div>
 
       {/* ---------- Onboarding: completar datos del negocio ---------- */}
       {faltaRuc && (

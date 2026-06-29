@@ -12,7 +12,9 @@ import { useAuth } from "../../auth/AuthContext";
 import { abrirWhatsApp, mensajeConfirmacion } from "../../utils/whatsapp";
 import { descargarCSV } from "../../utils/exportar";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
+import { normalizar } from "../../utils/normalizar";
 import NuevaReservaForm from "./NuevaReservaForm";
+import DetalleReserva from "./DetalleReserva";
 import "./Reservas.css";
 
 const formatoMoneda = new Intl.NumberFormat("es-PE", {
@@ -49,23 +51,82 @@ export default function Reservas() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [filtroYear, setFiltroYear] = useState("todos");
   const [cancelandoId, setCancelandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
+  const [reservaSeleccionada, setReservaSeleccionada] = useState(null);
 
-  // Filtrado en cliente: por texto (huesped/habitacion) y por estado.
+  // Extraer años disponibles para el filtro.
+  const aniosDisponibles = useMemo(() => {
+    if (!reservas.data) return [];
+    const set = new Set();
+    for (const r of reservas.data) {
+      if (r.fecha_entrada) {
+        set.add(new Date(r.fecha_entrada + "T00:00:00").getFullYear());
+      }
+    }
+    return Array.from(set).sort((a, b) => b - a);
+  }, [reservas.data]);
+
+  // Filtrado en cliente: por texto, estado y año.
   const filtradas = useMemo(() => {
     if (!reservas.data) return [];
-    const texto = busqueda.trim().toLowerCase();
-    return reservas.data.filter((r) => {
-      const coincideTexto =
-        !texto ||
-        r.huesped.toLowerCase().includes(texto) ||
-        String(r.habitacion).toLowerCase().includes(texto);
-      const coincideEstado =
-        filtroEstado === "todos" || r.estado === filtroEstado;
-      return coincideTexto && coincideEstado;
-    });
-  }, [reservas.data, busqueda, filtroEstado]);
+    const texto = normalizar(busqueda.trim());
+    return reservas.data
+      .filter((r) => {
+        const coincideTexto =
+          !texto ||
+          normalizar(r.huesped).includes(texto) ||
+          normalizar(String(r.habitacion)).includes(texto);
+        const coincideEstado =
+          filtroEstado === "todos" || r.estado === filtroEstado;
+        const coincideYear =
+          filtroYear === "todos" ||
+          (r.fecha_entrada &&
+            new Date(r.fecha_entrada + "T00:00:00").getFullYear() === Number(filtroYear));
+        return coincideTexto && coincideEstado && coincideYear;
+      })
+      .sort((a, b) => (a.fecha_entrada || "").localeCompare(b.fecha_entrada || ""));
+  }, [reservas.data, busqueda, filtroEstado, filtroYear]);
+
+  // Agrupar por mes (Junio 2026, Julio 2026, etc.) para mostrar separadores.
+  const mesesNombres = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  ];
+  const agrupadas = useMemo(() => {
+    const grupos = [];
+    let mesActual = null;
+    for (const r of filtradas) {
+      const d = r.fecha_entrada ? new Date(r.fecha_entrada + "T00:00:00") : null;
+      const clave = d ? `${d.getFullYear()}-${d.getMonth()}` : "sin-fecha";
+      if (clave !== mesActual) {
+        mesActual = clave;
+        const label = d
+          ? `${mesesNombres[d.getMonth()]} ${d.getFullYear()}`
+          : "Sin fecha";
+        grupos.push({ label, key: clave, date: d, reservas: [] });
+      }
+      grupos[grupos.length - 1].reservas.push(r);
+    }
+
+    // Reordenar: mes actual primero, luego futuros, luego pasados.
+    const ahora = new Date();
+    const claveActual = `${ahora.getFullYear()}-${ahora.getMonth()}`;
+    const futuros = [];
+    const pasados = [];
+    let actual = null;
+    for (const g of grupos) {
+      if (g.key === claveActual) {
+        actual = g;
+      } else if (g.date && g.date >= ahora) {
+        futuros.push(g);
+      } else {
+        pasados.push(g);
+      }
+    }
+    return [...(actual ? [actual] : []), ...futuros, ...pasados];
+  }, [filtradas]);
 
   function alCrear() {
     setModalAbierto(false);
@@ -122,12 +183,6 @@ export default function Reservas() {
   return (
     <div className="reservas">
       <header className="reservas__head">
-        <div>
-          <h1>Reservas</h1>
-          <p className="reservas__subtitle">
-            Gestiona las reservas de tu hospedaje.
-          </p>
-        </div>
         <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
           {esAdmin && (
             <Button variant="secondary" onClick={exportar}>
@@ -166,6 +221,20 @@ export default function Reservas() {
               <option value="Check-in">Check-in</option>
               <option value="Check-out">Check-out</option>
               <option value="Cancelada">Cancelada</option>
+            </select>
+          </Field>
+        </div>
+        <div className="reservas__filtro-year">
+          <Field id="year" label="Año">
+            <select
+              id="year"
+              value={filtroYear}
+              onChange={(e) => setFiltroYear(e.target.value)}
+            >
+              <option value="todos">Todos</option>
+              {aniosDisponibles.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
             </select>
           </Field>
         </div>
@@ -218,59 +287,72 @@ export default function Reservas() {
         </Card>
       )}
 
-      {/* ---------- Lista de reservas (tarjetas escaneables) ---------- */}
+      {/* ---------- Lista de reservas agrupadas por mes ---------- */}
       {filtradas.length > 0 && (
         <div className="reservas__lista">
-          {filtradas.map((r) => {
-            const est = presentar(ESTADO_RESERVA, r.estado);
-            const cancelable =
-              r.estado !== "Cancelada" && r.estado !== "Check-out";
-            return (
-              <Card key={r.id} padding="sm" className="reserva-item">
-                <div className="reserva-item__main">
-                  <div className="reserva-item__huesped">
-                    <span className="reserva-item__nombre">{r.huesped}</span>
-                    <Badge tone={est.tone} icon={est.icon}>
-                      {est.label}
-                    </Badge>
-                  </div>
-                  <div className="reserva-item__meta">
-                    <span>Hab. {r.habitacion}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      {formatoFecha(r.fecha_entrada)} →{" "}
-                      {formatoFecha(r.fecha_salida)}
-                    </span>
-                  </div>
-                </div>
-                <div className="reserva-item__lado">
-                  <span className="reserva-item__total">
-                    {formatoMoneda.format(r.total || 0)}
-                  </span>
-                  {/* Reserva del motor público: confirmar antes de operar. */}
-                  {r.estado === "Pendiente" && (
-                    <Button
-                      size="sm"
-                      onClick={() => confirmar(r)}
-                      loading={confirmandoId === r.id}
+          {agrupadas.map((grupo) => (
+            <div key={grupo.label} className="reservas__mes">
+              <h3 className="reservas__mes-titulo">{grupo.label}</h3>
+              <span className="reservas__mes-conteo">{grupo.reservas.length} reserva{grupo.reservas.length !== 1 ? "s" : ""}</span>
+              <div className="reservas__mes-items">
+                {grupo.reservas.map((r) => {
+                  const est = presentar(ESTADO_RESERVA, r.estado);
+                  const cancelable =
+                    r.estado !== "Cancelada" && r.estado !== "Check-out";
+                  return (
+                    <Card
+                      key={r.id}
+                      padding="sm"
+                      className="reserva-item"
+                      onClick={() => setReservaSeleccionada(r.id)}
+                      style={{ cursor: "pointer" }}
                     >
-                      Confirmar y avisar
-                    </Button>
-                  )}
-                  {cancelable && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => cancelar(r.id)}
-                      disabled={cancelandoId === r.id}
-                    >
-                      {cancelandoId === r.id ? "Cancelando…" : "Cancelar"}
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+                      <div className="reserva-item__main">
+                        <div className="reserva-item__huesped">
+                          <span className="reserva-item__nombre">{r.huesped}</span>
+                          <Badge tone={est.tone} icon={est.icon}>
+                            {est.label}
+                          </Badge>
+                        </div>
+                        <div className="reserva-item__meta">
+                          <span>Hab. {r.habitacion}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>
+                            {formatoFecha(r.fecha_entrada)} →{" "}
+                            {formatoFecha(r.fecha_salida)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="reserva-item__lado">
+                        <span className="reserva-item__total">
+                          {formatoMoneda.format(r.total || 0)}
+                        </span>
+                        {r.estado === "Pendiente" && (
+                          <Button
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); confirmar(r); }}
+                            loading={confirmandoId === r.id}
+                          >
+                            Confirmar y avisar
+                          </Button>
+                        )}
+                        {cancelable && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); cancelar(r.id); }}
+                            disabled={cancelandoId === r.id}
+                          >
+                            {cancelandoId === r.id ? "Cancelando…" : "Cancelar"}
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -292,6 +374,12 @@ export default function Reservas() {
           />
         )}
       </Modal>
+
+      {/* ---------- Modal: detalle de reserva ---------- */}
+      <DetalleReserva
+        reservaId={reservaSeleccionada}
+        onClose={() => setReservaSeleccionada(null)}
+      />
     </div>
   );
 }

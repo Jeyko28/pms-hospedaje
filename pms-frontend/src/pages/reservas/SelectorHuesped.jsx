@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Field from "../../components/Field";
 import Button from "../../components/Button";
 import { api } from "../../api/client";
+import { normalizar } from "../../utils/normalizar";
 import "./SelectorHuesped.css";
 
 /**
@@ -61,17 +62,17 @@ export default function SelectorHuesped({
     return () => document.removeEventListener("mousedown", onDown);
   }, [abierto]);
 
-  const q = texto.trim().toLowerCase();
+  const q = normalizar(texto.trim());
   const coincidencias = (q
     ? huespedes.filter(
         (h) =>
-          h.nombre.toLowerCase().includes(q) ||
-          (h.documento || "").toLowerCase().includes(q) ||
-          (h.email || "").toLowerCase().includes(q)
+          normalizar(h.nombre).includes(q) ||
+          normalizar(h.documento || "").includes(q) ||
+          normalizar(h.email || "").includes(q)
       )
     : huespedes
   ).slice(0, 6);
-  const hayExacto = huespedes.some((h) => h.nombre.trim().toLowerCase() === q);
+  const hayExacto = huespedes.some((h) => normalizar(h.nombre.trim()) === q);
 
   function elegir(h) {
     setSel(h);

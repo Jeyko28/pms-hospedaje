@@ -68,14 +68,7 @@ export default function ConfigSunat() {
 
   return (
     <div className="sunat">
-      <header className="sunat__head">
-        <div>
-          <h1>Facturación electrónica</h1>
-          <p className="sunat__subtitle">
-            Emite boletas de venta electrónicas (SUNAT) de tu hospedaje.
-          </p>
-        </div>
-      </header>
+      <header className="sunat__head" />
 
       {/* Aviso del modo actual */}
       <div className="sunat__aviso">
