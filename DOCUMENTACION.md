@@ -101,7 +101,7 @@ App en `http://localhost:5190`. Credenciales de desarrollo: **admin / admin123**
 
 ---
 
-## 4. Modelo de datos (16 tablas)
+## 4. Modelo de datos (17 tablas)
 
 Todas las tablas de datos llevan `hospedaje_id` (aislamiento multi-tenant). La migración lo
 añade de forma idempotente y crea índices sobre `hospedaje_id` y las FKs más usadas.
@@ -119,6 +119,7 @@ añade de forma idempotente y crea índices sobre `hospedaje_id` y las FKs más 
 | `tareas_limpieza` | Housekeeping | habitacion_id, estado, asignado_a, notas |
 | `bloqueos` | Habitación fuera de servicio | habitacion_id, rango de fechas, motivo |
 | `cierres_turno` | Arqueo firmado de caja | total_sistema, efectivo_sistema/contado, diferencia, usuario, por_metodo (json) |
+| `tarifas` | Precios por temporada / fin de semana | nombre, rango fechas, dias_semana, habitacion_id (o todas), precio o ajuste_pct |
 | `servicios_habitacion` | Catálogo de servicios/productos | nombre, categoria, precio, activo |
 | `consumos` | Servicios/pedidos cargados a una reserva | reserva_id, tipo, descripcion, cantidad, precio_unitario, total |
 | `visitas` | Analítica del link público | hospedaje_id, creado_en |
@@ -130,7 +131,7 @@ crea N reservas (una por habitación) que comparten `grupo_id`; cada una conserv
 
 ---
 
-## 5. API REST (resumen, ~75 endpoints)
+## 5. API REST (resumen, ~78 endpoints)
 
 Base: `/api`. Autenticación por **JWT** (`Authorization: Bearer <token>`), salvo los
 endpoints públicos. Roles: `superadmin` (SaaS), `admin` (hospedaje), recepción (resto).
@@ -151,6 +152,7 @@ endpoints públicos. Roles: `superadmin` (SaaS), `admin` (hospedaje), recepción
 | **Pagos / Facturas** | `POST /pagos` · `GET /facturas` · `GET /facturas/{id}/pagos` · `GET /facturas/{id}/pdf` |
 | **SUNAT** | `GET/PUT /sunat/config` · `POST /facturas/{id}/emitir` · `GET /comprobantes` · `GET /comprobantes/{id}/pdf` |
 | **Consumos / Servicios** | `GET/POST/DELETE /consumos` · `GET/POST/PUT/DELETE /servicios-habitacion` |
+| **Tarifas** (admin) | `GET/POST/DELETE /tarifas` (precios por temporada / fin de semana) |
 | **Dashboard / Reportes** | `GET /dashboard/{resumen\|agenda\|overview}` · `GET /reportes/{ocupacion\|financiero}` |
 | **Export** | `GET /export/{reservas\|huespedes\|pagos}.csv` |
 
@@ -167,6 +169,7 @@ endpoints públicos. Roles: `superadmin` (SaaS), `admin` (hospedaje), recepción
 | **Calendario** | operativa | Timeline habitación × día; crear desde celda; arrastrar para mover; **bloquear** habitación por rango. |
 | **Recepción** | operativa | Check-in / check-out por noches reales, cobros, **Caja del día** + **Cierre de turno** (arqueo firmado). |
 | **Habitaciones** | operativa | CRUD de cuartos. |
+| **Tarifas** | admin | Precios por temporada (rango de fechas) y/o fin de semana (días), por habitación o globales; precio fijo o ajuste %. Si no hay regla, se usa `precio_base`. |
 | **Limpieza** | operativa | Tablero de estado (Limpia/Sucia/Revisión) con cambio de 1 clic + asignación de tareas a personal. |
 | **Servicios** | admin | Catálogo de servicios/productos (categoría, precio, activo) que se cargan como consumos a una reserva. |
 | **Huéspedes** | operativa | Directorio + CRUD; documento estructurado (DNI/CE/Pasaporte). |
@@ -236,10 +239,6 @@ code-splitting, validación del endpoint público, limpieza de código muerto).
    catálogo de servicios y consumos cargados a la reserva.
 
 ### En progreso / pendiente
-- **Tarifas por temporada/fin de semana (Ola #4):** `pms_hospedaje/tarifas.py` existe (motor de
-  `precio_noche` / `total_estadia` con fallback a `precio_base`) pero **aún no está cableado** a
-  los puntos de cálculo (reservas, check-in/out, recálculo, disponibilidad pública). Falta:
-  tabla `tarifas` en la migración, usar el helper en todos esos puntos, endpoints CRUD y UI.
 - **SUNAT a producción:** requiere cuenta **OSE/PSE** (el dueño tiene RUC). El RUC no basta: hace
   falta certificado digital + canal autorizado (SEE-SOL manual, o PSE/OSE con API tipo Nubefact).
   Ver [`SUNAT_PRODUCCION.md`](pms_hospedaje/SUNAT_PRODUCCION.md).
