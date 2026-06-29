@@ -29,21 +29,23 @@ from dbengine import USA_POSTGRES
 #  Configuracion
 # --------------------------------------------------------------------------- #
 # Clave para firmar los JWT.
-#  - Desarrollo: si no hay variable de entorno, se usa una clave por defecto
-#    (solo local; NO sirve para produccion).
-#  - Produccion: se DEBE definir PMS_SECRET_KEY. Si ademas se marca
-#    PMS_ENV=production sin clave, la app no arranca (evita exponer la default).
-_DEFAULT_DEV_KEY = "dev-only-cambia-esta-clave-pms-2026"
-SECRET_KEY = os.environ.get("PMS_SECRET_KEY", _DEFAULT_DEV_KEY)
+#  - Desarrollo: se genera una clave aleatoria al arrancar (cambia cada reinicio).
+#  - Produccion: se DEBE definir PMS_SECRET_KEY. Si falta, la app no arranca.
+import secrets as _secrets
 
-if os.environ.get("PMS_ENV") == "production" and SECRET_KEY == _DEFAULT_DEV_KEY:
+_SECRET_DEFAULT = _secrets.token_urlsafe(48)
+_SECRET_KEY_RAW = os.environ.get("PMS_SECRET_KEY", "")
+_ES_PROD = os.environ.get("PMS_ENV") == "production"
+
+if _ES_PROD and not _SECRET_KEY_RAW:
     raise RuntimeError(
         "PMS_SECRET_KEY no esta definida en produccion. "
         "Define una clave secreta robusta en las variables de entorno."
     )
 
+SECRET_KEY = _SECRET_KEY_RAW or _SECRET_DEFAULT
 ALGORITHM = "HS256"
-TOKEN_HORAS = 12  # la sesion dura 12 horas
+TOKEN_HORAS = 2  # la sesion dura 2 horas (antes: 12h)
 
 # Cupo de cambios del slug del link público por hospedaje. El link se comparte
 # (WhatsApp, Instagram, Google); cambiarlo invalida los enlaces ya difundidos,
@@ -56,8 +58,14 @@ MAX_CAMBIOS_SLUG = 3
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 # Contrasena inicial del admin por defecto (solo si no existe ningun usuario).
-# En produccion conviene definir PMS_ADMIN_PASSWORD para no usar 'admin123'.
-ADMIN_PASSWORD_INICIAL = os.environ.get("PMS_ADMIN_PASSWORD", "admin123")
+# En produccion se DEBE definir PMS_ADMIN_PASSWORD; si falta, la app no arranca.
+_ADMIN_PASS_RAW = os.environ.get("PMS_ADMIN_PASSWORD", "")
+if _ES_PROD and not _ADMIN_PASS_RAW:
+    raise RuntimeError(
+        "PMS_ADMIN_PASSWORD no esta definida en produccion. "
+        "Define una contrasena segura para el admin en las variables de entorno."
+    )
+ADMIN_PASSWORD_INICIAL = _ADMIN_PASS_RAW or "cambia-esta-clave"
 
 # tokenUrl es solo informativo para la doc; el login real esta en /api/auth/login
 oauth2 = OAuth2PasswordBearer(tokenUrl="api/auth/login")
@@ -125,7 +133,7 @@ def hashear_password(plano: str) -> str:
 def verificar_password(plano: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(plano.encode("utf-8"), hashed.encode("utf-8"))
-    except Exception:
+    except (ValueError, TypeError):
         return False
 
 

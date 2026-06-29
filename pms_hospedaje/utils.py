@@ -9,6 +9,8 @@ las funciones de tema quedan inactivas, pero el resto (moneda, PDF) funciona.
 """
 
 import os
+import re
+import unicodedata
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -50,6 +52,15 @@ TEMA_OSCURO = {
 }
 
 tema_actual = "claro"
+
+
+def _sanitize_filename(texto: str) -> str:
+    """Convierte un texto en un nombre de archivo seguro (sin path traversal)."""
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    texto = texto.lower().strip()
+    texto = re.sub(r"[^a-z0-9._-]", "_", texto)
+    texto = re.sub(r"_+", "_", texto).strip("_")
+    return texto or "archivo"
 
 def aplicar_tema(widget, tema_dict):
     try:
@@ -98,10 +109,10 @@ def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_de
     un fallback neutro (sin datos falsos).
     """
     if ruta_destino is None:
-        # Crear carpeta facturas si no existe
         if not os.path.exists("facturas"):
             os.makedirs("facturas")
-        ruta_destino = f"facturas/factura_{factura.id}_{huesped.nombre.replace(' ', '_')}.pdf"
+        nombre_seguro = _sanitize_filename(huesped.nombre)
+        ruta_destino = f"facturas/factura_{factura.id}_{nombre_seguro}.pdf"
 
     c = canvas.Canvas(ruta_destino, pagesize=A4)
     width, height = A4

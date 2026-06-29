@@ -42,16 +42,22 @@ def _cargar_env_local():
 
 _cargar_env_local()
 
-from fastapi import FastAPI, HTTPException, Depends
+_ES_PROD = os.environ.get("PMS_ENV") == "production"
+
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 
 import database
 import auth
 import sunat
 from database import get_connection
-from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago
+from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago, ServicioHabitacion, Consumo
 from utils import generar_factura_pdf
 
 # Al importar database se crean las tablas y los datos de ejemplo si faltan.
@@ -64,8 +70,32 @@ sunat.crear_tablas_sunat()
 app = FastAPI(
     title="PMS Hospedaje API",
     description="API del sistema de gestion para pequenos hospedajes.",
-    version="0.4.0",
+    version="0.5.0",
 )
+
+# --- Rate Limiter ---
+# Global: 60 req/min por IP. Endpoints de auth: 5 req/min por IP.
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Demasiadas peticiones. Intenta de nuevo en un minuto."},
+    )
+
+# --- Security Headers Middleware ---
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if _ES_PROD:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Origenes permitidos (CORS).
 #  - En desarrollo: localhost en sus puertos habituales.
@@ -84,10 +114,10 @@ if _extra:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origenes,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):51\d\d",
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5190)",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -132,192 +162,199 @@ def _slug_unico(cursor, base: str, excluir_id=None) -> str:
 class ReservaNueva(BaseModel):
     huesped_id: int
     habitacion_id: int
-    fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD")
-    fecha_salida: str = Field(..., description="Formato YYYY-MM-DD")
-    notas: str = ""
+    fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD", max_length=10)
+    fecha_salida: str = Field(..., description="Formato YYYY-MM-DD", max_length=10)
+    notas: str = Field("", max_length=2000)
 
 
 class ReservaGrupoNueva(BaseModel):
-    # Reserva de grupo: varias habitaciones para el mismo huésped y fechas.
     huesped_id: int
     habitacion_ids: list[int]
-    fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD")
-    fecha_salida: str = Field(..., description="Formato YYYY-MM-DD")
-    notas: str = ""
+    fecha_entrada: str = Field(..., description="Formato YYYY-MM-DD", max_length=10)
+    fecha_salida: str = Field(..., description="Formato YYYY-MM-DD", max_length=10)
+    notas: str = Field("", max_length=2000)
 
 
 class MoverReserva(BaseModel):
-    # Cambiar una reserva a otra habitacion (arrastre en el calendario).
     habitacion_id: int
 
 
 class ReservaEdit(BaseModel):
-    # Editar fechas/notas de una reserva (no cambia habitacion ni huesped).
-    fecha_entrada: str
-    fecha_salida: str
-    notas: str = ""
+    fecha_entrada: str = Field(..., max_length=10)
+    fecha_salida: str = Field(..., max_length=10)
+    notas: str = Field("", max_length=2000)
 
 
 class ReservaPublica(BaseModel):
-    # Lo que un huesped envia desde la pagina publica de reservas.
     habitacion_id: int
-    fecha_entrada: str
-    fecha_salida: str
-    nombre: str
-    email: str = ""
-    telefono: str = ""
-    notas: str = ""
+    fecha_entrada: str = Field(..., max_length=10)
+    fecha_salida: str = Field(..., max_length=10)
+    nombre: str = Field(..., max_length=200)
+    email: str = Field("", max_length=254)
+    telefono: str = Field("", max_length=20)
+    notas: str = Field("", max_length=2000)
 
 
 class HuespedDatos(BaseModel):
-    nombre: str
-    email: str = ""
-    telefono: str = ""
-    documento: str = ""
-    direccion: str = ""
-    tipo_documento: str = "DNI"  # DNI | CE | Pasaporte
+    nombre: str = Field(..., max_length=200)
+    email: str = Field("", max_length=254)
+    telefono: str = Field("", max_length=20)
+    documento: str = Field("", max_length=15)
+    direccion: str = Field("", max_length=300)
+    tipo_documento: str = Field("DNI", max_length=20)
 
 
 class HabitacionDatos(BaseModel):
-    numero: str
-    tipo: str
+    numero: str = Field(..., max_length=10)
+    tipo: str = Field(..., max_length=50)
     precio_base: float
-    estado_limpieza: str = "Limpia"
-    estado: str = "disponible"
+    estado_limpieza: str = Field("Limpia", max_length=20)
+    estado: str = Field("disponible", max_length=20)
 
 
 class LimpiezaEstado(BaseModel):
-    # Cambio rápido del estado de limpieza de una habitación.
-    estado_limpieza: str  # Limpia | Sucia | Revisión
+    estado_limpieza: str = Field(..., max_length=20)
 
 
 class TareaLimpiezaDatos(BaseModel):
-    # Asignación opcional de una tarea de limpieza a una habitación.
     habitacion_id: int
-    asignado_a: str = ""
-    notas: str = ""
-    fecha: str = ""  # YYYY-MM-DD; si va vacía se usa hoy
+    asignado_a: str = Field("", max_length=100)
+    notas: str = Field("", max_length=2000)
+    fecha: str = Field("", max_length=10)
 
 
 class BloqueoNuevo(BaseModel):
     habitacion_id: int
-    fecha_inicio: str  # YYYY-MM-DD (inclusive)
-    fecha_fin: str     # YYYY-MM-DD (exclusivo, igual que salida de reserva)
-    motivo: str = ""
+    fecha_inicio: str = Field(..., max_length=10)
+    fecha_fin: str = Field(..., max_length=10)
+    motivo: str = Field("", max_length=500)
 
 
 class CheckinIn(BaseModel):
     reserva_id: int
-    # Fecha real de entrada (YYYY-MM-DD). Si va vacía se usa hoy. Permite
-    # registrar un check-in adelantado/atrasado y cobrar por las noches reales.
-    fecha_entrada_real: str = ""
+    fecha_entrada_real: str = Field("", max_length=10)
 
 
 class CheckoutIn(BaseModel):
     estancia_id: int
-    # Fecha real de salida (YYYY-MM-DD). Si va vacía se usa hoy. Permite cerrar
-    # con la estadía real (salida adelantada o extendida) y cobrar correcto.
-    fecha_checkout_real: str = ""
-    # Descuento/cortesía opcional aplicado en el COBRO (lo usa /recalcular).
+    fecha_checkout_real: str = Field("", max_length=10)
     descuento: float = 0
-    descuento_motivo: str = ""
+    descuento_motivo: str = Field("", max_length=200)
 
 
 class PagoNuevo(BaseModel):
     factura_id: int
     monto: float
-    metodo: str = "efectivo"
-    referencia: str = ""
+    metodo: str = Field("efectivo", max_length=30)
+    referencia: str = Field("", max_length=200)
 
 
 class CierreTurnoDatos(BaseModel):
-    # Cierre de turno: arqueo firmado del día. fecha vacía = hoy.
-    fecha: str = ""
-    efectivo_contado: float | None = None  # None = no se contó el efectivo
-    notas: str = ""
+    fecha: str = Field("", max_length=10)
+    efectivo_contado: float | None = None
+    notas: str = Field("", max_length=2000)
 
 
 class SunatConfigDatos(BaseModel):
-    ruc: str = ""
-    razon_social: str = ""
-    direccion: str = ""
-    serie_boleta: str = "B001"
-    modo: str = "sandbox"
+    ruc: str = Field("", max_length=11)
+    razon_social: str = Field("", max_length=200)
+    direccion: str = Field("", max_length=300)
+    serie_boleta: str = Field("B001", max_length=10)
+    modo: str = Field("sandbox", max_length=20)
     activo: bool = False
 
 
 class LoginIn(BaseModel):
-    usuario: str
-    password: str
+    usuario: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=200)
 
 
 class GoogleLoginIn(BaseModel):
-    # El frontend obtiene este 'credential' (JWT) del botón de Google.
-    credential: str
+    credential: str = Field(..., max_length=2000)
 
 
 class UsuarioNuevo(BaseModel):
-    usuario: str
-    nombre: str
-    password: str
-    rol: str = "recepcion"  # 'admin' | 'recepcion'
+    usuario: str = Field(..., max_length=100)
+    nombre: str = Field(..., max_length=200)
+    password: str = Field(..., max_length=200)
+    rol: str = Field("recepcion", max_length=20)
 
 
 class UsuarioEdit(BaseModel):
-    nombre: str
-    rol: str
+    nombre: str = Field(..., max_length=200)
+    rol: str = Field(..., max_length=20)
     activo: bool = True
-    password: str = ""  # vacio = no cambiar la contrasena
+    password: str = Field("", max_length=200)
 
 
 class HospedajeNuevo(BaseModel):
-    # Datos del hospedaje + su usuario administrador inicial.
-    nombre: str
-    plan: str = "trial"          # 'trial' | 'basico' | 'pro'
-    estado: str = "activo"       # 'prueba' | 'activo' | 'suspendido' | 'cancelado'
-    fecha_expira: str = ""       # YYYY-MM-DD (vacio = sin fecha)
-    admin_usuario: str           # usuario del admin de ese hospedaje
-    admin_nombre: str
-    admin_password: str
+    nombre: str = Field(..., max_length=200)
+    plan: str = Field("trial", max_length=20)
+    estado: str = Field("activo", max_length=20)
+    fecha_expira: str = Field("", max_length=10)
+    admin_usuario: str = Field(..., max_length=100)
+    admin_nombre: str = Field(..., max_length=200)
+    admin_password: str = Field(..., max_length=200)
 
 
 class HospedajeEdit(BaseModel):
-    nombre: str
-    plan: str
-    estado: str
-    fecha_expira: str = ""
+    nombre: str = Field(..., max_length=200)
+    plan: str = Field(..., max_length=20)
+    estado: str = Field(..., max_length=20)
+    fecha_expira: str = Field("", max_length=10)
 
 
 class SlugNuevo(BaseModel):
-    # El admin personaliza el slug de su link público de reservas.
-    slug: str
+    slug: str = Field(..., max_length=40)
 
 
 class MiHospedajeDatos(BaseModel):
-    # Identidad del negocio que el admin edita desde "Configuración".
-    # Alimenta la factura/comprobante y pre-llena la config SUNAT.
-    nombre: str = ""
-    ruc: str = ""
-    razon_social: str = ""
-    direccion: str = ""
-    telefono: str = ""
-    email_contacto: str = ""
+    nombre: str = Field("", max_length=200)
+    ruc: str = Field("", max_length=11)
+    razon_social: str = Field("", max_length=200)
+    direccion: str = Field("", max_length=300)
+    telefono: str = Field("", max_length=20)
+    email_contacto: str = Field("", max_length=254)
 
 
 class RegistroPublico(BaseModel):
-    # Lo que un cliente nuevo llena en la pagina publica de registro.
-    hospedaje_nombre: str
-    nombre: str          # nombre de la persona (su admin)
-    email: str           # correo de contacto del cliente
-    usuario: str         # usuario para iniciar sesion
-    password: str
+    hospedaje_nombre: str = Field(..., max_length=200)
+    nombre: str = Field(..., max_length=200)
+    email: str = Field(..., max_length=254)
+    usuario: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=200)
+
+
+class ServicioHabitacionNuevo(BaseModel):
+    nombre: str = Field(..., max_length=200)
+    categoria: str = Field("general", max_length=30)
+    subcategoria: str = Field("", max_length=100)
+    precio: float = 0.0
+
+
+class ServicioHabitacionEdit(BaseModel):
+    nombre: str = Field(..., max_length=200)
+    categoria: str = Field("general", max_length=30)
+    subcategoria: str = Field("", max_length=100)
+    precio: float = 0.0
+    activo: bool = True
+
+
+class ConsumoNuevo(BaseModel):
+    reserva_id: int
+    tipo: str = Field(..., max_length=20)  # 'servicio' | 'pedido'
+    descripcion: str = Field(..., max_length=300)
+    cantidad: int = 1
+    precio_unitario: float = 0.0
+    notas: str = Field("", max_length=500)
 
 
 # --------------------------------------------------------------------------- #
 #  Autenticacion y gestion de usuarios
 # --------------------------------------------------------------------------- #
+@limiter.limit("5/minute")
 @app.post("/api/auth/login")
-def login(datos: LoginIn):
+def login(datos: LoginIn, request: Request):
     u = auth.autenticar(datos.usuario.strip(), datos.password)
     if not u:
         raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos.")
@@ -327,8 +364,9 @@ def login(datos: LoginIn):
     return {"token": token, "usuario": auth.publico(u)}
 
 
+@limiter.limit("3/minute")
 @app.post("/api/auth/registro", status_code=201)
-def registro_publico(datos: RegistroPublico):
+def registro_publico(datos: RegistroPublico, request: Request):
     """Registro SELF-SERVICE: un cliente nuevo crea su hospedaje + su usuario
     admin con una prueba gratis de 14 dias. Endpoint PUBLICO (sin login).
     Al terminar, devuelve el token para entrar directo a la app."""
@@ -378,8 +416,9 @@ def registro_publico(datos: RegistroPublico):
     }
 
 
+@limiter.limit("5/minute")
 @app.post("/api/auth/google")
-def login_google(datos: GoogleLoginIn):
+def login_google(datos: GoogleLoginIn, request: Request):
     """Inicia sesion con Google. Verifica el token, y:
       - Si el correo ya tiene cuenta -> entra (respeta suspension).
       - Si no -> crea un hospedaje nuevo con trial de 14 dias (onboarding).
@@ -1905,9 +1944,11 @@ def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
                    h.nombre AS huesped, hab.numero AS habitacion, hab.tipo AS tipo,
                    hab.precio_base AS precio_base,
                    r.fecha_entrada AS reserva_entrada, r.fecha_salida AS reserva_salida,
+                   r.id AS reserva_id,
                    f.id AS factura_id,
                    COALESCE(f.total, 0) AS total,
-                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
+                   COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado,
+                   COALESCE((SELECT SUM(c.total) FROM consumos c WHERE c.reserva_id = r.id), 0) AS consumos_total
             FROM estancias e
             JOIN huespedes h    ON e.huesped_id = h.id
             JOIN habitaciones hab ON e.habitacion_id = hab.id
@@ -1922,7 +1963,9 @@ def estancias_activas(hid: int = Depends(auth.hospedaje_actual)):
         filas = []
         for row in cursor.fetchall():
             d = dict(row)
-            d["saldo"] = round((d["total"] or 0) - (d["pagado"] or 0), 2)
+            d["consumos_total"] = round(d["consumos_total"] or 0, 2)
+            d["total_con_consumos"] = round((d["total"] or 0) + d["consumos_total"], 2)
+            d["saldo"] = round(d["total_con_consumos"] - (d["pagado"] or 0), 2)
             filas.append(d)
         return filas
     finally:
@@ -2100,15 +2143,23 @@ def hacer_checkout(
             (factura.id,),
         )
         pagado = cursor.fetchone()["pagado"] or 0
+        # Sumar consumos de la reserva
+        cursor.execute(
+            "SELECT COALESCE(SUM(total), 0) AS consumos_total FROM consumos WHERE reserva_id = ?",
+            (estancia.reserva_id,),
+        )
+        consumos_total = cursor.fetchone()["consumos_total"] or 0
     finally:
         conn.close()
-    saldo = round((factura.total or 0) - pagado, 2)
+    total_con_consumos = round((factura.total or 0) + consumos_total, 2)
+    saldo = round(total_con_consumos - pagado, 2)
     if saldo > 0:
         raise HTTPException(
             status_code=409,
             detail=(
                 f"Con la salida real ({noches_reales} noche(s)) el total es "
-                f"S/ {factura.total:.2f}. Falta cobrar S/ {saldo:.2f} antes de cerrar."
+                f"S/ {total_con_consumos:.2f} (hospedaje S/ {factura.total:.2f} + consumos S/ {consumos_total:.2f}). "
+                f"Falta cobrar S/ {saldo:.2f} antes de cerrar."
             ),
         )
 
@@ -2137,7 +2188,9 @@ def hacer_checkout(
         "estado": "finalizada",
         "noches": noches_reales,
         "total": factura.total,
-        "credito": round(max(0, pagado - (factura.total or 0)), 2),  # a favor del huésped
+        "consumos_total": round(consumos_total, 2),
+        "total_con_consumos": total_con_consumos,
+        "credito": round(max(0, pagado - total_con_consumos), 2),
         "pdf": ruta_pdf,
     }
 
@@ -2199,9 +2252,15 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
     factura.total = nuevo_total
     factura.guardar()
 
+    # Sumar consumos de la reserva al total
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COALESCE(SUM(total), 0) AS consumos_total FROM consumos WHERE reserva_id = ?",
+            (estancia.reserva_id,),
+        )
+        consumos_total = cursor.fetchone()["consumos_total"] or 0
         cursor.execute(
             "SELECT COALESCE(SUM(monto), 0) AS pagado FROM pagos WHERE factura_id = ?",
             (factura.id,),
@@ -2209,6 +2268,7 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
         pagado = cursor.fetchone()["pagado"] or 0
     finally:
         conn.close()
+    total_con_consumos = round(nuevo_total + consumos_total, 2)
     return {
         "estancia_id": estancia.id,
         "factura_id": factura.id,
@@ -2217,8 +2277,10 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
         "subtotal": subtotal,
         "descuento": descuento,
         "total": nuevo_total,
+        "consumos_total": round(consumos_total, 2),
+        "total_con_consumos": total_con_consumos,
         "pagado": round(pagado, 2),
-        "saldo": round(nuevo_total - pagado, 2),
+        "saldo": round(total_con_consumos - pagado, 2),
     }
 
 
@@ -3389,3 +3451,210 @@ def reporte_financiero(
         }
     finally:
         conn.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Detalle de reserva + Consumos + Servicios de habitacion
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/reservas/{reserva_id}/detalle")
+def reserva_detalle(reserva_id: int, hid: int = Depends(auth.hospedaje_actual)):
+    """Devuelve el detalle completo de una reserva con estancia, factura, pagos y consumos."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # Reserva
+        cursor.execute(
+            "SELECT * FROM reservas WHERE id = ? AND hospedaje_id = ?",
+            (reserva_id, hid),
+        )
+        row_res = cursor.fetchone()
+        if not row_res:
+            raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+        reserva = dict(row_res)
+
+        # Huesped
+        cursor.execute(
+            "SELECT id, nombre, email, telefono, documento, tipo_documento FROM huespedes WHERE id = ?",
+            (reserva["huesped_id"],),
+        )
+        huesped = dict(cursor.fetchone() or {})
+
+        # Habitacion
+        cursor.execute(
+            "SELECT id, numero, tipo, precio_base FROM habitaciones WHERE id = ?",
+            (reserva["habitacion_id"],),
+        )
+        habitacion = dict(cursor.fetchone() or {})
+
+        # Estancia (puede no existir si no hay check-in)
+        cursor.execute(
+            "SELECT * FROM estancias WHERE reserva_id = ? ORDER BY id DESC LIMIT 1",
+            (reserva_id,),
+        )
+        row_est = cursor.fetchone()
+        estancia = None
+        if row_est:
+            estancia = dict(row_est)
+            # Nombre del usuario que hizo check-in
+            if estancia.get("usuario_checkin_id"):
+                cursor.execute(
+                    "SELECT nombre FROM usuarios WHERE id = ?",
+                    (estancia["usuario_checkin_id"],),
+                )
+                u = cursor.fetchone()
+                estancia["usuario_checkin_nombre"] = u["nombre"] if u else ""
+
+        # Factura + pagos (puede no existir)
+        factura = None
+        pagos = []
+        if estancia:
+            cursor.execute(
+                "SELECT * FROM facturas WHERE estancia_id = ? ORDER BY id DESC LIMIT 1",
+                (estancia["id"],),
+            )
+            row_fac = cursor.fetchone()
+            if row_fac:
+                factura = dict(row_fac)
+                # Pagos de esta factura
+                cursor.execute(
+                    "SELECT * FROM pagos WHERE factura_id = ? ORDER BY fecha",
+                    (factura["id"],),
+                )
+                pagos = [dict(p) for p in cursor.fetchall()]
+                factura["pagos"] = pagos
+                factura["saldo"] = round(factura["total"] - sum(p["monto"] for p in pagos), 2)
+
+        # Consumos (servicios y pedidos de esta reserva)
+        cursor.execute(
+            "SELECT * FROM consumos WHERE reserva_id = ? ORDER BY creado_en",
+            (reserva_id,),
+        )
+        consumos = [dict(c) for c in cursor.fetchall()]
+
+        return {
+            "reserva": reserva,
+            "huesped": huesped,
+            "habitacion": habitacion,
+            "estancia": estancia,
+            "factura": factura,
+            "consumos": consumos,
+        }
+    finally:
+        conn.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Consumos (servicios / pedidos asignados a una reserva)
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/consumos")
+def listar_consumos(reserva_id: int = 0, hid: int = Depends(auth.hospedaje_actual)):
+    consumos = Consumo.obtener_por_reserva(reserva_id, hospedaje_id=hid) if reserva_id else []
+    return [_a_dict(c) for c in consumos]
+
+
+@app.post("/api/consumos", status_code=201)
+def crear_consumo(datos: ConsumoNuevo, hid: int = Depends(auth.hospedaje_actual)):
+    if not datos.descripcion.strip():
+        raise HTTPException(status_code=422, detail="La descripcion es obligatoria.")
+    if datos.tipo not in ("servicio", "pedido"):
+        raise HTTPException(status_code=422, detail="El tipo debe ser 'servicio' o 'pedido'.")
+    if datos.cantidad < 1:
+        raise HTTPException(status_code=422, detail="La cantidad debe ser al menos 1.")
+    reserva = Reserva.obtener_por_id(datos.reserva_id, hospedaje_id=hid)
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+    consumo = Consumo(
+        reserva_id=datos.reserva_id,
+        tipo=datos.tipo,
+        descripcion=datos.descripcion.strip(),
+        cantidad=datos.cantidad,
+        precio_unitario=datos.precio_unitario,
+        total=datos.cantidad * datos.precio_unitario,
+        notas=datos.notas,
+        hospedaje_id=hid,
+    )
+    consumo.guardar()
+    return _a_dict(consumo)
+
+
+@app.delete("/api/consumos/{consumo_id}")
+def eliminar_consumo(consumo_id: int, hid: int = Depends(auth.hospedaje_actual)):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT c.id FROM consumos c
+               JOIN reservas r ON c.reserva_id = r.id
+               WHERE c.id = ? AND r.hospedaje_id = ?""",
+            (consumo_id, hid),
+        )
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Consumo no encontrado.")
+        cursor.execute("DELETE FROM consumos WHERE id = ?", (consumo_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": consumo_id, "eliminado": True}
+
+
+# --------------------------------------------------------------------------- #
+#  Catalogo de servicios de habitacion
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/servicios-habitacion")
+def listar_servicios(hid: int = Depends(auth.hospedaje_actual)):
+    return [_a_dict(s) for s in ServicioHabitacion.obtener_todos(hospedaje_id=hid)]
+
+
+@app.post("/api/servicios-habitacion", status_code=201)
+def crear_servicio(
+    datos: ServicioHabitacionNuevo,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    if not datos.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    s = ServicioHabitacion(
+        nombre=datos.nombre.strip(),
+        categoria=datos.categoria,
+        subcategoria=datos.subcategoria,
+        precio=datos.precio,
+        hospedaje_id=hid,
+    )
+    s.guardar()
+    return _a_dict(s)
+
+
+@app.put("/api/servicios-habitacion/{servicio_id}")
+def editar_servicio(
+    servicio_id: int,
+    datos: ServicioHabitacionEdit,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    s = ServicioHabitacion.obtener_por_id(servicio_id, hospedaje_id=hid)
+    if not s:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    s.nombre = datos.nombre.strip()
+    s.categoria = datos.categoria
+    s.subcategoria = datos.subcategoria
+    s.precio = datos.precio
+    s.activo = datos.activo
+    s.guardar()
+    return _a_dict(s)
+
+
+@app.delete("/api/servicios-habitacion/{servicio_id}")
+def eliminar_servicio(
+    servicio_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    s = ServicioHabitacion.obtener_por_id(servicio_id, hospedaje_id=hid)
+    if not s:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    s.eliminar()
+    return {"id": servicio_id, "eliminado": True}

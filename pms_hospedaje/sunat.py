@@ -14,9 +14,20 @@ OPCIONAL: un hospedaje sin RUC sigue usando el PMS normal; activa SUNAT al
 formalizarse.
 """
 import os
+import re
+import unicodedata
 from datetime import datetime
 
 from database import get_connection
+
+
+def _sanitize_filename(texto: str) -> str:
+    """Convierte un texto en un nombre de archivo seguro (sin path traversal)."""
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    texto = texto.lower().strip()
+    texto = re.sub(r"[^a-z0-9._-]", "_", texto)
+    texto = re.sub(r"_+", "_", texto).strip("_")
+    return texto or "archivo"
 
 
 # --------------------------------------------------------------------------- #
@@ -293,7 +304,7 @@ def generar_boleta_pdf(comp, config, descripcion, hash_demo, ruta_destino=None):
     if ruta_destino is None:
         if not os.path.exists("comprobantes"):
             os.makedirs("comprobantes")
-        ruta_destino = f"comprobantes/{comp['numero']}.pdf"
+        ruta_destino = f"comprobantes/{_sanitize_filename(comp['numero'])}.pdf"
 
     c = canvas.Canvas(ruta_destino, pagesize=A4)
     width, height = A4

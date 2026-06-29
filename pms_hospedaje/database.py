@@ -122,6 +122,33 @@ def crear_tablas():
         )
     ''')
 
+    # NUEVA: Tabla servicios_habitacion (catalogo de servicios disponibles)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS servicios_habitacion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            categoria TEXT DEFAULT 'general',
+            precio REAL DEFAULT 0,
+            activo INTEGER DEFAULT 1
+        )
+    ''')
+
+    # NUEVA: Tabla consumos (servicios y pedidos asignados a una reserva)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS consumos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reserva_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            cantidad INTEGER DEFAULT 1,
+            precio_unitario REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            notas TEXT DEFAULT '',
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (reserva_id) REFERENCES reservas(id)
+        )
+    ''')
+
     # Insertar datos de ejemplo si las tablas están vacías
     cursor.execute("SELECT COUNT(*) FROM habitaciones")
     if cursor.fetchone()[0] == 0:

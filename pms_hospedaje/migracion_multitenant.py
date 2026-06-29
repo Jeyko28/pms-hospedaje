@@ -30,6 +30,8 @@ TABLAS_TENANT = [
     "estancias",
     "facturas",
     "pagos",
+    "servicios_habitacion",
+    "consumos",
 ]
 
 
@@ -238,6 +240,13 @@ def migrar(conn):
     if _tabla_existe(cursor, "reservas"):
         if "grupo_id" not in _columnas_de(cursor, "reservas"):
             cursor.execute("ALTER TABLE reservas ADD COLUMN grupo_id TEXT")
+            conn.commit()
+
+    # ----- 15. Columna 'subcategoria' en servicios_habitacion -----
+    # Permite organizar el catálogo: Bebidas > Agua, Gaseosa; Snacks > Doritos, etc.
+    if _tabla_existe(cursor, "servicios_habitacion"):
+        if "subcategoria" not in _columnas_de(cursor, "servicios_habitacion"):
+            cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN subcategoria TEXT DEFAULT ''")
             conn.commit()
 
     # ----- 12. Índices para rendimiento multi-tenant -----

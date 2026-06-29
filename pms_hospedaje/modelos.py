@@ -549,3 +549,143 @@ class Pago:
             ''', (self.monto, self.metodo, self.referencia, self.id))
         conn.commit()
         conn.close()
+
+
+class ServicioHabitacion:
+    def __init__(self, id=None, nombre="", categoria="general", subcategoria="",
+                 precio=0.0, activo=True, hospedaje_id=None):
+        self.id = id
+        self.nombre = nombre
+        self.categoria = categoria      # 'limpieza' | 'mantenimiento' | 'bebida' | 'snack' | 'general'
+        self.subcategoria = subcategoria  # 'agua', 'gaseosa', 'cerveza', etc.
+        self.precio = precio
+        self.activo = activo
+        self.hospedaje_id = hospedaje_id
+
+    @staticmethod
+    def obtener_todos(hospedaje_id=None):
+        conn = get_connection()
+        cursor = conn.cursor()
+        if hospedaje_id is not None:
+            cursor.execute(
+                "SELECT * FROM servicios_habitacion WHERE hospedaje_id = ? ORDER BY id",
+                (hospedaje_id,),
+            )
+        else:
+            cursor.execute("SELECT * FROM servicios_habitacion ORDER BY id")
+        rows = cursor.fetchall()
+        conn.close()
+        return [ServicioHabitacion(**dict(row)) for row in rows]
+
+    @staticmethod
+    def obtener_por_id(id, hospedaje_id=None):
+        conn = get_connection()
+        cursor = conn.cursor()
+        if hospedaje_id is not None:
+            cursor.execute(
+                "SELECT * FROM servicios_habitacion WHERE id = ? AND hospedaje_id = ?",
+                (id, hospedaje_id),
+            )
+        else:
+            cursor.execute("SELECT * FROM servicios_habitacion WHERE id = ?", (id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return ServicioHabitacion(**dict(row))
+        return None
+
+    def guardar(self):
+        conn = get_connection()
+        cursor = conn.cursor()
+        if self.id is None:
+            hid = self.hospedaje_id if self.hospedaje_id is not None else 1
+            cursor.execute('''
+                INSERT INTO servicios_habitacion (nombre, categoria, subcategoria, precio, activo, hospedaje_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, hid))
+            self.id = cursor.lastrowid
+            self.hospedaje_id = hid
+        else:
+            cursor.execute('''
+                UPDATE servicios_habitacion
+                SET nombre=?, categoria=?, subcategoria=?, precio=?, activo=?
+                WHERE id=?
+            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, self.id))
+        conn.commit()
+        conn.close()
+
+    def eliminar(self):
+        if self.id is None:
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM servicios_habitacion WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()
+        self.id = None
+
+
+class Consumo:
+    def __init__(self, id=None, reserva_id=None, tipo="servicio", descripcion="",
+                 cantidad=1, precio_unitario=0.0, total=0.0, notas="",
+                 creado_en=None, hospedaje_id=None):
+        self.id = id
+        self.reserva_id = reserva_id
+        self.tipo = tipo            # 'servicio' | 'pedido'
+        self.descripcion = descripcion
+        self.cantidad = cantidad
+        self.precio_unitario = precio_unitario
+        self.total = total if total else cantidad * precio_unitario
+        self.notas = notas
+        self.creado_en = creado_en
+        self.hospedaje_id = hospedaje_id
+
+    @staticmethod
+    def obtener_por_reserva(reserva_id, hospedaje_id=None):
+        conn = get_connection()
+        cursor = conn.cursor()
+        if hospedaje_id is not None:
+            cursor.execute(
+                "SELECT * FROM consumos WHERE reserva_id = ? AND hospedaje_id = ? ORDER BY id",
+                (reserva_id, hospedaje_id),
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM consumos WHERE reserva_id = ? ORDER BY id",
+                (reserva_id,),
+            )
+        rows = cursor.fetchall()
+        conn.close()
+        return [Consumo(**dict(row)) for row in rows]
+
+    def guardar(self):
+        conn = get_connection()
+        cursor = conn.cursor()
+        if self.id is None:
+            hid = self.hospedaje_id if self.hospedaje_id is not None else 1
+            cursor.execute('''
+                INSERT INTO consumos (reserva_id, tipo, descripcion, cantidad, precio_unitario, total, notas, hospedaje_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (self.reserva_id, self.tipo, self.descripcion, self.cantidad,
+                  self.precio_unitario, self.total, self.notas, hid))
+            self.id = cursor.lastrowid
+            self.hospedaje_id = hid
+        else:
+            cursor.execute('''
+                UPDATE consumos
+                SET tipo=?, descripcion=?, cantidad=?, precio_unitario=?, total=?, notas=?
+                WHERE id=?
+            ''', (self.tipo, self.descripcion, self.cantidad, self.precio_unitario,
+                  self.total, self.notas, self.id))
+        conn.commit()
+        conn.close()
+
+    def eliminar(self):
+        if self.id is None:
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM consumos WHERE id = ?", (self.id,))
+        conn.commit()
+        conn.close()
+        self.id = None
