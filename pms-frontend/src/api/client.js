@@ -167,6 +167,11 @@ export const api = {
   // Escrituras — Reservas / Recepcion
   crearReserva: (datos) => post("/api/reservas", datos),
   crearReservaGrupo: (datos) => post("/api/reservas/grupo", datos),
+
+  // Tarifas por temporada / fin de semana (solo admin)
+  tarifas: () => get("/api/tarifas"),
+  crearTarifa: (datos) => post("/api/tarifas", datos),
+  eliminarTarifa: (id) => del(`/api/tarifas/${id}`),
   editarReserva: (id, datos) => put(`/api/reservas/${id}`, datos),
   cancelarReserva: (id) => post(`/api/reservas/${id}/cancelar`),
   confirmarReserva: (id) => post(`/api/reservas/${id}/confirmar`),

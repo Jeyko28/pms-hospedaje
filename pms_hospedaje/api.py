@@ -56,6 +56,7 @@ from fastapi.responses import JSONResponse
 import database
 import auth
 import sunat
+import tarifas
 from database import get_connection
 from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago, ServicioHabitacion, Consumo
 from utils import generar_factura_pdf
@@ -347,6 +348,19 @@ class ConsumoNuevo(BaseModel):
     cantidad: int = 1
     precio_unitario: float = 0.0
     notas: str = Field("", max_length=500)
+
+
+class TarifaNueva(BaseModel):
+    # Regla de precio por temporada/fin de semana. Opcionales: rango de fechas,
+    # días de semana (CSV 0=Lun..6=Dom), habitación (None=todas). Precio absoluto
+    # o ajuste %.
+    nombre: str = Field("", max_length=100)
+    fecha_inicio: str = Field("", max_length=10)  # YYYY-MM-DD
+    fecha_fin: str = Field("", max_length=10)
+    dias_semana: str = Field("", max_length=20)   # ej. "5,6" (sáb, dom)
+    habitacion_id: int | None = None
+    precio: float | None = None
+    ajuste_pct: float | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -1005,8 +1019,11 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
         )
         libres = [dict(r) for r in cursor.fetchall()]
         noches = (fs - fe).days
+        _reglas = tarifas.obtener_reglas(hid)
         for r in libres:
-            r["total"] = round(r["precio_base"] * noches, 2)
+            r["total"] = tarifas.total_estadia(
+                hid, r["id"], r["precio_base"], fecha_entrada, fecha_salida, reglas=_reglas
+            )
         return {"noches": noches, "habitaciones": libres}
     finally:
         conn.close()
@@ -1085,7 +1102,10 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
         huesped_id = cursor.lastrowid
 
         noches = (fs - fe).days
-        total = round(hab["precio_base"] * noches, 2)
+        total = tarifas.total_estadia(
+            hid, datos.habitacion_id, hab["precio_base"],
+            datos.fecha_entrada, datos.fecha_salida,
+        )
 
         # Reserva en estado 'Pendiente' (la confirma/paga despues). origen
         # 'publico' = llegó por el link del motor de reservas.
@@ -1791,7 +1811,9 @@ def editar_reserva(
     reserva.fecha_salida = datos.fecha_salida
     reserva.notas = datos.notas
     if hab:
-        reserva.total = round(noches * hab.precio_base, 2)
+        reserva.total = tarifas.total_estadia(
+            hid, hab.id, hab.precio_base, datos.fecha_entrada, datos.fecha_salida
+        )
     reserva.guardar()
     return _a_dict(reserva)
 
@@ -2022,7 +2044,9 @@ def hacer_checkin(
     # Cobro por NOCHES REALES (entrada real -> salida esperada) x precio. Así
     # un check-in adelantado/atrasado se cobra correcto, no por lo reservado.
     noches_reales = (fs - fe).days
-    total_real = round(noches_reales * hab.precio_base, 2)
+    total_real = tarifas.total_estadia(
+        hid, hab.id, hab.precio_base, fecha_real, reserva.fecha_salida
+    )
 
     estancia = Estancia(
         reserva_id=reserva.id,
@@ -2124,7 +2148,9 @@ def hacer_checkout(
     # (cobra menos / queda saldo a favor) o estadía extendida (cobra más).
     noches_reales = (fco - fci).days
     if hab:
-        nuevo_subtotal = round(noches_reales * hab.precio_base, 2)
+        nuevo_subtotal = tarifas.total_estadia(
+            hid, hab.id, hab.precio_base, estancia.fecha_checkin, fecha_salida_real
+        )
         # Preservar el descuento ya aplicado en el cobro (no se pierde al cerrar).
         desc = round(min(factura.descuento or 0, nuevo_subtotal), 2)
         nuevo_total = round(nuevo_subtotal - desc, 2)
@@ -2235,7 +2261,9 @@ def recalcular_estancia(datos: CheckoutIn, hid: int = Depends(auth.hospedaje_act
         raise HTTPException(status_code=422, detail="La fecha de salida debe ser posterior a la de entrada.")
 
     noches = (fco - fci).days
-    subtotal = round(noches * hab.precio_base, 2)
+    subtotal = tarifas.total_estadia(
+        hid, hab.id, hab.precio_base, estancia.fecha_checkin, fecha_real
+    )
 
     # Descuento/cortesía: 0 ≤ descuento ≤ subtotal. total = subtotal - descuento.
     descuento = round(max(0.0, datos.descuento or 0), 2)
@@ -3658,3 +3686,89 @@ def eliminar_servicio(
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
     s.eliminar()
     return {"id": servicio_id, "eliminado": True}
+
+
+# --------------------------------------------------------------------------- #
+#  Tarifas (precios por temporada / fin de semana)
+# --------------------------------------------------------------------------- #
+@app.get("/api/tarifas")
+def listar_tarifas(
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Reglas de tarifa del hospedaje (solo admin las gestiona)."""
+    return tarifas.obtener_reglas(hid)
+
+
+@app.post("/api/tarifas", status_code=201)
+def crear_tarifa(
+    datos: TarifaNueva,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Crea una regla de tarifa. Debe tener al menos una condición (rango de
+    fechas o días de la semana) y un efecto (precio absoluto o ajuste %)."""
+    fi = (datos.fecha_inicio or "").strip()
+    ff = (datos.fecha_fin or "").strip()
+    dias = (datos.dias_semana or "").strip()
+    for f in (fi, ff):
+        if f:
+            try:
+                datetime.strptime(f, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Fechas con formato YYYY-MM-DD.")
+    if fi and ff and ff < fi:
+        raise HTTPException(status_code=422, detail="La fecha fin no puede ser anterior a la de inicio.")
+    if not fi and not dias:
+        raise HTTPException(
+            status_code=422,
+            detail="Indica un rango de fechas o unos días de la semana para la tarifa.",
+        )
+    if (datos.precio is None or datos.precio <= 0) and not datos.ajuste_pct:
+        raise HTTPException(
+            status_code=422,
+            detail="Indica un precio por noche o un ajuste porcentual.",
+        )
+    if datos.precio is not None and datos.precio < 0:
+        raise HTTPException(status_code=422, detail="El precio no puede ser negativo.")
+    # La habitación (si se indica) debe ser del hospedaje.
+    if datos.habitacion_id and not _buscar_habitacion(datos.habitacion_id, hid):
+        raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO tarifas
+                 (hospedaje_id, nombre, fecha_inicio, fecha_fin, dias_semana,
+                  habitacion_id, precio, ajuste_pct)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (hid, (datos.nombre or "").strip(), fi or None, ff or None,
+             dias or None, datos.habitacion_id, datos.precio, datos.ajuste_pct),
+        )
+        nueva_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": nueva_id, **datos.dict()}
+
+
+@app.delete("/api/tarifas/{tarifa_id}")
+def eliminar_tarifa(
+    tarifa_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM tarifas WHERE id = ? AND hospedaje_id = ?", (tarifa_id, hid)
+        )
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Tarifa no encontrada.")
+        cursor.execute("DELETE FROM tarifas WHERE id = ?", (tarifa_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": tarifa_id, "eliminada": True}

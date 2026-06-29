@@ -298,10 +298,13 @@ class Reserva:
             habs = Habitacion.obtener_todas(solo_activas=True, hospedaje_id=self.hospedaje_id)
             hab = next((h for h in habs if h.id == self.habitacion_id), None)
             if hab:
-                entrada = datetime.strptime(self.fecha_entrada, "%Y-%m-%d")
-                salida = datetime.strptime(self.fecha_salida, "%Y-%m-%d")
-                noches = (salida - entrada).days
-                self.total = noches * hab.precio_base
+                # Total por tarifas (temporada/fin de semana); si no hay reglas,
+                # equivale a noches * precio_base (retrocompatible).
+                import tarifas
+                self.total = tarifas.total_estadia(
+                    self.hospedaje_id, hab.id, hab.precio_base,
+                    self.fecha_entrada, self.fecha_salida,
+                )
         conn = get_connection()
         cursor = conn.cursor()
         if self.id is None:

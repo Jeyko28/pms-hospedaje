@@ -21,6 +21,7 @@ import {
   Settings,
   Sparkles,
   Coffee,
+  Tag,
   Bell,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
@@ -53,6 +54,7 @@ const NAV = [
   { id: "calendario", icon: CalendarRange, label: "Calendario", title: "Calendario", subtitle: "Vista de ocupación por habitación.", operativa: true },
   { id: "recepcion", icon: ConciergeBell, label: "Recepción", title: "Recepción", subtitle: "Gestiona las entradas y salidas de huéspedes.", operativa: true },
   { id: "habitaciones", icon: BedDouble, label: "Habitaciones", title: "Habitaciones", subtitle: "Administra las habitaciones de tu hospedaje.", operativa: true },
+  { id: "tarifas", icon: Tag, label: "Tarifas", title: "Tarifas", subtitle: "Precios por temporada y fin de semana.", soloAdmin: true, operativa: true },
   { id: "housekeeping", icon: Sparkles, label: "Limpieza", title: "Limpieza", subtitle: "Estado de limpieza de las habitaciones.", operativa: true },
   { id: "servicios", icon: Coffee, label: "Servicios", title: "Catálogo de servicios", subtitle: "Productos y servicios disponibles para huéspedes.", soloAdmin: true, operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", title: "Huéspedes", subtitle: "Tu directorio de huéspedes registrados.", operativa: true },

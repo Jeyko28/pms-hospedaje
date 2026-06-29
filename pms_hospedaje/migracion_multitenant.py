@@ -249,6 +249,27 @@ def migrar(conn):
             cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN subcategoria TEXT DEFAULT ''")
             conn.commit()
 
+    # ----- 16. Tabla 'tarifas' (precios por temporada / fin de semana) -----
+    # Reglas de precio que aplican a una noche según rango de fechas y/o días de
+    # la semana, por habitación o globales. Si no hay regla, se usa precio_base.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tarifas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            nombre TEXT DEFAULT '',
+            fecha_inicio TEXT,
+            fecha_fin TEXT,
+            dias_semana TEXT,
+            habitacion_id INTEGER,
+            precio REAL,
+            ajuste_pct REAL,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -288,6 +309,7 @@ _INDICES = [
     ("idx_comprobantes_hosp", "comprobantes", "hospedaje_id"),
     ("idx_cierres_hosp", "cierres_turno", "hospedaje_id"),
     ("idx_reservas_grupo", "reservas", "grupo_id"),
+    ("idx_tarifas_hosp", "tarifas", "hospedaje_id"),
 ]
 
 
