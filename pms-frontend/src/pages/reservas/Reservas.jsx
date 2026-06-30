@@ -9,6 +9,7 @@ import StateMessage from "../../components/StateMessage";
 import Field from "../../components/Field";
 import { useToast } from "../../components/Toast";
 import { useAuth } from "../../auth/AuthContext";
+import { useRuta } from "../../router/Router";
 import { abrirWhatsApp, mensajeConfirmacion } from "../../utils/whatsapp";
 import { descargarCSV } from "../../utils/exportar";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
@@ -39,6 +40,7 @@ export default function Reservas() {
   const habitaciones = useApi(api.habitaciones);
   const toast = useToast();
   const { usuario, esAdmin } = useAuth();
+  const { navegar } = useRuta();
 
   async function exportar() {
     try {
@@ -124,6 +126,14 @@ export default function Reservas() {
       } else {
         pasados.push(g);
       }
+    }
+    // En el MES EN CURSO se ordena descendente (hoy/30 arriba, 01 abajo); es lo
+    // más útil para recepción. Futuros y pasados se dejan ascendentes (la
+    // reserva más próxima primero dentro de su mes).
+    if (actual) {
+      actual.reservas.sort((a, b) =>
+        (b.fecha_entrada || "").localeCompare(a.fecha_entrada || "")
+      );
     }
     return [...(actual ? [actual] : []), ...futuros, ...pasados];
   }, [filtradas]);
@@ -371,6 +381,7 @@ export default function Reservas() {
             onCreada={alCrear}
             onCancelar={() => setModalAbierto(false)}
             onHuespedCreado={huespedes.recargar}
+            onIrCalendario={() => { setModalAbierto(false); navegar("calendario"); }}
           />
         )}
       </Modal>

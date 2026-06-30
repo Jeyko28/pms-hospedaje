@@ -556,7 +556,7 @@ class Pago:
 
 class ServicioHabitacion:
     def __init__(self, id=None, nombre="", categoria="general", subcategoria="",
-                 precio=0.0, activo=True, hospedaje_id=None):
+                 precio=0.0, activo=True, hospedaje_id=None, tipo="producto"):
         self.id = id
         self.nombre = nombre
         self.categoria = categoria      # 'limpieza' | 'mantenimiento' | 'bebida' | 'snack' | 'general'
@@ -564,6 +564,7 @@ class ServicioHabitacion:
         self.precio = precio
         self.activo = activo
         self.hospedaje_id = hospedaje_id
+        self.tipo = tipo or "producto"  # 'producto' | 'servicio'
 
     @staticmethod
     def obtener_todos(hospedaje_id=None):
@@ -603,17 +604,17 @@ class ServicioHabitacion:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO servicios_habitacion (nombre, categoria, subcategoria, precio, activo, hospedaje_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, hid))
+                INSERT INTO servicios_habitacion (nombre, categoria, subcategoria, precio, activo, hospedaje_id, tipo)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, hid, self.tipo or "producto"))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:
             cursor.execute('''
                 UPDATE servicios_habitacion
-                SET nombre=?, categoria=?, subcategoria=?, precio=?, activo=?
+                SET nombre=?, categoria=?, subcategoria=?, precio=?, activo=?, tipo=?
                 WHERE id=?
-            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, self.id))
+            ''', (self.nombre, self.categoria, self.subcategoria or "", self.precio, self.activo, self.tipo or "producto", self.id))
         conn.commit()
         conn.close()
 

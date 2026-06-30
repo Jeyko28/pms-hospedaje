@@ -52,15 +52,27 @@ export default function SelectorHuesped({
     if (h) setSel(h);
   }, [value, huespedes]);
 
-  // Cierra el desplegable al hacer clic fuera.
+  // Cierra el desplegable al hacer clic fuera. En fase de CAPTURA para que
+  // funcione también dentro de un Modal: el contenido del modal hace
+  // stopPropagation en mousedown (para no cerrarse al clicar dentro), lo que
+  // bloquearía un listener en burbuja; la captura corre antes de ese stop.
   useEffect(() => {
     if (!abierto) return;
     const onDown = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setAbierto(false);
     };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
   }, [abierto]);
+
+  // Esc cierra SOLO el desplegable (no el Modal que lo contiene): al frenar la
+  // propagación, el listener global de Escape del Modal no llega a dispararse.
+  function alTeclaSelector(e) {
+    if (e.key === "Escape" && abierto) {
+      e.stopPropagation();
+      setAbierto(false);
+    }
+  }
 
   const q = normalizar(texto.trim());
   const coincidencias = (q
@@ -230,7 +242,7 @@ export default function SelectorHuesped({
 
   // --- Busqueda (sin seleccion) ---
   return (
-    <div className="selh" ref={ref}>
+    <div className="selh" ref={ref} onKeyDown={alTeclaSelector}>
       <input
         id="huesped"
         type="text"

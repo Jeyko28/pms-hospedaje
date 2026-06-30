@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -129,6 +129,20 @@ export default function Calendario() {
     [anio, mes, numDias]
   );
   const hoyStr = ymd(hoy);
+
+  // Centra el scroll horizontal en la columna de HOY al abrir el mes actual
+  // (al montar, al cambiar de mes y al pulsar "Hoy"). En otros meses no aplica.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    if (anio !== hoy.getFullYear() || mes !== hoy.getMonth()) return;
+    const COL = 44; // ancho de cada día (debe coincidir con el CSS)
+    const FIJA = 120; // ancho de la columna fija de habitación
+    const target = FIJA + (hoy.getDate() - 1) * COL + COL / 2 - cont.clientWidth / 2;
+    cont.scrollLeft = Math.max(0, target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datos.data, anio, mes]);
 
   function mover(delta) {
     let m = mes + delta;
@@ -453,6 +467,7 @@ export default function Calendario() {
 
       {datos.data && datos.data.habitaciones.length > 0 && (
         <Card padding="none" className="cal__wrap">
+          <div className="cal__scroll" ref={scrollRef}>
           <div
             className={"cal__grid" + (arrastrando ? " cal__grid--arrastrando" : "")}
             style={{ "--dias": numDias }}
@@ -499,6 +514,7 @@ export default function Calendario() {
                   {dias.map((d, i) => {
                     const finde = d.getDay() === 0 || d.getDay() === 6;
                     const pasado = ymd(d) < hoyStr;
+                    const esHoy = ymd(d) === hoyStr;
                     return (
                       <button
                         type="button"
@@ -507,6 +523,7 @@ export default function Calendario() {
                           "cal__celda" +
                           (finde ? " cal__celda--finde" : "") +
                           (pasado ? " cal__celda--pasada" : "") +
+                          (esHoy ? " cal__celda--hoy" : "") +
                           (arrastrando && sobreHab === hab.id ? " cal__celda--drop" : "")
                         }
                         style={{ gridRow: fila, gridColumn: i + 2 }}
@@ -571,6 +588,7 @@ export default function Calendario() {
                 </div>
               );
             })}
+          </div>
           </div>
         </Card>
       )}

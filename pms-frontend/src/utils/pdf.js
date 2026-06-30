@@ -34,9 +34,9 @@ function abrirPdfDesde(promesaBlobUrl, nombreArchivo) {
     });
 }
 
-/** Abre el PDF de una factura interna. */
-export function abrirFacturaPdf(facturaId) {
-  abrirPdfDesde(api.facturaPdfBlobUrl(facturaId), `factura_${facturaId}.pdf`);
+/** Abre el comprobante interno (PDF). tipo: 'boleta' (def.) | 'factura'. */
+export function abrirFacturaPdf(facturaId, tipo = "boleta") {
+  abrirPdfDesde(api.facturaPdfBlobUrl(facturaId, tipo), `${tipo}_${facturaId}.pdf`);
 }
 
 /** Abre la representación impresa (PDF) de un comprobante electrónico. */

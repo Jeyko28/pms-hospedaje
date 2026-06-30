@@ -1,0 +1,21 @@
+/* Cobro en layout horizontal (2 columnas) dentro del modal ancho. */
+.cobro-form__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem 1.5rem;
+  align-items: start;
+}
+
+.cobro-form__col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* En pantallas angostas, una sola columna (apilado). */
+@media (max-width: 680px) {
+  .cobro-form__cols {
+    grid-template-columns: 1fr;
+  }
+}

@@ -7,23 +7,20 @@ import { ymdLocal } from "../../utils/fechas";
 import "./NuevaReservaForm.css";
 
 /**
- * NuevaReservaForm — formulario para crear una reserva.
+ * NuevaReservaForm — formulario para crear una reserva (una habitación).
  *
- * Decisiones de UX:
- *  - Las fechas usan <input type="date"> (date-picker nativo): elimina el
- *    teclear "YYYY-MM-DD" a mano, que era el mayor problema de la app vieja
- *    (heuristica de Nielsen: prevencion de errores).
- *  - Validamos en cliente ANTES de enviar y mostramos el error junto al campo.
- *  - El boton se deshabilita mientras se guarda (evita doble envio).
+ * La habitación se determina por el contexto:
+ *  - Desde el CALENDARIO (iniciales.habitacion_id presente): queda FIJA y se
+ *    muestra solo en lectura ("Habitación seleccionada"). El flujo natural es
+ *    calendario → habitación → reserva.
+ *  - Desde la PÁGINA DE RESERVAS (sin preselección): se elige con un <select>
+ *    simple, y se ofrece un enlace para elegirla visualmente en el calendario.
  *
  * Props:
- *   huespedes:       lista para el selector
- *   habitaciones:    lista para el selector
- *   iniciales:       valores precargados (ej. al crear desde el calendario:
- *                    habitacion_id, fecha_entrada, fecha_salida)
- *   onCreada:        callback tras crear con exito (para refrescar la lista)
- *   onCancelar:      cierra el formulario
- *   onHuespedCreado: aviso para refrescar la lista maestra de huespedes
+ *   huespedes, habitaciones: listas para los selectores
+ *   iniciales: valores precargados (calendario): habitacion_id, fecha_entrada, fecha_salida
+ *   onCreada, onCancelar, onHuespedCreado
+ *   onIrCalendario: (opcional) si se pasa, muestra el enlace "elígela en el calendario"
  */
 export default function NuevaReservaForm({
   huespedes,
@@ -32,14 +29,15 @@ export default function NuevaReservaForm({
   onCreada,
   onCancelar,
   onHuespedCreado,
+  onIrCalendario,
 }) {
   const hoy = ymdLocal();
+  // La habitación viene FIJA cuando se crea desde una celda del calendario.
+  const habitacionFija = iniciales.habitacion_id != null;
 
   const [form, setForm] = useState({
     huesped_id: "",
-    // Multi-habitación: lista de ids (números). Permite reservar varias a la vez
-    // (familias/grupos). Una sola = reserva individual (retrocompatible).
-    habitacion_ids: iniciales.habitacion_id ? [Number(iniciales.habitacion_id)] : [],
+    habitacion_id: iniciales.habitacion_id ? Number(iniciales.habitacion_id) : "",
     fecha_entrada: iniciales.fecha_entrada || hoy,
     fecha_salida: iniciales.fecha_salida || "",
     notas: "",
@@ -51,39 +49,30 @@ export default function NuevaReservaForm({
   const set = (campo) => (e) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
 
-  function toggleHabitacion(id) {
-    const num = Number(id);
-    setForm((f) => {
-      const ya = f.habitacion_ids.includes(num);
-      return {
-        ...f,
-        habitacion_ids: ya
-          ? f.habitacion_ids.filter((x) => x !== num)
-          : [...f.habitacion_ids, num],
-      };
-    });
-  }
+  const habSel = useMemo(
+    () => habitaciones.find((h) => Number(h.id) === Number(form.habitacion_id)) || null,
+    [habitaciones, form.habitacion_id]
+  );
 
-  // Calcula noches y total estimado en vivo (suma de todas las habitaciones
-  // seleccionadas) para feedback inmediato.
+  const formatoMoneda = new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+  });
+
+  // Noches y total estimado en vivo (feedback inmediato).
   const estimado = useMemo(() => {
-    if (!form.habitacion_ids.length || !form.fecha_entrada || !form.fecha_salida)
-      return null;
+    if (!habSel || !form.fecha_entrada || !form.fecha_salida) return null;
     const e = new Date(form.fecha_entrada);
     const s = new Date(form.fecha_salida);
     const noches = Math.round((s - e) / (1000 * 60 * 60 * 24));
     if (noches <= 0) return null;
-    const precio = form.habitacion_ids.reduce((acc, id) => {
-      const hab = habitaciones.find((h) => Number(h.id) === id);
-      return acc + (hab ? hab.precio_base : 0);
-    }, 0);
-    return { noches, total: noches * precio, n: form.habitacion_ids.length };
-  }, [form.habitacion_ids, form.fecha_entrada, form.fecha_salida, habitaciones]);
+    return { noches, total: noches * habSel.precio_base };
+  }, [habSel, form.fecha_entrada, form.fecha_salida]);
 
   function validar() {
     const e = {};
     if (!form.huesped_id) e.huesped_id = "Selecciona un huesped.";
-    if (!form.habitacion_ids.length) e.habitacion_id = "Selecciona al menos una habitacion.";
+    if (!form.habitacion_id) e.habitacion_id = "Selecciona una habitacion.";
     if (!form.fecha_entrada) e.fecha_entrada = "Indica la fecha de entrada.";
     if (!form.fecha_salida) e.fecha_salida = "Indica la fecha de salida.";
     if (
@@ -103,25 +92,13 @@ export default function NuevaReservaForm({
     if (!validar()) return;
     setGuardando(true);
     try {
-      if (form.habitacion_ids.length === 1) {
-        // Camino individual (endpoint clásico, retrocompatible).
-        await api.crearReserva({
-          huesped_id: Number(form.huesped_id),
-          habitacion_id: form.habitacion_ids[0],
-          fecha_entrada: form.fecha_entrada,
-          fecha_salida: form.fecha_salida,
-          notas: form.notas,
-        });
-      } else {
-        // Reserva de grupo: varias habitaciones en una operación.
-        await api.crearReservaGrupo({
-          huesped_id: Number(form.huesped_id),
-          habitacion_ids: form.habitacion_ids,
-          fecha_entrada: form.fecha_entrada,
-          fecha_salida: form.fecha_salida,
-          notas: form.notas,
-        });
-      }
+      await api.crearReserva({
+        huesped_id: Number(form.huesped_id),
+        habitacion_id: Number(form.habitacion_id),
+        fecha_entrada: form.fecha_entrada,
+        fecha_salida: form.fecha_salida,
+        notas: form.notas,
+      });
       onCreada();
     } catch (err) {
       // Errores de negocio del backend (ej. habitacion no disponible).
@@ -131,19 +108,9 @@ export default function NuevaReservaForm({
     }
   }
 
-  const formatoMoneda = new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-  });
-
   return (
     <form className="reserva-form" onSubmit={enviar} noValidate>
-      <Field
-        id="huesped"
-        label="Huesped"
-        required
-        error={errores.huesped_id}
-      >
+      <Field id="huesped" label="Huesped" required error={errores.huesped_id}>
         <SelectorHuesped
           huespedes={huespedes}
           value={form.huesped_id}
@@ -152,49 +119,50 @@ export default function NuevaReservaForm({
         />
       </Field>
 
-      <Field
-        id="habitacion"
-        label={
-          form.habitacion_ids.length > 1
-            ? `Habitaciones (${form.habitacion_ids.length} seleccionadas)`
-            : "Habitacion(es)"
-        }
-        required
-        error={errores.habitacion_id}
-        hint="Marca una o varias (reserva de grupo)"
-      >
-        <div className="reserva-form__habs" role="group" aria-label="Habitaciones">
-          {habitaciones.map((h) => {
-            const sel = form.habitacion_ids.includes(Number(h.id));
-            return (
-              <label
-                key={h.id}
-                className={`reserva-form__hab${sel ? " reserva-form__hab--sel" : ""}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={sel}
-                  onChange={() => toggleHabitacion(h.id)}
-                />
-                <span className="reserva-form__hab-txt">
-                  Hab. {h.numero} — {h.tipo}
-                </span>
-                <span className="reserva-form__hab-precio">
-                  {formatoMoneda.format(h.precio_base)}/noche
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </Field>
+      {/* Habitación: fija (calendario) en solo lectura, o select (página Reservas). */}
+      {habitacionFija ? (
+        <Field id="habitacion" label="Habitación seleccionada">
+          <div className="reserva-form__hab-sel" id="habitacion">
+            <span className="reserva-form__hab-sel-nom">
+              Hab. {habSel ? habSel.numero : iniciales.habitacion_id}
+              {habSel ? ` · ${habSel.tipo}` : ""}
+            </span>
+            {habSel && (
+              <span className="reserva-form__hab-sel-precio">
+                {formatoMoneda.format(habSel.precio_base)}/noche
+              </span>
+            )}
+          </div>
+        </Field>
+      ) : (
+        <Field id="habitacion" label="Habitación" required error={errores.habitacion_id}>
+          <select
+            id="habitacion"
+            value={form.habitacion_id}
+            onChange={set("habitacion_id")}
+            aria-invalid={!!errores.habitacion_id}
+          >
+            <option value="">Elige una habitación…</option>
+            {habitaciones.map((h) => (
+              <option key={h.id} value={h.id}>
+                Hab. {h.numero} · {h.tipo} — {formatoMoneda.format(h.precio_base)}/noche
+              </option>
+            ))}
+          </select>
+          {onIrCalendario && (
+            <button
+              type="button"
+              className="reserva-form__cal-link"
+              onClick={onIrCalendario}
+            >
+              o elígela en el calendario →
+            </button>
+          )}
+        </Field>
+      )}
 
       <div className="reserva-form__fechas">
-        <Field
-          id="entrada"
-          label="Fecha de entrada"
-          required
-          error={errores.fecha_entrada}
-        >
+        <Field id="entrada" label="Fecha de entrada" required error={errores.fecha_entrada}>
           <input
             id="entrada"
             type="date"
@@ -205,12 +173,7 @@ export default function NuevaReservaForm({
           />
         </Field>
 
-        <Field
-          id="salida"
-          label="Fecha de salida"
-          required
-          error={errores.fecha_salida}
-        >
+        <Field id="salida" label="Fecha de salida" required error={errores.fecha_salida}>
           <input
             id="salida"
             type="date"
@@ -235,7 +198,6 @@ export default function NuevaReservaForm({
       {/* Estimacion en vivo: el usuario ve el costo antes de confirmar. */}
       {estimado && (
         <p className="reserva-form__estimado">
-          {estimado.n > 1 ? `${estimado.n} habitaciones · ` : ""}
           {estimado.noches} {estimado.noches === 1 ? "noche" : "noches"} ·
           Total estimado <strong>{formatoMoneda.format(estimado.total)}</strong>
         </p>
@@ -252,11 +214,7 @@ export default function NuevaReservaForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={guardando}>
-          {guardando
-            ? "Guardando…"
-            : form.habitacion_ids.length > 1
-            ? `Crear ${form.habitacion_ids.length} reservas`
-            : "Crear reserva"}
+          {guardando ? "Guardando…" : "Crear reserva"}
         </Button>
       </div>
     </form>

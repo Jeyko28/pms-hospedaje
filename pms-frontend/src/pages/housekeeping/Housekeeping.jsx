@@ -27,7 +27,6 @@ export default function Housekeeping() {
 
   const [filtro, setFiltro] = useState("limpiar"); // limpiar | limpias | todas
   const [accionId, setAccionId] = useState(null); // habitación en proceso
-  const [completandoId, setCompletandoId] = useState(null);
   const [asignar, setAsignar] = useState(null); // null | habitacion
   const [form, setForm] = useState({ asignado_a: "", notas: "" });
   const [guardandoAsig, setGuardandoAsig] = useState(false);
@@ -51,6 +50,7 @@ export default function Housekeeping() {
     try {
       await api.cambiarLimpieza(h.id, estado);
       habitaciones.recargar();
+      tareas.recargar(); // al quedar Limpia, su tarea pendiente se cierra (backend)
       toast.success(`Hab. ${h.numero}: ${estado}.`);
     } catch (e) {
       toast.error(e.message || "No se pudo cambiar el estado.");
@@ -84,21 +84,11 @@ export default function Housekeeping() {
     }
   }
 
-  async function completar(t) {
-    setCompletandoId(t.id);
-    try {
-      await api.completarTareaLimpieza(t.id);
-      tareas.recargar();
-      habitaciones.recargar();
-      toast.success(`Hab. ${t.habitacion_numero}: limpieza completada.`);
-    } catch (e) {
-      toast.error(e.message || "No se pudo completar la tarea.");
-    } finally {
-      setCompletandoId(null);
-    }
-  }
-
-  const pendientes = tareas.data || [];
+  // Mapa habitacion_id -> tarea pendiente (asignación opcional mostrada en la tarjeta).
+  const tareaPorHab = {};
+  (tareas.data || []).forEach((t) => {
+    tareaPorHab[t.habitacion_id] = t;
+  });
 
   return (
     <div className="entidad hk">
@@ -184,6 +174,11 @@ export default function Housekeeping() {
                       Salida vencida
                     </Badge>
                   )}
+                  {tareaPorHab[h.id] && (
+                    <Badge tone="info" icon="👤">
+                      {tareaPorHab[h.id].asignado_a || "Asignada"}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Cambio rápido de estado (segmentado) */}
@@ -216,49 +211,6 @@ export default function Housekeeping() {
           })}
         </div>
       )}
-
-      {/* Pendientes de limpieza (asignaciones) */}
-      <section className="hk__section" aria-labelledby="hk-pend-title">
-        <h2 id="hk-pend-title" className="hk__section-title">
-          Pendientes de limpieza
-        </h2>
-        {tareas.loading && (
-          <Card>
-            <StateMessage variant="loading" title="Cargando…" />
-          </Card>
-        )}
-        {tareas.data && pendientes.length === 0 && (
-          <Card>
-            <StateMessage
-              variant="empty"
-              title="Sin tareas pendientes"
-              message="Cuando asignes una limpieza, aparecerá aquí hasta completarse."
-            />
-          </Card>
-        )}
-        {pendientes.length > 0 && (
-          <div className="hk__pendientes">
-            {pendientes.map((t) => (
-              <Card key={t.id} padding="sm" className="hk__tarea">
-                <div className="hk__tarea-info">
-                  <span className="hk__tarea-hab">Hab. {t.habitacion_numero || t.habitacion_id}</span>
-                  <span className="hk__tarea-meta">
-                    {[t.asignado_a, t.fecha].filter(Boolean).join(" · ")}
-                  </span>
-                  {t.notas && <span className="hk__tarea-notas">{t.notas}</span>}
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => completar(t)}
-                  disabled={completandoId === t.id}
-                >
-                  {completandoId === t.id ? "Completando…" : "Completar"}
-                </Button>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
 
       {/* Modal: asignar limpieza */}
       <Modal

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
 import Card from "../../components/Card";
@@ -42,11 +42,12 @@ const fechaHora = (iso) => {
  * quién lo registró (auditoría) y el CIERRE DE TURNO (arqueo firmado: efectivo
  * contado vs. esperado, con quién y cuándo; no bloquea pagos posteriores).
  */
-export default function CajaDia() {
+export default function CajaDia({ refreshKey = 0 }) {
   const [fecha, setFecha] = useState(ymdLocal());
-  const fetcher = useCallback(() => api.cajaDia(fecha), [fecha]);
-  const caja = useApi(fetcher);
-  const cierres = useApi(api.cierresTurno);
+  // deps = [fecha, refreshKey]: recarga al cambiar la fecha y cuando Recepción
+  // sube refreshKey tras un cobro (así la caja del día se actualiza al instante).
+  const caja = useApi(() => api.cajaDia(fecha), [fecha, refreshKey]);
+  const cierres = useApi(() => api.cierresTurno(), [refreshKey]);
   const toast = useToast();
   const d = caja.data;
 

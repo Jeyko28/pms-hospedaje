@@ -23,6 +23,11 @@
   animation: modal-in 160ms ease-out;
 }
 
+/* Variante ancha para formularios con layout en 2 columnas (p.ej. cobro). */
+.modal--wide {
+  max-width: 820px;
+}
+
 @keyframes modal-overlay-in {
   from {
     opacity: 0;

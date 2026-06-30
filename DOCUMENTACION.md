@@ -165,8 +165,12 @@ endpoints públicos. Roles: `superadmin` (SaaS), `admin` (hospedaje), recepción
 | Sección (nav) | Rol | Qué hace |
 |---------------|-----|----------|
 | **Panel** | todos | KPIs (ocupación hoy, etc.), agenda del día, reservas por confirmar (cierre del ciclo del link por WhatsApp), aviso de onboarding si falta RUC. Revenue oculto a recepción. |
-| **Reservas** | operativa | Lista agrupada por mes (mes actual primero) + filtros (búsqueda sin tildes, estado, año). Crear reserva individual **o de grupo** (multi-habitación). Click en tarjeta → **modal Detalle** (huésped, estadía, consumos, pagos, resumen financiero). |
-| **Calendario** | operativa | Timeline habitación × día; crear desde celda; arrastrar para mover; **bloquear** habitación por rango. |
+| **Reservas** | operativa | Lista agrupada por mes (mes actual primero; **dentro del mes en curso, orden descendente: la fecha más reciente —p. ej. 30, 29— arriba y 01, 02… abajo**; meses futuros con la reserva más próxima primero) + filtros (búsqueda sin tildes, estado, año). Crear reserva: el flujo natural es **Calendario → habitación → Nueva reserva** (la habitación queda fija/solo lectura según la celda). Desde el botón "Nueva reserva" de la lista se elige con un **desplegable de una sola habitación** + enlace "elígela en el calendario". Click en tarjeta → **modal Detalle** (huésped, estadía, consumos, pagos, resumen financiero). |
+| **Calendario** | operativa | Timeline habitación × día; **abre en el mes actual con scroll automático al día de hoy y la columna de hoy resaltada**; clic en celda libre = nueva reserva (habitación = la de esa fila); arrastrar para mover; **bloquear** habitación por rango. La consulta de visualización usa **borde de entrada inclusivo** (`fecha_entrada <= último día visible`), de modo que una reserva o bloqueo que **inicia el último día del rango** (p. ej. 30 jun → 01 jul) sí se dibuja como barra ese día; el borde de salida sigue exclusivo (la noche de salida no cuenta). No altera `verificar_disponibilidad` ni la lógica de conflictos. |
+
+> **Nota — Reserva multi-habitación/grupo:** el endpoint `POST /reservas/grupo` y la columna `reservas.grupo_id`
+> permanecen en el backend, pero la UI de creación es de **una sola habitación** (los checkboxes se quitaron en
+> favor del flujo desde el calendario). Si se reactiva la creación de grupos será mediante un flujo propio.
 | **Recepción** | operativa | Check-in / check-out por noches reales, cobros, **Caja del día** + **Cierre de turno** (arqueo firmado). |
 | **Habitaciones** | operativa | CRUD de cuartos. |
 | **Tarifas** | admin | Precios por temporada (rango de fechas) y/o fin de semana (días), por habitación o globales; precio fijo o ajuste %. Si no hay regla, se usa `precio_base`. |

@@ -99,7 +99,7 @@ def formatear_moneda(valor):
     """Convierte un número a formato de moneda (ej: $45.00)."""
     return f"${valor:.2f}"
 
-def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_destino=None, hospedaje=None):
+def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_destino=None, hospedaje=None, tipo_comprobante="boleta"):
     """
     Genera un PDF de factura.
     Retorna la ruta del archivo generado.
@@ -148,7 +148,8 @@ def generar_factura_pdf(factura, estancia, huesped, habitacion, reserva, ruta_de
 
     # Título FACTURA
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(2*cm, height - 4*cm, f"FACTURA Nº {factura.id}")
+    _titulo_doc = "FACTURA" if str(tipo_comprobante).lower() == "factura" else "BOLETA DE VENTA"
+    c.drawString(2*cm, height - 4*cm, f"{_titulo_doc} Nº {factura.id}")
     c.setFont("Helvetica", 10)
     c.drawString(2*cm, height - 4.5*cm, f"Fecha de emisión: {factura.fecha_emision}")
 

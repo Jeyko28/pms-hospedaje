@@ -148,7 +148,8 @@ export const api = {
   // Descarga un PDF protegido CON el token (fetch autenticado) y devuelve una
   // URL de blob lista para abrir/descargar. Resuelve el "Not authenticated"
   // que aparecía al abrir la URL del PDF directo (la navegación no manda token).
-  facturaPdfBlobUrl: (facturaId) => descargarBlob(`/api/facturas/${facturaId}/pdf`),
+  facturaPdfBlobUrl: (facturaId, tipo = "boleta") =>
+    descargarBlob(`/api/facturas/${facturaId}/pdf?tipo=${tipo}`),
   comprobantePdfBlobUrl: (comprobanteId) =>
     descargarBlob(`/api/comprobantes/${comprobanteId}/pdf`),
 

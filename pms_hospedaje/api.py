@@ -331,6 +331,7 @@ class ServicioHabitacionNuevo(BaseModel):
     categoria: str = Field("general", max_length=30)
     subcategoria: str = Field("", max_length=100)
     precio: float = 0.0
+    tipo: str = Field("producto", max_length=20)  # 'producto' | 'servicio'
 
 
 class ServicioHabitacionEdit(BaseModel):
@@ -339,6 +340,7 @@ class ServicioHabitacionEdit(BaseModel):
     subcategoria: str = Field("", max_length=100)
     precio: float = 0.0
     activo: bool = True
+    tipo: str = Field("producto", max_length=20)
 
 
 class ConsumoNuevo(BaseModel):
@@ -1309,6 +1311,20 @@ def cambiar_limpieza_habitacion(
     if not hab:
         raise HTTPException(status_code=404, detail="Habitacion no encontrada.")
     hab.cambiar_estado_limpieza(estado)
+    # Si queda Limpia, cerrar cualquier tarea pendiente de esa habitación (coherencia:
+    # una habitación limpia no debe seguir con asignaciones "pendientes").
+    if estado == "Limpia":
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE tareas_limpieza SET estado = 'Completada' "
+                "WHERE habitacion_id = ? AND hospedaje_id = ? AND estado = 'Pendiente'",
+                (habitacion_id, hid),
+            )
+            conn.commit()
+        finally:
+            conn.close()
     return _a_dict(hab)
 
 
@@ -1568,7 +1584,7 @@ def reservas_calendario(
             LEFT JOIN facturas f ON f.estancia_id = e.id
             WHERE r.hospedaje_id = ?
             AND r.estado != 'Cancelada'
-            AND r.fecha_entrada < ? AND r.fecha_salida > ?
+            AND r.fecha_entrada <= ? AND r.fecha_salida > ?
             ORDER BY r.fecha_entrada
             """,
             (hid, hasta, desde),
@@ -1589,7 +1605,7 @@ def reservas_calendario(
             """
             SELECT id, habitacion_id, fecha_inicio, fecha_fin, motivo
             FROM bloqueos
-            WHERE hospedaje_id = ? AND fecha_inicio < ? AND fecha_fin > ?
+            WHERE hospedaje_id = ? AND fecha_inicio <= ? AND fecha_fin > ?
             ORDER BY fecha_inicio
             """,
             (hid, hasta, desde),
@@ -2379,7 +2395,7 @@ def listar_pagos(factura_id: int, hid: int = Depends(auth.hospedaje_actual)):
 
 
 @app.get("/api/facturas/{factura_id}/pdf")
-def descargar_factura_pdf(factura_id: int, hid: int = Depends(auth.hospedaje_actual)):
+def descargar_factura_pdf(factura_id: int, tipo: str = "boleta", hid: int = Depends(auth.hospedaje_actual)):
     """Genera (o regenera) el PDF de una factura y lo devuelve como descarga.
     Reutiliza utils.generar_factura_pdf reconstruyendo los objetos necesarios."""
     # 1. Cargar la factura (solo si es de este hospedaje).
@@ -2422,9 +2438,11 @@ def descargar_factura_pdf(factura_id: int, hid: int = Depends(auth.hospedaje_act
 
     # 4. Generar el PDF (reutiliza la logica existente) y devolverlo.
     try:
+        tipo_doc = "factura" if str(tipo).lower() == "factura" else "boleta"
         ruta = generar_factura_pdf(
             factura, estancia, huesped, habitacion, reserva,
             hospedaje=_obtener_hospedaje(hid),
+            tipo_comprobante=tipo_doc,
         )
     except Exception:
         raise HTTPException(status_code=500, detail="No se pudo generar el PDF.")
@@ -3645,12 +3663,14 @@ def crear_servicio(
 ):
     if not datos.nombre.strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    tipo = datos.tipo if datos.tipo in ("producto", "servicio") else "producto"
     s = ServicioHabitacion(
         nombre=datos.nombre.strip(),
         categoria=datos.categoria,
         subcategoria=datos.subcategoria,
         precio=datos.precio,
         hospedaje_id=hid,
+        tipo=tipo,
     )
     s.guardar()
     return _a_dict(s)
@@ -3671,6 +3691,7 @@ def editar_servicio(
     s.subcategoria = datos.subcategoria
     s.precio = datos.precio
     s.activo = datos.activo
+    s.tipo = datos.tipo if datos.tipo in ("producto", "servicio") else "producto"
     s.guardar()
     return _a_dict(s)
 

@@ -47,8 +47,12 @@
   text-align: center;
 }
 
-/* Contenedor con scroll horizontal si el mes no cabe */
+/* Contenedor con scroll horizontal si el mes no cabe. El scroll vive en
+   .cal__scroll (con ref) para poder centrarlo en la columna de hoy al abrir. */
 .cal__wrap {
+  overflow: hidden;
+}
+.cal__scroll {
   overflow-x: auto;
 }
 
@@ -107,6 +111,19 @@
   height: 22px;
   line-height: 22px;
   margin: 0 auto;
+}
+/* Columna de HOY: banda vertical evidente (cabecera + celdas), claro/oscuro. */
+.cal__dia--hoy,
+.cal__celda--hoy {
+  background-color: var(--color-brand-50);
+  box-shadow: inset 1px 0 0 var(--color-brand-600), inset -1px 0 0 var(--color-brand-600);
+}
+.cal__dia--hoy .cal__dia-sem {
+  color: var(--color-brand-700);
+}
+/* En fin de semana, la marca de hoy manda sobre el tinte de finde. */
+.cal__celda--hoy.cal__celda--finde {
+  background-color: var(--color-brand-50);
 }
 
 /* Celda de nombre de habitación (columna fija) */

@@ -249,6 +249,18 @@ def migrar(conn):
             cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN subcategoria TEXT DEFAULT ''")
             conn.commit()
 
+    # ----- 17. Columna 'tipo' en servicios_habitacion (Producto | Servicio) -----
+    # Distingue productos consumibles (bebidas, snacks…) de servicios (limpieza,
+    # lavandería…). Backfill: por categoría se infiere 'servicio' a los obvios.
+    if _tabla_existe(cursor, "servicios_habitacion"):
+        if "tipo" not in _columnas_de(cursor, "servicios_habitacion"):
+            cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN tipo TEXT DEFAULT 'producto'")
+            cursor.execute(
+                "UPDATE servicios_habitacion SET tipo = 'servicio' "
+                "WHERE categoria IN ('servicio', 'limpieza', 'mantenimiento')"
+            )
+            conn.commit()
+
     # ----- 16. Tabla 'tarifas' (precios por temporada / fin de semana) -----
     # Reglas de precio que aplican a una noche según rango de fechas y/o días de
     # la semana, por habitación o globales. Si no hay regla, se usa precio_base.

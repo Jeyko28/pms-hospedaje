@@ -10,6 +10,7 @@ import { useToast } from "../../components/Toast";
 import CobroEstanciaForm from "./CobroEstanciaForm";
 import CheckinForm from "./CheckinForm";
 import CheckoutForm from "./CheckoutForm";
+import ConsumosForm from "./ConsumosForm";
 import CajaDia from "./CajaDia";
 import { abrirFacturaPdf } from "../../utils/pdf";
 import "./Recepcion.css";
@@ -38,6 +39,10 @@ export default function Recepcion() {
   const [pagoEstancia, setPagoEstancia] = useState(null); // estancia para modal de pago
   const [checkinReserva, setCheckinReserva] = useState(null); // reserva para modal de check-in
   const [checkoutEstancia, setCheckoutEstancia] = useState(null); // estancia para modal de check-out
+  const [consumosEstancia, setConsumosEstancia] = useState(null); // estancia para modal de consumos
+  // Señal para refrescar la Caja del día cuando se registra un cobro/cierre.
+  const [cajaRefresh, setCajaRefresh] = useState(0);
+  const refrescarCaja = () => setCajaRefresh((k) => k + 1);
 
   function refrescarTodo() {
     pendientes.recargar();
@@ -53,21 +58,20 @@ export default function Recepcion() {
   function alCheckout() {
     setCheckoutEstancia(null);
     refrescarTodo();
+    refrescarCaja(); // un cobro previo al cierre debe reflejarse en la caja
     toast.success("Check-out completado.");
   }
 
   function alPagar() {
     setPagoEstancia(null);
     estancias.recargar();
+    refrescarCaja();
     toast.success("Pago registrado.");
   }
 
   return (
     <div className="recepcion">
       <header className="recepcion__head" />
-
-      {/* Arqueo de caja del día (recepción cuadra el efectivo) */}
-      <CajaDia />
 
       <div className="recepcion__cols">
         {/* ============ Columna 1: Check-in (reservas pendientes) ============ */}
@@ -193,25 +197,47 @@ export default function Recepcion() {
                     <div className="recep-item__pago">
                       {pagado ? (
                         <Badge tone="success" icon="✓">
-                          Pagado · {formatoMoneda.format(e.total)}
+                          Pagado · {formatoMoneda.format(e.total_con_consumos ?? e.total)}
                         </Badge>
                       ) : (
                         <Badge tone="warning" icon="!">
                           Saldo {formatoMoneda.format(e.saldo)}
                         </Badge>
                       )}
+                      {e.consumos_total > 0 && (
+                        <Badge tone="info" icon="+">
+                          Consumos {formatoMoneda.format(e.consumos_total)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="recep-item__acciones">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon="+"
+                      onClick={() => setConsumosEstancia(e)}
+                    >
+                      Consumos
+                    </Button>
                     {e.factura_id && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon="📄"
-                        onClick={() => abrirFacturaPdf(e.factura_id)}
-                      >
-                        Factura
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon="📄"
+                          onClick={() => abrirFacturaPdf(e.factura_id, "boleta")}
+                        >
+                          Boleta
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => abrirFacturaPdf(e.factura_id, "factura")}
+                        >
+                          Factura
+                        </Button>
+                      </>
                     )}
                     <Button
                       size="sm"
@@ -235,6 +261,9 @@ export default function Recepcion() {
             })}
         </section>
       </div>
+
+      {/* Arqueo de caja del día (debajo de la operación diaria) */}
+      <CajaDia refreshKey={cajaRefresh} />
 
       {/* Modal de check-in (elige fecha real + previsualiza el cobro) */}
       <Modal
@@ -276,6 +305,7 @@ export default function Recepcion() {
         open={!!pagoEstancia}
         title={`Cobrar a ${pagoEstancia?.huesped ?? ""}`}
         onClose={() => setPagoEstancia(null)}
+        size="wide"
       >
         {pagoEstancia && (
           <CobroEstanciaForm
@@ -285,9 +315,21 @@ export default function Recepcion() {
             fechaSalidaEsperada={pagoEstancia.fecha_checkout_esperado}
             precioNoche={pagoEstancia.precio_base}
             pagado={pagoEstancia.pagado}
+            consumosTotal={pagoEstancia.consumos_total || 0}
             onCobrado={alPagar}
             onCerrar={() => setPagoEstancia(null)}
           />
+        )}
+      </Modal>
+
+      {/* Modal de consumos (productos/servicios que pide el huésped) */}
+      <Modal
+        open={!!consumosEstancia}
+        title={`Consumos de ${consumosEstancia?.huesped ?? ""} · Hab. ${consumosEstancia?.habitacion ?? ""}`}
+        onClose={() => setConsumosEstancia(null)}
+      >
+        {consumosEstancia && (
+          <ConsumosForm estancia={consumosEstancia} onCambio={estancias.recargar} />
         )}
       </Modal>
     </div>

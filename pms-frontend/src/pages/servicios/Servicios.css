@@ -93,3 +93,73 @@
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-default);
 }
+
+/* Dos botones en el header (Producto / Servicio) */
+.servicios__head-acciones {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* Sugerencias rápidas */
+.servicios__sugerencias {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.servicios__sug-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.servicios__sug-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.servicios__sug-chip {
+  border: 1px dashed var(--border, #d7dbe0);
+  background: var(--bg-surface, #fff);
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.servicios__sug-chip:hover {
+  border-color: var(--brand, #2f6fed);
+  border-style: solid;
+  background: var(--brand-soft, rgba(47, 111, 237, 0.08));
+}
+
+/* Filtro por tipo (Todos / Productos / Servicios) */
+.servicios__tipo-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.servicios__chip {
+  border: 1px solid var(--border, #d7dbe0);
+  background: var(--bg-surface, #fff);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.servicios__chip--activo {
+  background: var(--brand, #2f6fed);
+  border-color: var(--brand, #2f6fed);
+  color: #fff;
+}
