@@ -40,6 +40,7 @@ export default function CheckoutForm({
   fechaSalidaEsperada,
   precioNoche = 0,
   pagado = 0,
+  consumosTotal = 0,
   onCheckoutHecho,
   onAjuste,
   onCancelar,
@@ -63,9 +64,13 @@ export default function CheckoutForm({
   const calc = useMemo(() => {
     const n = noches(fechaCheckin, fecha);
     const total = n > 0 ? Math.round(n * precioNoche * 100) / 100 : 0;
-    const saldoResultante = Math.round((total - pagado) * 100) / 100;
-    return { noches: n, total, saldoResultante, valido: n > 0 };
-  }, [fecha, fechaCheckin, precioNoche, pagado]);
+    // El saldo se compara contra el total CON consumos (igual que el backend
+    // `total_con_consumos`): si no, lo pagado por consumos aparecería como
+    // devolución falsa.
+    const totalConConsumos = Math.round((total + consumosTotal) * 100) / 100;
+    const saldoResultante = Math.round((totalConConsumos - pagado) * 100) / 100;
+    return { noches: n, total, totalConConsumos, saldoResultante, valido: n > 0 };
+  }, [fecha, fechaCheckin, precioNoche, pagado, consumosTotal]);
 
   const difiere = fecha !== fechaSalidaEsperada;
 
@@ -113,10 +118,27 @@ export default function CheckoutForm({
           <span>Real</span>
           <span>{fmt(fechaCheckin)} → {fmt(fecha)} · {calc.noches} noche(s)</span>
         </div>
-        <div className="checkin-form__total">
-          <span>Total por estadía real</span>
-          <strong>{formatoMoneda.format(calc.total)}</strong>
-        </div>
+        {consumosTotal > 0 ? (
+          <>
+            <div className="checkin-form__linea">
+              <span>Estadía real</span>
+              <span>{formatoMoneda.format(calc.total)}</span>
+            </div>
+            <div className="checkin-form__linea">
+              <span>Consumos</span>
+              <span>{formatoMoneda.format(consumosTotal)}</span>
+            </div>
+            <div className="checkin-form__total">
+              <span>Total a cobrar</span>
+              <strong>{formatoMoneda.format(calc.totalConConsumos)}</strong>
+            </div>
+          </>
+        ) : (
+          <div className="checkin-form__total">
+            <span>Total por estadía real</span>
+            <strong>{formatoMoneda.format(calc.total)}</strong>
+          </div>
+        )}
         {calc.valido && calc.saldoResultante > 0 && (
           <p className="checkin-form__nota">
             Falta cobrar {formatoMoneda.format(calc.saldoResultante)}: regístralo en «Cobrar»

@@ -171,7 +171,7 @@ endpoints públicos. Roles: `superadmin` (SaaS), `admin` (hospedaje), recepción
 > **Nota — Reserva multi-habitación/grupo:** el endpoint `POST /reservas/grupo` y la columna `reservas.grupo_id`
 > permanecen en el backend, pero la UI de creación es de **una sola habitación** (los checkboxes se quitaron en
 > favor del flujo desde el calendario). Si se reactiva la creación de grupos será mediante un flujo propio.
-| **Recepción** | operativa | Check-in / check-out por noches reales, cobros, **Caja del día** + **Cierre de turno** (arqueo firmado). |
+| **Recepción** | operativa | Check-in / check-out por noches reales, cobros, **Caja del día** + **Cierre de turno** (arqueo firmado). El **cobro** y el **check-out** calculan total y saldo **incluyendo los consumos** (`total_con_consumos = hospedaje + consumos`), evitando devoluciones falsas cuando lo pagado ya cubría los consumos. **Consumos** (productos/servicios del huésped) se cargan en un modal de **layout horizontal**: a la izquierda la lista + total, a la derecha el alta (catálogo, tipo, precio, cantidad). |
 | **Habitaciones** | operativa | CRUD de cuartos. |
 | **Tarifas** | admin | Precios por temporada (rango de fechas) y/o fin de semana (días), por habitación o globales; precio fijo o ajuste %. Si no hay regla, se usa `precio_base`. |
 | **Limpieza** | operativa | Tablero de estado (Limpia/Sucia/Revisión) con cambio de 1 clic + asignación de tareas a personal. |

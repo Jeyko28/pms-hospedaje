@@ -293,6 +293,7 @@ export default function Recepcion() {
             fechaSalidaEsperada={checkoutEstancia.fecha_checkout_esperado}
             precioNoche={checkoutEstancia.precio_base}
             pagado={checkoutEstancia.pagado}
+            consumosTotal={checkoutEstancia.consumos_total || 0}
             onCheckoutHecho={alCheckout}
             onAjuste={estancias.recargar}
             onCancelar={() => setCheckoutEstancia(null)}
@@ -327,6 +328,7 @@ export default function Recepcion() {
         open={!!consumosEstancia}
         title={`Consumos de ${consumosEstancia?.huesped ?? ""} · Hab. ${consumosEstancia?.habitacion ?? ""}`}
         onClose={() => setConsumosEstancia(null)}
+        size="wide"
       >
         {consumosEstancia && (
           <ConsumosForm estancia={consumosEstancia} onCambio={estancias.recargar} />

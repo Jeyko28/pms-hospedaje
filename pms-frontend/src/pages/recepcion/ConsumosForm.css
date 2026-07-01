@@ -1,9 +1,24 @@
 /* ConsumosForm — registrar productos/servicios que pide un huésped alojado. */
 
 .consform {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Cada columna apila sus bloques verticalmente. */
+.consform__col {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
+}
+
+/* La columna del formulario se separa de la lista con una línea sutil. */
+.consform__col--form {
+  border-left: 1px solid var(--border, #e2e5ea);
+  padding-left: 1.5rem;
 }
 
 .consform__lista {
@@ -75,11 +90,7 @@
 }
 
 .consform__form {
-  display: flex;
-  flex-direction: column;
   gap: 0.85rem;
-  border-top: 1px solid var(--border, #e2e5ea);
-  padding-top: 1rem;
 }
 
 .consform__fila {
@@ -105,7 +116,19 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 560px) {
+/* En pantallas angostas, las dos columnas se apilan (lista arriba, alta abajo)
+   y el separador vertical se convierte en horizontal. */
+@media (max-width: 640px) {
+  .consform {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .consform__col--form {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border, #e2e5ea);
+    padding-top: 1rem;
+  }
   .consform__fila {
     grid-template-columns: 1fr;
   }

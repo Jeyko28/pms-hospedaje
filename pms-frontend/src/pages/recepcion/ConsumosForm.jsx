@@ -111,7 +111,8 @@ export default function ConsumosForm({ estancia, onCambio }) {
 
   return (
     <div className="consform">
-      {/* Lista de consumos ya cargados */}
+      {/* Columna izquierda: productos/consumos ya cargados + total */}
+      <div className="consform__col consform__col--lista">
       <div className="consform__lista">
         {consumos.loading && !consumos.data && (
           <StateMessage variant="loading" title="Cargando…" />
@@ -151,9 +152,10 @@ export default function ConsumosForm({ estancia, onCambio }) {
           <strong>{formatoMoneda.format(totalConsumos)}</strong>
         </div>
       )}
+      </div>
 
-      {/* Form para agregar uno nuevo */}
-      <form className="consform__form" onSubmit={agregar}>
+      {/* Columna derecha: alta de consumo (catálogo, tipo, precio, cantidad) */}
+      <form className="consform__col consform__col--form consform__form" onSubmit={agregar}>
         <Field id="cons-catalogo" label="Del catálogo (opcional)">
           <select id="cons-catalogo" value={form.catalogo} onChange={elegirCatalogo}>
             <option value="">— Elegir un producto/servicio —</option>
