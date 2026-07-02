@@ -1,15 +1,16 @@
 /**
- * Datos de contacto del negocio (Stanza) y helpers, compartidos por todas las
- * secciones del sitio de marketing.
+ * Datos internos del sitio (Stanza) y helpers compartidos.
+ *
+ * PRIVACIDAD: el número de WhatsApp y el correo NO se muestran en la web. El
+ * WhatsApp se usa solo como deep link (`wa.me`, abre el chat sin exponer el
+ * número) y el correo se reemplazó por un formulario de contacto (POST
+ * /api/contacto). Por eso aquí no se exportan cadenas "display".
  *
  * 🔧 CONFIGURABLE — número de WhatsApp (formato internacional, sin +).
- * Perú: 51 + 9 dígitos. Actual: +51 981 487 284.
  */
-export const WHATSAPP = "51981487284";
-export const WHATSAPP_DISPLAY = "+51 981 487 284";
-export const EMAIL = "jeykogalan2809@gmail.com";
+const WHATSAPP = "51981487284";
 
-/** Construye un enlace de WhatsApp con un mensaje pre-rellenado. */
+/** Deep link de WhatsApp con mensaje pre-rellenado (no revela el número). */
 export const waLink = (texto) =>
   `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`;
 

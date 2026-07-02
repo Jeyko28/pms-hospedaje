@@ -31,10 +31,12 @@ const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PE
 export default function Hospedajes() {
   const hospedajes = useApi(api.hospedajes);
   const pagos = useApi(api.pagosSuscripcion);
+  const mensajes = useApi(api.contactos);
   const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, hospedaje}
   const [pagoDe, setPagoDe] = useState(null); // null | hospedaje (modal registrar pago)
   const [histAbierto, setHistAbierto] = useState(false);
+  const [msjAbierto, setMsjAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cambiandoId, setCambiandoId] = useState(null);
 
@@ -99,6 +101,9 @@ export default function Hospedajes() {
         </Button>
         <Button variant="secondary" onClick={() => setHistAbierto(true)}>
           Historial de pagos
+        </Button>
+        <Button variant="secondary" onClick={() => setMsjAbierto(true)}>
+          Mensajes{mensajes.data?.length ? ` (${mensajes.data.length})` : ""}
         </Button>
       </header>
 
@@ -297,6 +302,38 @@ export default function Hospedajes() {
               </ul>
             )}
           </div>
+        )}
+      </Modal>
+
+      {/* Mensajes de contacto (leads de la landing) */}
+      <Modal
+        open={msjAbierto}
+        title="Mensajes de contacto"
+        onClose={() => setMsjAbierto(false)}
+      >
+        {mensajes.loading && <StateMessage variant="loading" title="Cargando mensajes…" />}
+        {mensajes.error && (
+          <StateMessage variant="error" title="No se pudieron cargar" message={mensajes.error} />
+        )}
+        {mensajes.data && (
+          mensajes.data.length === 0 ? (
+            <StateMessage variant="empty" title="Aún no hay mensajes" message="Los mensajes del formulario de la web aparecerán aquí." />
+          ) : (
+            <ul className="pagos-hist__lista">
+              {mensajes.data.map((m) => (
+                <li key={m.id} className="pagos-hist__item">
+                  <div>
+                    <strong>{m.nombre || "Sin nombre"}</strong>
+                    {m.contacto && <span className="pagos-hist__meta">{m.contacto}</span>}
+                    <span className="pagos-hist__nota">{m.mensaje}</span>
+                  </div>
+                  <div className="pagos-hist__derecha">
+                    <span className="pagos-hist__meta">{formatoFecha(m.creado_en)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </Modal>
     </div>

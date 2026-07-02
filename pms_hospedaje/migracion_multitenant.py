@@ -311,6 +311,24 @@ def migrar(conn):
             cursor.execute("ALTER TABLE hospedajes ADD COLUMN precio_pactado REAL")
     conn.commit()
 
+    # ----- 19. Tabla 'contactos' (leads del formulario de la landing) -----
+    # El formulario de contacto de la web pública guarda aquí el mensaje, en vez
+    # de exponer un correo. El super-admin los revisa como lista de prospectos.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS contactos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT DEFAULT '',
+            contacto TEXT DEFAULT '',
+            mensaje TEXT DEFAULT '',
+            origen TEXT DEFAULT 'landing',
+            atendido INTEGER DEFAULT 0,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

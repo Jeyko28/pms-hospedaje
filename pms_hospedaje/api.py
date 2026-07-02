@@ -307,6 +307,12 @@ class HospedajeEdit(BaseModel):
     fecha_expira: str = Field("", max_length=10)
 
 
+class ContactoNuevo(BaseModel):
+    nombre: str = Field("", max_length=120)
+    contacto: str = Field("", max_length=160)     # correo o teléfono que deja el visitante
+    mensaje: str = Field(..., min_length=1, max_length=2000)
+
+
 class PagoSuscripcionNuevo(BaseModel):
     monto: float = Field(..., gt=0)
     metodo: str = Field("yape", max_length=20)       # yape|transferencia|efectivo|otro
@@ -1072,6 +1078,46 @@ def config_publica():
         "google_login": bool(auth.GOOGLE_CLIENT_ID),
         "google_client_id": auth.GOOGLE_CLIENT_ID,
     }
+
+
+# --------------------------------------------------------------------------- #
+#  Contacto de la landing (leads) — POST publico, GET solo super admin.
+#  Evita exponer el correo/numero: el mensaje se guarda y el dueno lo revisa.
+# --------------------------------------------------------------------------- #
+@limiter.limit("4/minute")
+@app.post("/api/contacto", status_code=201)
+def crear_contacto(datos: ContactoNuevo, request: Request):
+    """Guarda un mensaje del formulario de contacto de la web publica. No expone
+    ningun dato del negocio; el super admin lo lee luego en su panel."""
+    mensaje = datos.mensaje.strip()
+    if not mensaje:
+        raise HTTPException(status_code=422, detail="Escribe un mensaje.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO contactos (nombre, contacto, mensaje, origen) VALUES (?, ?, ?, ?)",
+            (datos.nombre.strip()[:120], datos.contacto.strip()[:160], mensaje[:2000], "landing"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+@app.get("/api/contactos")
+def listar_contactos(_sa: dict = Depends(auth.solo_superadmin)):
+    """Lista los mensajes de contacto recibidos (para el dueno del SaaS)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, nombre, contacto, mensaje, origen, atendido, creado_en "
+            "FROM contactos ORDER BY id DESC"
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,100 @@
+/* ========================================================================== *
+ *  SITIO — DESIGN TOKENS PREMIUM (solo la landing pública de Stanza).
+ *
+ *  Scoped a `.sitio` para NO afectar la app del PMS logueado (que usa
+ *  theme/tokens.css). Filosofía: neutros CÁLIDOS (nada de blanco puro), un
+ *  acento índigo disciplinado, sombras suaves multicapa y un lenguaje de
+ *  movimiento único. Referencia de calidad: Stripe / Linear / Vercel.
+ * ========================================================================== */
+
+.sitio {
+  /* ----- Neutros cálidos (base off-white, reduce fatiga visual) ----- */
+  --s-bg: #fafaf8;           /* fondo de página */
+  --s-bg-2: #f4f4f1;         /* secciones alternas / sutiles */
+  --s-surface: #ffffff;      /* tarjetas */
+  --s-surface-2: #fdfdfc;    /* tarjetas secundarias */
+  --s-elevated: #ffffff;     /* popovers/paneles elevados */
+
+  /* Bordes hairline (bajo contraste, elegantes) */
+  --s-border: #e9e8e3;
+  --s-border-strong: #dcdad3;
+
+  /* Texto (near-black cálido, no #000) */
+  --s-text: #1c1c1a;
+  --s-text-2: #56564f;       /* secundario */
+  --s-text-muted: #8a8a82;   /* terciario */
+
+  /* ----- Acento (índigo premium) ----- */
+  --s-accent: #4f46e5;
+  --s-accent-hover: #4338ca;
+  --s-accent-press: #3730a3;
+  --s-accent-soft: #eef0ff;  /* fondos suaves con acento */
+  --s-accent-border: #dcdcfb;
+  --s-on-accent: #ffffff;
+
+  /* ----- Semántico: éxito (para el proof "0% comisión") ----- */
+  --s-success: #15803d;
+  --s-success-soft: #ecfdf3;
+  --s-success-border: #b7e6c7;
+
+  /* ----- Sombras suaves multicapa (cálidas, baja opacidad) ----- */
+  --s-shadow-sm: 0 1px 2px rgba(28, 28, 26, 0.05);
+  --s-shadow-md: 0 4px 10px -2px rgba(28, 28, 26, 0.06),
+    0 2px 4px -2px rgba(28, 28, 26, 0.05);
+  --s-shadow-lg: 0 18px 40px -12px rgba(28, 28, 26, 0.14),
+    0 6px 14px -6px rgba(28, 28, 26, 0.08);
+  --s-shadow-accent: 0 10px 30px -8px rgba(79, 70, 229, 0.35);
+  --s-ring: 0 0 0 3px rgba(79, 70, 229, 0.28);
+
+  /* ----- Radios ----- */
+  --s-radius-sm: 8px;
+  --s-radius: 12px;
+  --s-radius-lg: 18px;
+  --s-radius-xl: 24px;
+  --s-radius-full: 9999px;
+
+  /* ----- Motion (lenguaje único) ----- */
+  --s-dur-fast: 140ms;
+  --s-dur: 240ms;
+  --s-dur-slow: 520ms;
+  --s-ease: cubic-bezier(0.22, 1, 0.36, 1);      /* ease-out expresivo */
+  --s-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Malla de fondo decorativa (se usa en el hero) */
+  --s-grid-line: rgba(28, 28, 26, 0.045);
+}
+
+/* ----- Modo oscuro premium (charcoal cálido, no negro puro) ----- */
+:root[data-theme="dark"] .sitio {
+  --s-bg: #111110;
+  --s-bg-2: #171715;
+  --s-surface: #1a1a18;
+  --s-surface-2: #201f1d;
+  --s-elevated: #232320;
+
+  --s-border: #2a2a27;
+  --s-border-strong: #3a3a35;
+
+  --s-text: #f5f4f1;
+  --s-text-2: #b8b7b0;
+  --s-text-muted: #86857e;
+
+  --s-accent: #818cf8;
+  --s-accent-hover: #a5b0ff;
+  --s-accent-press: #6b78e6;
+  --s-accent-soft: #1e1e3a;
+  --s-accent-border: #34345e;
+  --s-on-accent: #0d0d1a;
+
+  --s-success: #4ade80;
+  --s-success-soft: #0d2417;
+  --s-success-border: #1f5236;
+
+  --s-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --s-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --s-shadow-lg: 0 20px 44px -12px rgba(0, 0, 0, 0.6);
+  --s-shadow-accent: 0 10px 30px -8px rgba(129, 140, 248, 0.35);
+  --s-ring: 0 0 0 3px rgba(129, 140, 248, 0.35);
+
+  --s-grid-line: rgba(255, 255, 255, 0.04);
+}

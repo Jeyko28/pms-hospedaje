@@ -260,6 +260,10 @@ export const api = {
   pagosDeHospedaje: (id) => get(`/api/hospedajes/${id}/pagos`),
   pagosSuscripcion: () => get("/api/pagos-suscripcion"),
 
+  // Contacto de la landing (POST publico; GET solo super admin)
+  enviarContacto: (datos) => post("/api/contacto", datos),
+  contactos: () => get("/api/contactos"),
+
   // Motor de reservas PUBLICO (sin login)
   publicoHospedaje: (slug) => get(`/api/publico/hospedaje/${slug}`),
   publicoDisponibilidad: (slug, entrada, salida) =>
