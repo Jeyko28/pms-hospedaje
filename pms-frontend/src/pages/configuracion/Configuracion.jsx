@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
+import { useTheme } from "../../hooks/useTheme";
 import Card from "../../components/Card";
 import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Field from "../../components/Field";
 import StateMessage from "../../components/StateMessage";
 import "./Configuracion.css";
+
+// Opciones de apariencia (tema claro / oscuro / seguir el sistema).
+const TEMAS = [
+  { id: "light", label: "Claro", icon: Sun },
+  { id: "dark", label: "Oscuro", icon: Moon },
+  { id: "system", label: "Sistema", icon: Monitor },
+];
 
 // Número de WhatsApp de soporte del SaaS (mismo que la página de precios).
 const SOPORTE_WHATSAPP = "51981487284";
@@ -31,6 +40,7 @@ const ESTADO_TONO = {
 
 export default function Configuracion() {
   const info = useApi(api.miHospedaje);
+  const { modo, setModo } = useTheme();
 
   const [form, setForm] = useState(VACIO);
   const [guardando, setGuardando] = useState(false);
@@ -195,6 +205,32 @@ export default function Configuracion() {
             </div>
           </form>
         )}
+      </Card>
+
+      {/* ---------- Apariencia (tema) ---------- */}
+      <Card>
+        <h2 className="cfg__card-title">Apariencia</h2>
+        <p className="cfg__sub">
+          Elige cómo se ve el sistema. Se aplica al instante y se recuerda en este dispositivo.
+        </p>
+        <div className="cfg__tema" role="radiogroup" aria-label="Tema de la interfaz">
+          {TEMAS.map((t) => {
+            const activo = modo === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={activo}
+                className={`cfg__tema-opt ${activo ? "is-active" : ""}`}
+                onClick={() => setModo(t.id)}
+              >
+                <t.icon size={20} aria-hidden="true" />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </Card>
 
       {/* ---------- Tu plan / suscripción ---------- */}

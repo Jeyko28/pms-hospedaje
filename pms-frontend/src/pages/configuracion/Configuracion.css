@@ -14,6 +14,48 @@
   color: var(--text);
 }
 
+/* --- Apariencia (selector de tema) --- */
+.cfg__sub {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.cfg__tema {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  max-width: 420px;
+}
+.cfg__tema-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast),
+    background-color var(--transition-fast), transform var(--transition-fast);
+}
+.cfg__tema-opt:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.cfg__tema-opt.is-active {
+  border-color: var(--color-brand-600);
+  color: var(--color-brand-700);
+  background: var(--color-brand-50);
+}
+.cfg__tema-opt:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .cfg__subtitle {
   margin: 0.25rem 0 0;
   color: var(--text-muted);

@@ -48,25 +48,110 @@ const tooltipProps = {
   cursor: { fill: "var(--bg-subtle)", opacity: 0.5 },
 };
 
-/* ---------------- Mini-gráficos para las KPI cards ---------------- */
+/* ---------------- Mini-gráficos para las KPI cards ----------------
+ * Sparklines en SVG INLINE (no Recharts): deterministas, nunca se desbordan
+ * sobre el número (el dato es el protagonista), livianos y degradan bien con
+ * pocos o cero puntos. El color se pasa vía la propiedad CSS `color` + los
+ * elementos usan `currentColor`, así se adaptan solos al modo claro/oscuro.
+ */
+const TONO = {
+  brand: "var(--color-brand-600)",
+  success: "var(--color-success-600)",
+  danger: "var(--color-danger-600)",
+  neutral: "var(--color-neutral-400)",
+};
 
-export function SparkBars({ data }) {
+// Extrae valores numéricos de datos [{campo}] o [numeros].
+function _valores(data, campos) {
+  return (data || []).map((d) => {
+    if (typeof d === "number") return d;
+    for (const c of campos) if (d && d[c] != null) return Number(d[c]) || 0;
+    return 0;
+  });
+}
+
+// Sparkline de área (línea + relleno suave). Reemplaza a MiniLine.
+export function MiniLine({ data, tone = "success", width = 96, height = 40 }) {
+  const vals = _valores(data, ["total", "value", "n"]);
+  if (vals.length === 0) return <div style={{ height }} aria-hidden="true" />;
+  const max = Math.max(...vals);
+  const min = Math.min(...vals);
+  const range = max - min || 1;
+  const pad = 3;
+  const h = height - pad * 2;
+  const n = vals.length;
+  const xAt = (i) => (n > 1 ? (i * width) / (n - 1) : width / 2);
+  const yAt = (v) => pad + h - ((v - min) / range) * h;
+  const pts = vals.map((v, i) => [xAt(i), yAt(v)]);
+  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const area = n > 1 ? `${line} L ${width} ${height} L 0 ${height} Z` : "";
+  const gid = `spark-${tone}`;
   return (
-    <ResponsiveContainer width="100%" height={52}>
-      <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-        <Bar dataKey="n" fill={C.brand} radius={[2, 2, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height={height}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{ display: "block", color: TONO[tone] || TONO.success, overflow: "hidden" }}
+    >
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {area && <path d={area} fill={`url(#${gid})`} />}
+      <path
+        d={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }
 
-export function MiniLine({ data }) {
+// Alias semántico por si se quiere usar el nombre "Sparkline".
+export const Sparkline = MiniLine;
+
+// Mini barras en SVG inline (última barra resaltada). Reemplaza a SparkBars.
+export function SparkBars({ data, tone = "brand", width = 96, height = 40 }) {
+  const vals = _valores(data, ["n", "value", "total"]);
+  if (vals.length === 0) return <div style={{ height }} aria-hidden="true" />;
+  const max = Math.max(...vals, 1);
+  const n = vals.length;
+  const gap = n > 24 ? 1 : 2;
+  const bw = Math.max(1, (width - gap * (n - 1)) / n);
   return (
-    <ResponsiveContainer width="100%" height={52}>
-      <LineChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
-        <Line type="monotone" dataKey="total" stroke={C.success} strokeWidth={2} dot={false} />
-      </LineChart>
-    </ResponsiveContainer>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height={height}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{ display: "block", color: TONO[tone] || TONO.brand, overflow: "hidden" }}
+    >
+      {vals.map((v, i) => {
+        const bh = Math.max(2, (v / max) * (height - 2));
+        const x = i * (bw + gap);
+        return (
+          <rect
+            key={i}
+            x={x.toFixed(1)}
+            y={(height - bh).toFixed(1)}
+            width={bw.toFixed(1)}
+            height={bh.toFixed(1)}
+            rx="1.5"
+            fill="currentColor"
+            opacity={i === n - 1 ? 1 : 0.45}
+          />
+        );
+      })}
+    </svg>
   );
 }
 

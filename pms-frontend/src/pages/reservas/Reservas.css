@@ -43,28 +43,75 @@
 .reservas__mes {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
+/* Cabecera del mes: botón acordeón (chevron + título + conteo). */
+.reservas__mes-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-default);
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-3);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+.reservas__mes-header:hover .reservas__mes-titulo {
+  color: var(--color-brand-700);
+}
+.reservas__mes-header:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.reservas__mes-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+.reservas__mes-chevron.is-open {
+  transform: rotate(90deg);
+}
 .reservas__mes-titulo {
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   color: var(--text-primary);
   margin: 0;
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border-default);
+  transition: color var(--transition-fast);
 }
-
 .reservas__mes-conteo {
+  margin-left: auto;
   font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-top: calc(-1 * var(--space-2));
+  white-space: nowrap;
+}
+
+/* Contenido colapsable: animación de altura con grid-template-rows (0fr↔1fr),
+   suave y sin medir alturas. Se anula con prefers-reduced-motion (global). */
+.reservas__mes-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-base);
+}
+.reservas__mes-wrap.is-collapsed {
+  grid-template-rows: 0fr;
+}
+.reservas__mes-wrap > .reservas__mes-items {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .reservas__mes-items {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+.reservas__mes-wrap:not(.is-collapsed) > .reservas__mes-items {
+  padding-bottom: var(--space-5);
 }
 
 .reserva-item {

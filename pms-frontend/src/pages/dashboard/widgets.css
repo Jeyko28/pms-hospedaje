@@ -86,6 +86,9 @@
 .kpi__chart {
   width: 96px;
   flex-shrink: 0;
+  overflow: hidden; /* red de seguridad: el mini-gráfico nunca invade el número */
+  display: flex;
+  align-items: center;
 }
 
 /* ===== Room Availability ===== */

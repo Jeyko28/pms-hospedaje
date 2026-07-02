@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
 import Card from "../../components/Card";
@@ -137,6 +138,38 @@ export default function Reservas() {
     }
     return [...(actual ? [actual] : []), ...futuros, ...pasados];
   }, [filtradas]);
+
+  // --- Acordeón de meses: recordar qué meses están colapsados (localStorage) ---
+  const COLKEY = "pms-reservas-colapsados";
+  const [colapsados, setColapsados] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLKEY) || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+  const seedRef = useRef(false);
+  // Por defecto (primera vez, sin preferencia guardada): dejar expandido solo el
+  // primer grupo (mes en curso) y colapsar el resto, para acortar la lista.
+  useEffect(() => {
+    if (seedRef.current || agrupadas.length === 0) return;
+    seedRef.current = true;
+    if (localStorage.getItem(COLKEY) === null) {
+      const def = new Set(agrupadas.slice(1).map((g) => g.key));
+      setColapsados(def);
+      localStorage.setItem(COLKEY, JSON.stringify([...def]));
+    }
+  }, [agrupadas]);
+
+  function toggleMes(key) {
+    setColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      localStorage.setItem(COLKEY, JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   function alCrear() {
     setModalAbierto(false);
@@ -300,10 +333,27 @@ export default function Reservas() {
       {/* ---------- Lista de reservas agrupadas por mes ---------- */}
       {filtradas.length > 0 && (
         <div className="reservas__lista">
-          {agrupadas.map((grupo) => (
+          {agrupadas.map((grupo) => {
+            const colapsado = colapsados.has(grupo.key);
+            return (
             <div key={grupo.label} className="reservas__mes">
-              <h3 className="reservas__mes-titulo">{grupo.label}</h3>
-              <span className="reservas__mes-conteo">{grupo.reservas.length} reserva{grupo.reservas.length !== 1 ? "s" : ""}</span>
+              <button
+                type="button"
+                className="reservas__mes-header"
+                onClick={() => toggleMes(grupo.key)}
+                aria-expanded={!colapsado}
+              >
+                <ChevronRight
+                  size={18}
+                  className={`reservas__mes-chevron ${colapsado ? "" : "is-open"}`}
+                  aria-hidden="true"
+                />
+                <h3 className="reservas__mes-titulo">{grupo.label}</h3>
+                <span className="reservas__mes-conteo">
+                  {grupo.reservas.length} reserva{grupo.reservas.length !== 1 ? "s" : ""}
+                </span>
+              </button>
+              <div className={`reservas__mes-wrap ${colapsado ? "is-collapsed" : ""}`}>
               <div className="reservas__mes-items">
                 {grupo.reservas.map((r) => {
                   const est = presentar(ESTADO_RESERVA, r.estado);
@@ -361,8 +411,10 @@ export default function Reservas() {
                   );
                 })}
               </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
