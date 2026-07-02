@@ -91,7 +91,8 @@ export default function HospedajeForm({ hospedaje, onGuardado, onCancelar }) {
         <Field id="plan" label="Plan">
           <select id="plan" value={form.plan} onChange={set("plan")}>
             <option value="trial">Prueba (trial)</option>
-            <option value="basico">Básico</option>
+            <option value="inicia">Inicia</option>
+            <option value="crece">Crece</option>
             <option value="pro">Pro</option>
           </select>
         </Field>

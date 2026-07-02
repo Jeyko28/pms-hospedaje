@@ -254,7 +254,7 @@ export default function ReservaPublica({ slug }) {
           </form>
         )}
 
-        <footer className="pub__footer">Reservas con PMS Hospedaje</footer>
+        <footer className="pub__footer">Reservas con Stanza</footer>
       </div>
     </div>
   );

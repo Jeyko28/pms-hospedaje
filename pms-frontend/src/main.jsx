@@ -1,15 +1,16 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { AuthProvider } from "./auth/AuthContext";
+import { tokenStore } from "./api/client";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./styles/global.css";
 
 // Code-splitting: cada vista grande se carga bajo demanda. Así un huésped que
 // abre el link público (#/reservar/...) NO descarga toda la app de administración,
-// y la app interna no carga las páginas públicas de marketing.
+// y la app interna no carga el sitio público de marketing.
 const App = lazy(() => import("./App"));
 const ReservaPublica = lazy(() => import("./publico/ReservaPublica"));
-const Precios = lazy(() => import("./publico/Precios"));
+const SitioWeb = lazy(() => import("./publico/sitio/SitioWeb"));
 
 // Fallback mínimo mientras se descarga el chunk de la vista.
 function Cargando() {
@@ -30,15 +31,24 @@ function Cargando() {
 
 /**
  * Decide qué montar según la URL (todas PÚBLICAS, sin login ni AuthProvider):
- *  - #/reservar/<slug>  -> pagina publica de reservas del hospedaje.
- *  - #/precios          -> pagina publica de precios (marketing).
- *  - cualquier otra      -> la app normal (con autenticacion).
+ *  - #/reservar/<slug>  -> pagina publica de reservas del hospedaje (siempre).
+ *  - rutas de marketing (raíz, #/inicio, #/funciones, #/precios, #/contacto):
+ *      -> sitio web SOLO si NO hay sesión; con token, cae a la app (dashboard).
+ *  - #/login, #/registro y cualquier otra -> la app normal (con autenticacion).
+ *
+ * Efecto "front door": el visitante anónimo ve la web; el cliente logueado
+ * entra directo al PMS.
  */
 function leerRutaPublica() {
   const hash = window.location.hash;
   const m = hash.match(/^#\/reservar\/([^/?]+)/);
   if (m) return { tipo: "reservar", slug: decodeURIComponent(m[1]) };
-  if (/^#\/precios\b/.test(hash)) return { tipo: "precios" };
+  const esMarketing =
+    hash === "" ||
+    hash === "#" ||
+    hash === "#/" ||
+    /^#\/(inicio|funciones|precios|contacto)\b/.test(hash);
+  if (esMarketing && !tokenStore.get()) return { tipo: "sitio" };
   return null;
 }
 
@@ -58,10 +68,10 @@ function Raiz() {
       </Suspense>
     );
   }
-  if (publica?.tipo === "precios") {
+  if (publica?.tipo === "sitio") {
     return (
       <Suspense fallback={<Cargando />}>
-        <Precios />
+        <SitioWeb />
       </Suspense>
     );
   }

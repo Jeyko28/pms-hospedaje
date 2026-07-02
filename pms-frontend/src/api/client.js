@@ -255,6 +255,10 @@ export const api = {
   hospedajes: () => get("/api/hospedajes"),
   crearHospedaje: (datos) => post("/api/hospedajes", datos),
   editarHospedaje: (id, datos) => put(`/api/hospedajes/${id}`, datos),
+  // Pagos de suscripcion del SaaS (super admin). Registrar activa/extiende solo.
+  registrarPagoSuscripcion: (id, datos) => post(`/api/hospedajes/${id}/pagos`, datos),
+  pagosDeHospedaje: (id) => get(`/api/hospedajes/${id}/pagos`),
+  pagosSuscripcion: () => get("/api/pagos-suscripcion"),
 
   // Motor de reservas PUBLICO (sin login)
   publicoHospedaje: (slug) => get(`/api/publico/hospedaje/${slug}`),

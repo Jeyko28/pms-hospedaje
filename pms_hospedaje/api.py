@@ -105,6 +105,8 @@ async def _security_headers(request: Request, call_next):
 _origenes = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",  # preview / verificación local
+    "http://127.0.0.1:5174",
     "http://localhost:5190",
     "http://127.0.0.1:5190",
 ]
@@ -115,7 +117,7 @@ if _extra:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origenes,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5190)",
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5174|5190)",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Authorization", "Content-Type"],
@@ -303,6 +305,15 @@ class HospedajeEdit(BaseModel):
     plan: str = Field(..., max_length=20)
     estado: str = Field(..., max_length=20)
     fecha_expira: str = Field("", max_length=10)
+
+
+class PagoSuscripcionNuevo(BaseModel):
+    monto: float = Field(..., gt=0)
+    metodo: str = Field("yape", max_length=20)       # yape|transferencia|efectivo|otro
+    periodo: str = Field("mensual", max_length=10)   # mensual|anual
+    plan: str = Field("inicia", max_length=20)       # inicia|crece|pro
+    nota: str = Field("", max_length=300)
+    es_fundador: bool = False                         # guarda precio_pactado (S/99 vitalicio)
 
 
 class SlugNuevo(BaseModel):
@@ -817,6 +828,11 @@ def eliminar_usuario(usuario_id: int, admin: dict = Depends(auth.solo_admin)):
 # --------------------------------------------------------------------------- #
 #  Hospedajes (SOLO super admin) — panel de gestion del SaaS
 # --------------------------------------------------------------------------- #
+# Planes válidos del SaaS. 'trial' = prueba; inicia/crece/pro = pagos (alineado
+# con la web de precios). 'basico' se tolera como valor legado (rows antiguas).
+PLANES_VALIDOS = ("trial", "inicia", "crece", "pro", "basico")
+
+
 @app.get("/api/hospedajes")
 def listar_hospedajes(_sa: dict = Depends(auth.solo_superadmin)):
     """Lista todos los hospedajes con un conteo de sus usuarios."""
@@ -847,7 +863,7 @@ def crear_hospedaje(datos: HospedajeNuevo, _sa: dict = Depends(auth.solo_superad
         raise HTTPException(status_code=422, detail="Usuario y nombre del admin son obligatorios.")
     if len(datos.admin_password) < 6:
         raise HTTPException(status_code=422, detail="La contrasena debe tener al menos 6 caracteres.")
-    if datos.plan not in ("trial", "basico", "pro"):
+    if datos.plan not in PLANES_VALIDOS:
         raise HTTPException(status_code=422, detail="Plan invalido.")
     if datos.estado not in ("prueba", "activo", "suspendido", "cancelado"):
         raise HTTPException(status_code=422, detail="Estado invalido.")
@@ -885,7 +901,7 @@ def editar_hospedaje(
     hospedaje_id: int, datos: HospedajeEdit, _sa: dict = Depends(auth.solo_superadmin)
 ):
     """Cambia nombre, plan, estado (activar/suspender) y vencimiento."""
-    if datos.plan not in ("trial", "basico", "pro"):
+    if datos.plan not in PLANES_VALIDOS:
         raise HTTPException(status_code=422, detail="Plan invalido.")
     if datos.estado not in ("prueba", "activo", "suspendido", "cancelado"):
         raise HTTPException(status_code=422, detail="Estado invalido.")
@@ -903,6 +919,141 @@ def editar_hospedaje(
     finally:
         conn.close()
     return {"id": hospedaje_id, "estado": datos.estado}
+
+
+# --------------------------------------------------------------------------- #
+#  Pagos de suscripcion del SaaS (SOLO super admin) — cobro manual Yape/transf.
+#  Registrar un pago ACTIVA y EXTIENDE al cliente automaticamente.
+# --------------------------------------------------------------------------- #
+def _parse_fecha(valor):
+    """Parsea 'YYYY-MM-DD...' a datetime.date; None si no se puede."""
+    if not valor:
+        return None
+    try:
+        return datetime.strptime(str(valor)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+@app.post("/api/hospedajes/{hospedaje_id}/pagos", status_code=201)
+def registrar_pago_suscripcion(
+    hospedaje_id: int,
+    datos: PagoSuscripcionNuevo,
+    _sa: dict = Depends(auth.solo_superadmin),
+):
+    """Registra un pago de suscripcion (Yape/transferencia) y, con ello,
+    ACTIVA y EXTIENDE al cliente automaticamente: estado='activo', plan pagado
+    y fecha_expira += periodo (30 dias mensual | 365 anual), acumulando sobre el
+    vencimiento vigente si aun no expira. Guarda precio_pactado si es fundador."""
+    if datos.plan not in PLANES_VALIDOS:
+        raise HTTPException(status_code=422, detail="Plan invalido.")
+    if datos.periodo not in ("mensual", "anual"):
+        raise HTTPException(status_code=422, detail="Periodo invalido.")
+    if datos.metodo not in ("yape", "transferencia", "efectivo", "otro"):
+        raise HTTPException(status_code=422, detail="Metodo invalido.")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT fecha_expira FROM hospedajes WHERE id = ?", (hospedaje_id,)
+        )
+        fila = cursor.fetchone()
+        if not fila:
+            raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+
+        hoy = datetime.now().date()
+        expira_actual = _parse_fecha(fila["fecha_expira"] if hasattr(fila, "keys") else fila[0])
+        # Si aun no vence, el nuevo periodo se acumula desde el vencimiento actual.
+        base = expira_actual if (expira_actual and expira_actual > hoy) else hoy
+        dias = 365 if datos.periodo == "anual" else 30
+        nueva_expira = base + timedelta(days=dias)
+        cubre_desde = base.strftime("%Y-%m-%d")
+        cubre_hasta = nueva_expira.strftime("%Y-%m-%d")
+        fecha_expira_str = nueva_expira.strftime("%Y-%m-%d")
+
+        # Activar + extender el hospedaje (activacion automatica).
+        if datos.es_fundador:
+            cursor.execute(
+                "UPDATE hospedajes SET estado='activo', plan=?, fecha_expira=?, precio_pactado=? WHERE id=?",
+                (datos.plan, fecha_expira_str, datos.monto, hospedaje_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE hospedajes SET estado='activo', plan=?, fecha_expira=? WHERE id=?",
+                (datos.plan, fecha_expira_str, hospedaje_id),
+            )
+
+        cursor.execute(
+            """
+            INSERT INTO pagos_suscripcion
+              (hospedaje_id, monto, moneda, metodo, periodo, plan,
+               cubre_desde, cubre_hasta, nota, registrado_por)
+            VALUES (?, ?, 'PEN', ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                hospedaje_id, datos.monto, datos.metodo, datos.periodo, datos.plan,
+                cubre_desde, cubre_hasta, datos.nota.strip(), _sa.get("id"),
+            ),
+        )
+        pago_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {
+        "id": pago_id,
+        "hospedaje_id": hospedaje_id,
+        "estado": "activo",
+        "plan": datos.plan,
+        "fecha_expira": fecha_expira_str,
+        "cubre_hasta": cubre_hasta,
+    }
+
+
+@app.get("/api/hospedajes/{hospedaje_id}/pagos")
+def pagos_de_hospedaje(
+    hospedaje_id: int, _sa: dict = Depends(auth.solo_superadmin)
+):
+    """Historial de pagos de suscripcion de un hospedaje."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, monto, moneda, metodo, periodo, plan,
+                   fecha_pago, cubre_desde, cubre_hasta, nota
+            FROM pagos_suscripcion
+            WHERE hospedaje_id = ?
+            ORDER BY id DESC
+            """,
+            (hospedaje_id,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.get("/api/pagos-suscripcion")
+def listar_pagos_suscripcion(_sa: dict = Depends(auth.solo_superadmin)):
+    """Historial completo de pagos del SaaS + total recaudado (para el dueno)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT p.id, p.hospedaje_id, h.nombre AS hospedaje_nombre,
+                   p.monto, p.moneda, p.metodo, p.periodo, p.plan,
+                   p.fecha_pago, p.cubre_desde, p.cubre_hasta, p.nota
+            FROM pagos_suscripcion p
+            LEFT JOIN hospedajes h ON h.id = p.hospedaje_id
+            ORDER BY p.id DESC
+            """
+        )
+        pagos = [dict(row) for row in cursor.fetchall()]
+        total = sum(float(p.get("monto") or 0) for p in pagos)
+        return {"pagos": pagos, "total_recaudado": total, "cantidad": len(pagos)}
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------------------------------- #

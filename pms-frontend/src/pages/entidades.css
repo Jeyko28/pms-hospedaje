@@ -166,6 +166,68 @@
   padding: var(--space-3) var(--space-4);
 }
 
+/* Checkbox con etiqueta en línea dentro de un formulario. */
+.entidad-form__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.entidad-form__check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--color-brand-600);
+}
+
+/* Historial de pagos de suscripción (super admin). */
+.pagos-hist__total {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+}
+.pagos-hist__lista {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pagos-hist__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.pagos-hist__item > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pagos-hist__derecha {
+  text-align: right;
+  align-items: flex-end;
+}
+.pagos-hist__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.pagos-hist__nota {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.pagos-hist__monto {
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
 .entidad-form__acciones {
   display: flex;
   justify-content: flex-end;

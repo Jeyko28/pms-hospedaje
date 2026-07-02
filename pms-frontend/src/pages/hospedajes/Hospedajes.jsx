@@ -11,6 +11,7 @@ import { useToast } from "../../components/Toast";
 import { ESTADO_HOSPEDAJE, PLAN_HOSPEDAJE, presentar } from "../../config/estados";
 import { normalizar } from "../../utils/normalizar";
 import HospedajeForm from "./HospedajeForm";
+import RegistrarPagoForm from "./RegistrarPagoForm";
 import "../entidades.css";
 
 const formatoFecha = (iso) => {
@@ -20,6 +21,8 @@ const formatoFecha = (iso) => {
   return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
+
 /**
  * Hospedajes — panel del SUPER ADMIN (dueño del SaaS).
  * Lista todos los clientes (hospedajes), permite crear nuevos y
@@ -27,8 +30,11 @@ const formatoFecha = (iso) => {
  */
 export default function Hospedajes() {
   const hospedajes = useApi(api.hospedajes);
+  const pagos = useApi(api.pagosSuscripcion);
   const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, hospedaje}
+  const [pagoDe, setPagoDe] = useState(null); // null | hospedaje (modal registrar pago)
+  const [histAbierto, setHistAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [cambiandoId, setCambiandoId] = useState(null);
 
@@ -54,6 +60,13 @@ export default function Hospedajes() {
     setModal(null);
     hospedajes.recargar();
     toast.success(creado ? "Hospedaje creado." : "Hospedaje actualizado.");
+  }
+
+  function alRegistrarPago(r) {
+    setPagoDe(null);
+    hospedajes.recargar();
+    pagos.recargar();
+    toast.success(`Pago registrado. Cliente activo hasta ${formatoFecha(r.fecha_expira)}.`);
   }
 
   // Activar/suspender rápido desde la tarjeta.
@@ -84,6 +97,9 @@ export default function Hospedajes() {
         <Button icon="+" onClick={() => setModal({ modo: "crear", hospedaje: null })}>
           Nuevo hospedaje
         </Button>
+        <Button variant="secondary" onClick={() => setHistAbierto(true)}>
+          Historial de pagos
+        </Button>
       </header>
 
       {/* Resumen */}
@@ -103,6 +119,12 @@ export default function Hospedajes() {
             <span className="facturas__resumen-label">Suspendidos</span>
             <span className="facturas__resumen-valor facturas__resumen-valor--warn">
               {resumen.suspendidos}
+            </span>
+          </Card>
+          <Card padding="sm" className="facturas__resumen-item">
+            <span className="facturas__resumen-label">Recaudado</span>
+            <span className="facturas__resumen-valor facturas__resumen-valor--ok">
+              {pagos.data ? moneda.format(pagos.data.total_recaudado || 0) : "—"}
             </span>
           </Card>
         </div>
@@ -176,6 +198,12 @@ export default function Hospedajes() {
                 <div className="entidad-card__acciones">
                   <Button
                     size="sm"
+                    onClick={() => setPagoDe(h)}
+                  >
+                    Registrar pago
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="secondary"
                     onClick={() => setModal({ modo: "editar", hospedaje: h })}
                   >
@@ -211,6 +239,64 @@ export default function Hospedajes() {
             onGuardado={alGuardar}
             onCancelar={() => setModal(null)}
           />
+        )}
+      </Modal>
+
+      {/* Registrar pago de suscripción (activa/extiende automáticamente) */}
+      <Modal
+        open={!!pagoDe}
+        title="Registrar pago de suscripción"
+        onClose={() => setPagoDe(null)}
+      >
+        {pagoDe && (
+          <RegistrarPagoForm
+            hospedaje={pagoDe}
+            onGuardado={alRegistrarPago}
+            onCancelar={() => setPagoDe(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Historial de pagos del SaaS */}
+      <Modal
+        open={histAbierto}
+        title="Historial de pagos"
+        onClose={() => setHistAbierto(false)}
+      >
+        {pagos.loading && <StateMessage variant="loading" title="Cargando pagos…" />}
+        {pagos.error && (
+          <StateMessage variant="error" title="No se pudieron cargar los pagos" message={pagos.error} />
+        )}
+        {pagos.data && (
+          <div className="pagos-hist">
+            <p className="pagos-hist__total">
+              Total recaudado: <strong>{moneda.format(pagos.data.total_recaudado || 0)}</strong>{" "}
+              · {pagos.data.cantidad} pago(s)
+            </p>
+            {pagos.data.pagos.length === 0 ? (
+              <StateMessage variant="empty" title="Aún no hay pagos registrados" />
+            ) : (
+              <ul className="pagos-hist__lista">
+                {pagos.data.pagos.map((p) => (
+                  <li key={p.id} className="pagos-hist__item">
+                    <div>
+                      <strong>{p.hospedaje_nombre || `#${p.hospedaje_id}`}</strong>
+                      <span className="pagos-hist__meta">
+                        {p.plan} · {p.periodo} · {p.metodo}
+                      </span>
+                      {p.nota && <span className="pagos-hist__nota">{p.nota}</span>}
+                    </div>
+                    <div className="pagos-hist__derecha">
+                      <span className="pagos-hist__monto">{moneda.format(p.monto)}</span>
+                      <span className="pagos-hist__meta">
+                        {formatoFecha(p.fecha_pago)} → vence {formatoFecha(p.cubre_hasta)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </Modal>
     </div>

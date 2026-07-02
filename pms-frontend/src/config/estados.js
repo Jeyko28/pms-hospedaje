@@ -45,11 +45,13 @@ export const ESTADO_HOSPEDAJE = {
   cancelado: { tone: "danger", icon: "✗", label: "Cancelado" },
 };
 
-// Plan de un hospedaje.
+// Plan de un hospedaje (alineado con la web de precios).
 export const PLAN_HOSPEDAJE = {
   trial: { tone: "neutral", icon: "◷", label: "Prueba" },
-  basico: { tone: "info", icon: "•", label: "Básico" },
+  inicia: { tone: "info", icon: "•", label: "Inicia" },
+  crece: { tone: "info", icon: "◆", label: "Crece" },
   pro: { tone: "success", icon: "★", label: "Pro" },
+  basico: { tone: "info", icon: "•", label: "Básico" }, // legado
 };
 
 /** Devuelve la config de presentacion o un neutro seguro si no existe. */

@@ -282,6 +282,35 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 18. Suscripciones del SaaS: pagos + precio pactado -----
+    # Registro de los pagos de suscripción (Yape/transferencia) que cada
+    # hospedaje-cliente hace al dueño del SaaS. Registrar un pago ACTIVA y
+    # EXTIENDE al cliente automáticamente (ver POST /api/hospedajes/{id}/pagos).
+    # 'precio_pactado' recuerda el precio fundador (S/99 vitalicio) por cliente.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pagos_suscripcion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER NOT NULL,
+            monto REAL NOT NULL,
+            moneda TEXT DEFAULT 'PEN',
+            metodo TEXT DEFAULT 'yape',          -- yape|transferencia|efectivo|otro
+            periodo TEXT DEFAULT 'mensual',      -- mensual|anual
+            plan TEXT DEFAULT 'inicia',          -- inicia|crece|pro
+            fecha_pago TEXT DEFAULT CURRENT_TIMESTAMP,
+            cubre_desde TEXT,
+            cubre_hasta TEXT,
+            nota TEXT DEFAULT '',
+            registrado_por INTEGER,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    if _tabla_existe(cursor, "hospedajes"):
+        if "precio_pactado" not in _columnas_de(cursor, "hospedajes"):
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN precio_pactado REAL")
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -322,6 +351,7 @@ _INDICES = [
     ("idx_cierres_hosp", "cierres_turno", "hospedaje_id"),
     ("idx_reservas_grupo", "reservas", "grupo_id"),
     ("idx_tarifas_hosp", "tarifas", "hospedaje_id"),
+    ("idx_pagos_susc_hosp", "pagos_suscripcion", "hospedaje_id"),
 ]
 
 
