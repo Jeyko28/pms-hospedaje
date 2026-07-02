@@ -37,27 +37,44 @@ const fechaHora = (iso) => {
 };
 
 /**
- * CajaDia — arqueo del día: lo cobrado hoy por método + total, para que
- * recepción cuadre el efectivo del cajón. Incluye el detalle de cada pago con
- * quién lo registró (auditoría) y el CIERRE DE TURNO (arqueo firmado: efectivo
- * contado vs. esperado, con quién y cuándo; no bloquea pagos posteriores).
+ * CajaDia — caja de recepción por TURNO. Por defecto muestra el turno ABIERTO:
+ * todo lo cobrado desde el último cierre hasta ahora, SIN reiniciarse por día
+ * calendario (solo "Cerrar turno" corta el periodo). Incluye una consulta
+ * histórica por día (solo lectura), el detalle con auditoría, el CIERRE DE TURNO
+ * (arqueo firmado) y la impresión del arqueo.
  */
 export default function CajaDia({ refreshKey = 0 }) {
-  const [fecha, setFecha] = useState(ymdLocal());
-  // deps = [fecha, refreshKey]: recarga al cambiar la fecha y cuando Recepción
-  // sube refreshKey tras un cobro (así la caja del día se actualiza al instante).
+  // fecha vacía = turno abierto; con fecha = consulta histórica de ese día.
+  const [fecha, setFecha] = useState("");
+  const [verDia, setVerDia] = useState(false);
   const caja = useApi(() => api.cajaDia(fecha), [fecha, refreshKey]);
   const cierres = useApi(() => api.cierresTurno(), [refreshKey]);
   const toast = useToast();
   const d = caja.data;
+  const esTurno = !fecha; // modo turno abierto vs. día histórico
 
-  const [cerrando, setCerrando] = useState(false); // modal abierto
+  const [cerrando, setCerrando] = useState(false);
   const [form, setForm] = useState({ efectivo_contado: "", notas: "" });
   const [guardando, setGuardando] = useState(false);
 
   function abrirCierre() {
     setForm({ efectivo_contado: "", notas: "" });
     setCerrando(true);
+  }
+
+  function verHistorico(v) {
+    setVerDia(v);
+    setFecha(v ? ymdLocal() : "");
+  }
+
+  function imprimirArqueo() {
+    document.body.setAttribute("data-print", "arqueo");
+    const limpiar = () => {
+      document.body.removeAttribute("data-print");
+      window.removeEventListener("afterprint", limpiar);
+    };
+    window.addEventListener("afterprint", limpiar);
+    window.print();
   }
 
   async function confirmarCierre(ev) {
@@ -71,11 +88,11 @@ export default function CajaDia({ refreshKey = 0 }) {
     setGuardando(true);
     try {
       const c = await api.crearCierreTurno({
-        fecha,
         efectivo_contado: contado,
         notas: form.notas.trim(),
       });
       setCerrando(false);
+      caja.recargar();
       cierres.recargar();
       if (c.diferencia === null || c.diferencia === undefined) {
         toast.success("Turno cerrado (sin conteo de efectivo).");
@@ -97,16 +114,23 @@ export default function CajaDia({ refreshKey = 0 }) {
   return (
     <Card padding="md" className="caja">
       <div className="caja__head">
-        <h2 className="caja__titulo">Caja del día</h2>
-        <Field id="caja-fecha" label="">
-          <input
-            id="caja-fecha"
-            type="date"
-            value={fecha}
-            max={ymdLocal()}
-            onChange={(e) => setFecha(e.target.value)}
-          />
-        </Field>
+        <div>
+          <h2 className="caja__titulo">
+            {esTurno ? "Caja · turno abierto" : `Arqueo del ${fecha}`}
+          </h2>
+          {esTurno && (
+            <p className="caja__sub">
+              {d?.abierta_desde
+                ? `Abierta desde el último cierre · ${fechaHora(d.abierta_desde)}`
+                : "Acumula todo lo cobrado hasta que cierres el turno."}
+            </p>
+          )}
+        </div>
+        <div className="caja__head-acciones">
+          <Button size="sm" variant="ghost" onClick={imprimirArqueo}>
+            🖨 Imprimir
+          </Button>
+        </div>
       </div>
 
       {caja.loading && !d && <p className="caja__vacio">Cargando…</p>}
@@ -115,7 +139,9 @@ export default function CajaDia({ refreshKey = 0 }) {
         <>
           <div className="caja__metodos">
             {d.por_metodo.length === 0 ? (
-              <p className="caja__vacio">Sin cobros registrados este día.</p>
+              <p className="caja__vacio">
+                {esTurno ? "Sin cobros en el turno actual." : "Sin cobros registrados este día."}
+              </p>
             ) : (
               d.por_metodo.map((m) => (
                 <div key={m.metodo} className="caja__metodo">
@@ -128,14 +154,20 @@ export default function CajaDia({ refreshKey = 0 }) {
           </div>
 
           <div className="caja__total">
-            <span>Total del día</span>
+            <span>{esTurno ? "Total del turno" : "Total del día"}</span>
             <strong>{formatoMoneda.format(d.total)}</strong>
           </div>
 
           <div className="caja__acciones">
-            <Button size="sm" variant="secondary" onClick={abrirCierre}>
-              Cerrar turno
-            </Button>
+            {esTurno ? (
+              <Button size="sm" variant="secondary" onClick={abrirCierre}>
+                Cerrar turno
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => verHistorico(false)}>
+                ← Volver al turno actual
+              </Button>
+            )}
           </div>
 
           {d.detalle && d.detalle.length > 0 && (
@@ -150,7 +182,7 @@ export default function CajaDia({ refreshKey = 0 }) {
                       {p.huesped ? ` · ${p.huesped}` : ""}
                     </span>
                     <span className="caja__item-meta">
-                      {hora(p.fecha)}
+                      {fechaHora(p.fecha)}
                       {p.usuario_nombre ? ` · por ${p.usuario_nombre}` : ""}
                     </span>
                   </li>
@@ -159,6 +191,27 @@ export default function CajaDia({ refreshKey = 0 }) {
             </details>
           )}
         </>
+      )}
+
+      {/* Consulta histórica por día (solo lectura) */}
+      {esTurno && (
+        <div className="caja__historico no-print">
+          {!verDia ? (
+            <button type="button" className="caja__link" onClick={() => verHistorico(true)}>
+              Ver arqueo de un día pasado
+            </button>
+          ) : (
+            <Field id="caja-fecha" label="Ver un día">
+              <input
+                id="caja-fecha"
+                type="date"
+                value={fecha}
+                max={ymdLocal()}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+            </Field>
+          )}
+        </div>
       )}
 
       {/* Historial de cierres */}
@@ -182,7 +235,8 @@ export default function CajaDia({ refreshKey = 0 }) {
                   )}
                 </span>
                 <span className="caja__item-meta">
-                  {c.fecha} · {fechaHora(c.creado_en)}
+                  {c.periodo_desde ? `${fechaHora(c.periodo_desde)} → ` : ""}
+                  {c.periodo_hasta ? fechaHora(c.periodo_hasta) : fechaHora(c.creado_en)}
                   {c.usuario_nombre ? ` · ${c.usuario_nombre}` : ""}
                   {c.notas ? ` · ${c.notas}` : ""}
                 </span>
@@ -193,11 +247,11 @@ export default function CajaDia({ refreshKey = 0 }) {
       )}
 
       {/* Modal de cierre de turno */}
-      <Modal open={cerrando} title={`Cerrar turno · ${fecha}`} onClose={() => setCerrando(false)}>
+      <Modal open={cerrando} title="Cerrar turno" onClose={() => setCerrando(false)}>
         <form className="caja__cierre-form" onSubmit={confirmarCierre}>
           <div className="caja__cierre-resumen">
             <div className="caja__cierre-fila">
-              <span>Total cobrado</span>
+              <span>Total cobrado en el turno</span>
               <strong>{formatoMoneda.format(d?.total ?? 0)}</strong>
             </div>
             <div className="caja__cierre-fila">
@@ -230,8 +284,9 @@ export default function CajaDia({ refreshKey = 0 }) {
           </Field>
 
           <p className="caja__cierre-hint">
-            Queda registrado quién y cuándo cierra, con el desglose por método. No
-            bloquea cobros posteriores; es un arqueo de control.
+            Cierra el turno abierto (desde el último cierre hasta ahora). Queda registrado
+            quién y cuándo, con el desglose por método. No bloquea cobros posteriores; el
+            siguiente turno arranca desde este cierre.
           </p>
 
           <div className="caja__cierre-acciones">

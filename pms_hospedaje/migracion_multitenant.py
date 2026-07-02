@@ -329,6 +329,24 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 20. Caja por TURNO: ventana temporal del cierre -----
+    # La caja deja de ser "por día calendario" y pasa a acumular por turno (desde
+    # el último cierre hasta el siguiente). Guardamos la ventana [periodo_desde,
+    # periodo_hasta] con el MISMO reloj que pagos.fecha (datetime.now local), para
+    # no chocar con el CURRENT_TIMESTAMP (UTC) de creado_en. Backfill de filas
+    # viejas: su límite = fin del día que cerraron.
+    if _tabla_existe(cursor, "cierres_turno"):
+        cols_ct = _columnas_de(cursor, "cierres_turno")
+        if "periodo_desde" not in cols_ct:
+            cursor.execute("ALTER TABLE cierres_turno ADD COLUMN periodo_desde TEXT")
+        if "periodo_hasta" not in cols_ct:
+            cursor.execute("ALTER TABLE cierres_turno ADD COLUMN periodo_hasta TEXT")
+            cursor.execute(
+                "UPDATE cierres_turno SET periodo_hasta = fecha || ' 23:59:59' "
+                "WHERE periodo_hasta IS NULL AND fecha IS NOT NULL"
+            )
+        conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

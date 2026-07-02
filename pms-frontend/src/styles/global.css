@@ -117,3 +117,85 @@ textarea {
   white-space: nowrap;
   border: 0;
 }
+
+/* Encabezado que solo aparece al imprimir (reportes/arqueo). */
+.reportes__print-head {
+  display: none;
+}
+
+/* ========================================================================== *
+ *  IMPRESIÓN — imprime solo el contenido (reportes o arqueo), sin el chrome.
+ *  Fuerza apariencia clara y legible incluso si la app está en modo oscuro,
+ *  y sirve también para "Guardar como PDF" desde el navegador.
+ * ========================================================================== */
+@media print {
+  /* Forzar tokens claros al imprimir (aunque el usuario esté en modo oscuro). */
+  :root,
+  :root[data-theme="dark"] {
+    --bg-app: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-subtle: #f4f4f4;
+    --text-primary: #111111;
+    --text-secondary: #333333;
+    --text-muted: #555555;
+    --border-default: #dddddd;
+    --border-strong: #cccccc;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Ocultar el chrome de la app y lo marcado como no imprimible. */
+  .shell__sidebar,
+  .shell__topbar,
+  .shell__backdrop,
+  .shell__header,
+  .no-print {
+    display: none !important;
+  }
+  .shell__main {
+    margin: 0 !important;
+  }
+  .shell__content {
+    padding: 0 !important;
+  }
+
+  /* Tarjetas legibles y sin cortarse entre páginas. */
+  .card,
+  .caja {
+    box-shadow: none !important;
+    border: 1px solid var(--border-default) !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Encabezado de impresión visible solo aquí. */
+  .reportes__print-head {
+    display: block;
+    margin-bottom: var(--space-4);
+    text-align: center;
+  }
+  .reportes__print-head .reportes__print-marca {
+    font-weight: var(--weight-bold);
+    color: var(--color-brand-700);
+  }
+  .reportes__print-head h1 {
+    font-size: var(--text-xl);
+    margin: var(--space-1) 0;
+  }
+  .reportes__print-head .reportes__print-fecha {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+
+  /* Modo ARQUEO: imprimir solo la caja, ocultar el resto de recepción. */
+  body[data-print="arqueo"] .recepcion__cols,
+  body[data-print="arqueo"] .recepcion__head,
+  body[data-print="arqueo"] .caja__head-acciones,
+  body[data-print="arqueo"] .caja__historico,
+  body[data-print="arqueo"] .caja__acciones {
+    display: none !important;
+  }
+}

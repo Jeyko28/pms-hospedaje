@@ -127,8 +127,17 @@ export default function Reportes() {
     <div className="reportes">
       <header className="reportes__head" />
 
-      {/* Selector de periodo */}
-      <Card padding="sm" className="reportes__filtros">
+      {/* Encabezado solo visible al imprimir */}
+      <div className="reportes__print-head" aria-hidden="true">
+        <span className="reportes__print-marca">Stanza</span>
+        <h1>Reporte · {MESES[mes - 1]} {anio}</h1>
+        <span className="reportes__print-fecha">
+          Emitido el {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}
+        </span>
+      </div>
+
+      {/* Selector de periodo + imprimir */}
+      <Card padding="sm" className="reportes__filtros no-print">
         <Field id="mes" label="Mes">
           <select id="mes" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
             {MESES.map((nombre, i) => (
@@ -147,6 +156,9 @@ export default function Reportes() {
             ))}
           </select>
         </Field>
+        <Button variant="secondary" onClick={() => window.print()} className="reportes__imprimir">
+          🖨 Imprimir / PDF
+        </Button>
       </Card>
 
       {/* ---------- Reporte financiero (ingresos, métodos de pago, top) ---------- */}

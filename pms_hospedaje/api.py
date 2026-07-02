@@ -2842,21 +2842,57 @@ def registrar_pago(
     }
 
 
-def _caja_data(hid, dia, incluir_detalle=True):
-    """Calcula el arqueo de un día: pagos por método + total (+ detalle opcional).
-    Reutilizado por el endpoint de caja y por el cierre de turno (DRY)."""
+def _ultimo_periodo_hasta(hid):
+    """Límite superior del último turno cerrado (para saber desde cuándo está
+    'abierta' la caja actual). Devuelve un timestamp 'YYYY-MM-DD HH:MM:SS' o None
+    si el hospedaje nunca cerró turno."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """
-            SELECT metodo, COALESCE(SUM(monto), 0) AS total, COUNT(*) AS n
-            FROM pagos
-            WHERE hospedaje_id = ? AND substr(fecha, 1, 10) = ?
-            GROUP BY metodo
+            "SELECT MAX(periodo_hasta) AS m FROM cierres_turno WHERE hospedaje_id = ?",
+            (hid,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return row["m"] if hasattr(row, "keys") else row[0]
+    finally:
+        conn.close()
+
+
+def _caja_data(hid, dia=None, desde=None, hasta=None, incluir_detalle=True):
+    """Arqueo de pagos por método + total (+ detalle opcional). Dos modos:
+      - por DÍA calendario: pasar dia='YYYY-MM-DD' (consulta histórica).
+      - por VENTANA de turno: pasar desde/hasta ('YYYY-MM-DD HH:MM:SS'); suma los
+        pagos con fecha > desde y fecha <= hasta (desde=None => desde el inicio).
+    Se compara contra pagos.fecha, que se guarda con datetime.now() local."""
+    cond = ["p.hospedaje_id = ?"]
+    params = [hid]
+    if dia:
+        cond.append("substr(p.fecha, 1, 10) = ?")
+        params.append(dia)
+    else:
+        if desde:
+            cond.append("p.fecha > ?")
+            params.append(desde)
+        if hasta:
+            cond.append("p.fecha <= ?")
+            params.append(hasta)
+    where = " AND ".join(cond)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT p.metodo AS metodo, COALESCE(SUM(p.monto), 0) AS total, COUNT(*) AS n
+            FROM pagos p
+            WHERE {where}
+            GROUP BY p.metodo
             ORDER BY total DESC
             """,
-            (hid, dia),
+            tuple(params),
         )
         por_metodo = [
             {"metodo": r["metodo"] or "otro", "total": round(r["total"] or 0, 2), "n": r["n"]}
@@ -2864,19 +2900,19 @@ def _caja_data(hid, dia, incluir_detalle=True):
         ]
         detalle = []
         if incluir_detalle:
-            # Detalle de los pagos del día (incluye quién los registró = auditoría).
+            # Detalle de los pagos (incluye quién los registró = auditoría).
             cursor.execute(
-                """
+                f"""
                 SELECT p.fecha, p.monto, p.metodo, p.referencia,
                        u.nombre AS usuario_nombre, h.nombre AS huesped
                 FROM pagos p
                 LEFT JOIN usuarios u  ON p.usuario_id = u.id
                 LEFT JOIN facturas f  ON p.factura_id = f.id
                 LEFT JOIN huespedes h ON f.huesped_id = h.id
-                WHERE p.hospedaje_id = ? AND substr(p.fecha, 1, 10) = ?
+                WHERE {where}
                 ORDER BY p.fecha DESC
                 """,
-                (hid, dia),
+                tuple(params),
             )
             detalle = [dict(r) for r in cursor.fetchall()]
     finally:
@@ -2896,15 +2932,27 @@ def _caja_data(hid, dia, incluir_detalle=True):
 
 @app.get("/api/recepcion/caja")
 def caja_del_dia(fecha: str = "", hid: int = Depends(auth.hospedaje_actual)):
-    """Arqueo del día: pagos cobrados en una fecha, agrupados por método + total.
-    Lo usa recepción para cuadrar el efectivo del cajón. Visible a admin y
-    recepción (es el dinero que recepción maneja, no el revenue del negocio)."""
-    dia = (fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
-    try:
-        datetime.strptime(dia, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
-    return _caja_data(hid, dia, incluir_detalle=True)
+    """Caja de recepción. Por defecto (sin fecha) devuelve el TURNO ABIERTO: todo
+    lo cobrado desde el último cierre de turno hasta ahora, SIN reiniciarse por día
+    calendario (solo 'Cerrar turno' corta el periodo). Con ?fecha=YYYY-MM-DD
+    devuelve el arqueo histórico de ese día (consulta de solo lectura)."""
+    fecha = (fecha or "").strip()
+    if fecha:
+        try:
+            datetime.strptime(fecha, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+        data = _caja_data(hid, dia=fecha, incluir_detalle=True)
+        data["modo"] = "dia"
+        data["abierta_desde"] = None
+        return data
+    # Turno abierto: desde el último cierre (o desde el inicio) hasta ahora.
+    desde = _ultimo_periodo_hasta(hid)
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data = _caja_data(hid, desde=desde, hasta=ahora, incluir_detalle=True)
+    data["modo"] = "turno"
+    data["abierta_desde"] = desde
+    return data
 
 
 @app.post("/api/recepcion/cierres", status_code=201)
@@ -2913,16 +2961,16 @@ def crear_cierre_turno(
     actual: dict = Depends(auth.usuario_actual),
     hid: int = Depends(auth.hospedaje_actual),
 ):
-    """Registra un cierre de turno: snapshot firmado de lo cobrado en el día
-    (total y por método) + efectivo contado y diferencia, con quién y cuándo.
-    No bloquea pagos posteriores; es un arqueo de control."""
-    dia = (datos.fecha or "").strip() or datetime.now().strftime("%Y-%m-%d")
-    try:
-        datetime.strptime(dia, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Fecha con formato YYYY-MM-DD.")
+    """Cierra el TURNO ABIERTO: snapshot firmado de lo cobrado desde el último
+    cierre hasta ahora (total y por método) + efectivo contado y diferencia, con
+    quién y cuándo. No bloquea pagos posteriores; el siguiente turno arranca desde
+    este cierre. (datos.fecha se ignora para la ventana; el turno se define por el
+    último cierre → ahora.)"""
+    desde = _ultimo_periodo_hasta(hid)
+    hasta = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    dia = hasta[:10]  # fecha de cierre (solo display)
 
-    caja = _caja_data(hid, dia, incluir_detalle=False)
+    caja = _caja_data(hid, desde=desde, hasta=hasta, incluir_detalle=False)
     contado = datos.efectivo_contado
     if contado is not None and contado < 0:
         raise HTTPException(status_code=422, detail="El efectivo contado no puede ser negativo.")
@@ -2935,13 +2983,15 @@ def crear_cierre_turno(
             """
             INSERT INTO cierres_turno
                 (hospedaje_id, usuario_id, usuario_nombre, fecha, total_sistema,
-                 efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas,
+                 periodo_desde, periodo_hasta)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 hid, actual.get("id"), actual.get("nombre", ""), dia,
                 caja["total"], caja["efectivo"], contado, diferencia,
                 caja["num_pagos"], json.dumps(caja["por_metodo"]), (datos.notas or "").strip(),
+                desde, hasta,
             ),
         )
         nuevo_id = cursor.lastrowid
@@ -2959,6 +3009,8 @@ def crear_cierre_turno(
         "num_pagos": caja["num_pagos"],
         "por_metodo": caja["por_metodo"],
         "notas": (datos.notas or "").strip(),
+        "periodo_desde": desde,
+        "periodo_hasta": hasta,
     }
 
 
@@ -2976,7 +3028,8 @@ def listar_cierres_turno(
         cursor.execute(
             """
             SELECT id, usuario_nombre, fecha, creado_en, total_sistema,
-                   efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas
+                   efectivo_sistema, efectivo_contado, diferencia, num_pagos, por_metodo, notas,
+                   periodo_desde, periodo_hasta
             FROM cierres_turno
             WHERE hospedaje_id = ?
             ORDER BY id DESC
