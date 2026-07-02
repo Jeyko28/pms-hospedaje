@@ -129,7 +129,8 @@ export const api = {
   agendaDashboard: () => get("/api/dashboard/agenda"),
   dashboardOverview: () => get("/api/dashboard/overview"),
   habitaciones: () => get("/api/habitaciones"),
-  huespedes: () => get("/api/huespedes"),
+  huespedes: (incluirArchivados = false) =>
+    get(`/api/huespedes${incluirArchivados ? "?incluir_archivados=1" : ""}`),
   reservas: () => get("/api/reservas"),
 
   // Recepcion
@@ -216,7 +217,9 @@ export const api = {
   // Escrituras — Huespedes (CRUD)
   crearHuesped: (datos) => post("/api/huespedes", datos),
   editarHuesped: (id, datos) => put(`/api/huespedes/${id}`, datos),
-  eliminarHuesped: (id) => del(`/api/huespedes/${id}`),
+  eliminarHuesped: (id) => del(`/api/huespedes/${id}`), // archiva (soft-delete)
+  archivarHuesped: (id) => del(`/api/huespedes/${id}`),
+  desarchivarHuesped: (id) => post(`/api/huespedes/${id}/desarchivar`),
 
   // Autenticacion
   login: (usuario, password) => post("/api/auth/login", { usuario, password }),

@@ -1627,9 +1627,88 @@ def completar_tarea_limpieza(
 # --------------------------------------------------------------------------- #
 #  Huespedes (CRUD)
 # --------------------------------------------------------------------------- #
+def _estado_huesped(reservas, gasto_total):
+    """Deriva el estado del huésped para recepción/admin. Umbrales simples y
+    documentados: VIP si tiene 5+ estadías o gastó S/1500+; Frecuente con 2+;
+    Nuevo el resto."""
+    if reservas >= 5 or gasto_total >= 1500:
+        return "VIP"
+    if reservas >= 2:
+        return "Frecuente"
+    return "Nuevo"
+
+
 @app.get("/api/huespedes")
-def listar_huespedes(hid: int = Depends(auth.hospedaje_actual)):
-    return [_a_dict(h) for h in Huesped.obtener_todos(hospedaje_id=hid)]
+def listar_huespedes(
+    incluir_archivados: int = 0, hid: int = Depends(auth.hospedaje_actual)
+):
+    """Huéspedes del hospedaje CON métricas útiles para recepción/admin
+    (reservas, noches, gasto, ticket, última visita, próxima reserva, estado).
+    Por defecto oculta los archivados (?incluir_archivados=1 para verlos)."""
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, nombre, email, telefono, documento, tipo_documento, direccion, "
+            "COALESCE(archivado, 0) AS archivado FROM huespedes "
+            "WHERE hospedaje_id = ? ORDER BY nombre",
+            (hid,),
+        )
+        huespedes = [dict(r) for r in cursor.fetchall()]
+        cursor.execute(
+            "SELECT huesped_id, estado, fecha_entrada, fecha_salida, total "
+            "FROM reservas WHERE hospedaje_id = ?",
+            (hid,),
+        )
+        reservas = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+    # Agregar métricas por huésped a partir de sus reservas (una sola pasada).
+    met = {}
+    for r in reservas:
+        g = met.setdefault(
+            r["huesped_id"],
+            {"reservas": 0, "cancelaciones": 0, "gasto": 0.0, "noches": 0, "ultima": None, "proxima": None},
+        )
+        if r["estado"] == "Cancelada":
+            g["cancelaciones"] += 1
+            continue
+        g["reservas"] += 1
+        g["gasto"] += float(r["total"] or 0)
+        fe = str(r["fecha_entrada"] or "")[:10]
+        fs = str(r["fecha_salida"] or "")[:10]
+        try:
+            d1 = datetime.strptime(fe, "%Y-%m-%d")
+            d2 = datetime.strptime(fs, "%Y-%m-%d")
+            g["noches"] += max(0, (d2 - d1).days)
+        except ValueError:
+            pass
+        if fs and fs <= hoy and (not g["ultima"] or fs > g["ultima"]):
+            g["ultima"] = fs
+        if fe and fe >= hoy and (not g["proxima"] or fe < g["proxima"]):
+            g["proxima"] = fe
+
+    salida = []
+    for h in huespedes:
+        if not incluir_archivados and h["archivado"]:
+            continue
+        g = met.get(h["id"], {"reservas": 0, "cancelaciones": 0, "gasto": 0.0, "noches": 0, "ultima": None, "proxima": None})
+        gasto = round(g["gasto"], 2)
+        nres = g["reservas"]
+        h["metricas"] = {
+            "reservas": nres,
+            "cancelaciones": g["cancelaciones"],
+            "noches": g["noches"],
+            "gasto_total": gasto,
+            "ticket_promedio": round(gasto / nres, 2) if nres else 0,
+            "ultima_visita": g["ultima"],
+            "proxima_reserva": g["proxima"],
+            "estado": _estado_huesped(nres, gasto),
+        }
+        salida.append(h)
+    return salida
 
 
 def _validar_documento(tipo, numero):
@@ -1684,31 +1763,55 @@ def editar_huesped(huesped_id: int, datos: HuespedDatos, hid: int = Depends(auth
 
 
 @app.delete("/api/huespedes/{huesped_id}")
-def eliminar_huesped(
+def archivar_huesped(
     huesped_id: int,
     _admin: dict = Depends(auth.solo_admin),
     hid: int = Depends(auth.hospedaje_actual),
 ):
-    huesped = Huesped.obtener_por_id(huesped_id, hospedaje_id=hid)
-    if not huesped:
-        raise HTTPException(status_code=404, detail="Huesped no encontrado.")
+    """ARCHIVA al huésped (soft-delete): lo oculta del listado por defecto pero
+    conserva su historial de reservas, estadísticas y trazabilidad. No se borra
+    nunca (en un PMS real eliminar rompería reportes y auditoría)."""
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*) AS n FROM reservas WHERE huesped_id = ? AND estado != 'Cancelada' AND hospedaje_id = ?",
+            "SELECT 1 FROM huespedes WHERE id = ? AND hospedaje_id = ?", (huesped_id, hid)
+        )
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Huesped no encontrado.")
+        cursor.execute(
+            "UPDATE huespedes SET archivado = 1 WHERE id = ? AND hospedaje_id = ?",
             (huesped_id, hid),
         )
-        activas = cursor.fetchone()["n"]
+        conn.commit()
     finally:
         conn.close()
-    if activas > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"No se puede eliminar: el huesped tiene {activas} reserva(s) activa(s).",
+    return {"id": huesped_id, "archivado": True}
+
+
+@app.post("/api/huespedes/{huesped_id}/desarchivar")
+def desarchivar_huesped(
+    huesped_id: int,
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Restaura un huésped archivado (vuelve a aparecer en el listado)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM huespedes WHERE id = ? AND hospedaje_id = ?", (huesped_id, hid)
         )
-    huesped.eliminar()
-    return {"id": huesped_id, "eliminado": True}
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Huesped no encontrado.")
+        cursor.execute(
+            "UPDATE huespedes SET archivado = 0 WHERE id = ? AND hospedaje_id = ?",
+            (huesped_id, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": huesped_id, "archivado": False}
 
 
 # --------------------------------------------------------------------------- #

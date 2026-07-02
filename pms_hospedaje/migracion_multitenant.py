@@ -347,6 +347,16 @@ def migrar(conn):
             )
         conn.commit()
 
+    # ----- 21. Huéspedes: archivar en vez de borrar (soft-delete) -----
+    # En un PMS real no se elimina un huésped (rompe historial/estadísticas y la
+    # trazabilidad de sus reservas). Se archiva: queda oculto del listado por
+    # defecto pero conserva todo su historial.
+    if _tabla_existe(cursor, "huespedes"):
+        if "archivado" not in _columnas_de(cursor, "huespedes"):
+            cursor.execute("ALTER TABLE huespedes ADD COLUMN archivado INTEGER DEFAULT 0")
+            cursor.execute("UPDATE huespedes SET archivado = 0 WHERE archivado IS NULL")
+            conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

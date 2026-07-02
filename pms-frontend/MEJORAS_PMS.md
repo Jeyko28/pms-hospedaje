@@ -40,18 +40,30 @@ la lista sin perder acceso). *(Reservas.jsx, Reservas.css)*
 
 ---
 
-## ROADMAP (siguientes fases)
+## FASE 2 (hecha) — Huéspedes: vista lista + métricas + archivar
 
-### FASE 2 — Huéspedes (vista lista + información valiosa + archivar)
-- **Vista Lista/Tarjetas** con selector elegante; preferencia recordada; la lista optimizada
-  para cientos/miles (tabla densa, escaneable).
-- **Información relevante:** quitar/relegar la *dirección* (poco valor operativo) y priorizar
-  indicadores útiles para recepción/admin: nº de reservas, noches acumuladas, gasto total,
-  ticket promedio, última visita, próxima reserva, estado (Nuevo/Frecuente/VIP),
-  cancelaciones previas. Requiere agregaciones en backend (endpoint de "métricas de huésped").
-- **Eliminar → Archivar (soft-delete):** en un PMS real no se borra un huésped (rompe
-  historial/estadísticas/trazabilidad). Se propone `estado` (activo/archivado) + filtro
-  "mostrar archivados", conservando el historial. Argumentado.
+- **Vista Lista/Tarjetas** con toggle segmentado; preferencia recordada en `localStorage`
+  (`pms-huespedes-vista`). La **Lista** es una tabla densa (Huésped, Estado, Reservas,
+  Noches, Gastado, Última visita, Próxima, Contacto, Acciones) pensada para cientos/miles.
+- **Métricas por huésped** (backend, `GET /api/huespedes` enriquecido): reservas, noches,
+  gasto total, ticket promedio, última visita, próxima reserva, cancelaciones y **estado
+  derivado** — VIP (5+ estadías o S/1500+), Frecuente (2+), Nuevo. Se computan en una sola
+  pasada sobre `reservas` (portable, sin SQL específico de motor).
+- **Dirección relegada:** ya no se muestra en la tarjeta principal (poco valor operativo);
+  sigue disponible y opcional en el formulario. Las tarjetas ahora muestran lo valioso
+  (estado, reservas, gasto, noches, próxima/última visita, contacto).
+- **Archivar en vez de eliminar (soft-delete):** `DELETE /api/huespedes/{id}` ahora **archiva**
+  (`archivado=1`, migración additiva) y hay `POST /{id}/desarchivar`. Conserva TODO el
+  historial y estadísticas (en un PMS real borrar rompe reportes/trazabilidad). Filtro
+  "Mostrar archivados" en la UI. *Fundamento:* la integridad del historial > la limpieza del
+  listado; el archivado da lo segundo sin sacrificar lo primero.
+- Verificado: métricas correctas, archivar 23→22 y restaurar→23, toggle + persistencia,
+  dirección ausente de la tarjeta. *(api.py, migracion_multitenant.py, client.js,
+  huespedes/Huespedes.jsx + Huespedes.css)*
+
+---
+
+## ROADMAP (siguientes fases)
 
 ### FASE 3 — Inventario (módulo escalable) + integración Productos/Servicios
 - Arquitectura: categorías (Cocina, Minimarket, Limpieza, Operación) + productos con stock,
