@@ -3547,6 +3547,59 @@ def export_pagos_csv(
 #  reserva no cancelada, dividido entre el total de habitaciones activas.
 #  La noche se cuenta de entrada hasta salida-1 (el dia de salida no ocupa).
 # --------------------------------------------------------------------------- #
+@app.get("/api/reportes/periodos")
+def reportes_periodos(
+    _admin: dict = Depends(auth.solo_admin),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Periodo mínimo con sentido para los selectores de Reportes: el mes/año más
+    antiguo con actividad del hospedaje (pagos o reservas), con fallback a la fecha
+    de creación del hospedaje y, si no hay nada, al mes actual. El máximo (año/mes
+    actual) lo calcula el frontend. Evita ofrecer años previos a la existencia del
+    negocio o meses futuros."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        candidatos = []
+
+        cursor.execute(
+            "SELECT MIN(substr(fecha, 1, 7)) AS m FROM pagos WHERE hospedaje_id = ?",
+            (hid,),
+        )
+        r = cursor.fetchone()
+        if r and (r["m"] if hasattr(r, "keys") else r[0]):
+            candidatos.append((r["m"] if hasattr(r, "keys") else r[0]))
+
+        cursor.execute(
+            "SELECT MIN(substr(fecha_entrada, 1, 7)) AS m FROM reservas WHERE hospedaje_id = ?",
+            (hid,),
+        )
+        r = cursor.fetchone()
+        if r and (r["m"] if hasattr(r, "keys") else r[0]):
+            candidatos.append((r["m"] if hasattr(r, "keys") else r[0]))
+
+        cursor.execute(
+            "SELECT COALESCE(fecha_inicio, creado_en) AS c FROM hospedajes WHERE id = ?",
+            (hid,),
+        )
+        r = cursor.fetchone()
+        creacion = (r["c"] if hasattr(r, "keys") else r[0]) if r else None
+        if creacion:
+            candidatos.append(str(creacion)[:7])
+    finally:
+        conn.close()
+
+    # 'YYYY-MM' comparables como texto; el menor es el más antiguo.
+    candidatos = [c for c in candidatos if c and len(c) >= 7]
+    minimo = min(candidatos) if candidatos else datetime.now().strftime("%Y-%m")
+    try:
+        anio_min, mes_min = int(minimo[:4]), int(minimo[5:7])
+    except ValueError:
+        ahora = datetime.now()
+        anio_min, mes_min = ahora.year, ahora.month
+    return {"anio_min": anio_min, "mes_min": mes_min}
+
+
 @app.get("/api/reportes/ocupacion")
 def reporte_ocupacion(
     anio: int,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
 import Card from "../../components/Card";
@@ -66,13 +66,9 @@ export default function Reportes() {
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState(hoy.getMonth() + 1);
 
-  // El fetcher depende de anio/mes; useCallback lo recrea al cambiarlos
-  // para que useApi recargue automaticamente.
-  const fetcher = useCallback(() => api.ocupacion(anio, mes), [anio, mes]);
-  const reporte = useApi(fetcher);
-
-  const fetcherFin = useCallback(() => api.reporteFinanciero(anio, mes), [anio, mes]);
-  const financiero = useApi(fetcherFin);
+  // useApi recarga por las deps explícitas: al cambiar anio/mes, refetch.
+  const reporte = useApi(() => api.ocupacion(anio, mes), [anio, mes]);
+  const financiero = useApi(() => api.reporteFinanciero(anio, mes), [anio, mes]);
 
   // Analítica de captación (no depende del selector de mes): origen de reservas
   // por mes (últimos 6) y visitas al link público (últimos 7 días).
@@ -120,8 +116,28 @@ export default function Reportes() {
     return m > 0 ? m : 100;
   }, [reporte.data]);
 
+  // Rango de periodos con sentido: desde la primera actividad/creación del
+  // hospedaje hasta el mes/año actual (sin años futuros ni meses no llegados).
+  const periodos = useApi(api.reportesPeriodos);
+  const anioActual = hoy.getFullYear();
+  const mesActual = hoy.getMonth() + 1;
+  const anioMin = Math.min(periodos.data?.anio_min ?? anioActual, anioActual);
+  const mesMin = periodos.data?.mes_min ?? 1;
+
   const anios = [];
-  for (let a = hoy.getFullYear() - 3; a <= hoy.getFullYear() + 1; a++) anios.push(a);
+  for (let a = anioMin; a <= anioActual; a++) anios.push(a);
+
+  // Meses disponibles para el año seleccionado.
+  const mesDesde = anio === anioMin ? mesMin : 1;
+  const mesHasta = anio === anioActual ? mesActual : 12;
+  const mesesDisponibles = [];
+  for (let m = mesDesde; m <= mesHasta; m++) mesesDisponibles.push(m);
+
+  // Si el mes seleccionado queda fuera del rango del año elegido, acotarlo.
+  useEffect(() => {
+    if (mes < mesDesde) setMes(mesDesde);
+    else if (mes > mesHasta) setMes(mesHasta);
+  }, [mesDesde, mesHasta, mes]);
 
   return (
     <div className="reportes">
@@ -140,9 +156,9 @@ export default function Reportes() {
       <Card padding="sm" className="reportes__filtros no-print">
         <Field id="mes" label="Mes">
           <select id="mes" value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-            {MESES.map((nombre, i) => (
-              <option key={i} value={i + 1}>
-                {nombre}
+            {mesesDisponibles.map((m) => (
+              <option key={m} value={m}>
+                {MESES[m - 1]}
               </option>
             ))}
           </select>
