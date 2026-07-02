@@ -13,8 +13,17 @@
   cursor: pointer;
   transition: background-color var(--transition-fast),
     border-color var(--transition-fast), color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-fast), transform var(--transition-fast);
   white-space: nowrap;
+}
+
+/* Micro-interacción: leve elevación al pasar el cursor (se anula al presionar
+   y respeta prefers-reduced-motion vía la regla global). */
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn:disabled {
@@ -62,6 +71,7 @@
 .btn--primary {
   background-color: var(--color-brand-600);
   color: var(--text-on-brand);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--color-brand-600) 55%, transparent);
 }
 .btn--primary:hover:not(:disabled) {
   background-color: var(--color-brand-700);

@@ -28,14 +28,14 @@
   --color-neutral-900: #0f172a; /* contraste 17:1 -> AAA */
 
   /* ----------------------------------------------------------------------- *
-   *  2. COLOR — marca (azul). Profesional, sobrio, confiable.
+   *  2. COLOR — marca (índigo). Premium, sobrio, alineado con la landing.
    * ----------------------------------------------------------------------- */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb; /* color de accion principal */
-  --color-brand-700: #1d4ed8; /* hover / texto sobre fondo claro */
+  --color-brand-50: #eef0ff;
+  --color-brand-100: #e0e3ff;
+  --color-brand-200: #c7ccff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5; /* color de accion principal */
+  --color-brand-700: #4338ca; /* hover / texto sobre fondo claro */
 
   /* ----------------------------------------------------------------------- *
    *  3. COLOR — semantico (estados). Cada uno con fondo suave + texto fuerte.
@@ -54,24 +54,26 @@
   --color-danger-600: #dc2626;
   --color-danger-700: #b91c1c;
 
-  --color-info-50: #eff6ff;
-  --color-info-600: #2563eb;
-  --color-info-700: #1d4ed8;
+  --color-info-50: #eef0ff;
+  --color-info-600: #4f46e5;
+  --color-info-700: #4338ca;
 
   /* ----------------------------------------------------------------------- *
    *  4. COLOR — roles semanticos (lo que usan los componentes)
    * ----------------------------------------------------------------------- */
-  --bg-app: var(--color-neutral-50);
-  --bg-surface: var(--color-neutral-0);
-  --bg-subtle: var(--color-neutral-100);
+  /* Roles cálidos (off-white premium, alineados con la landing). Se definen
+     con hex propios —no con la escala neutra fría— para el look "cálido". */
+  --bg-app: #fafaf8;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f4f4f1;
 
-  --text-primary: var(--color-neutral-900);
-  --text-secondary: var(--color-neutral-600);
-  --text-muted: var(--color-neutral-500);
-  --text-on-brand: var(--color-neutral-0);
+  --text-primary: #1c1c1a;
+  --text-secondary: #56564f;
+  --text-muted: #6e6e68; /* algo más oscuro que la landing: conserva WCAG AA en datos densos */
+  --text-on-brand: #ffffff;
 
-  --border-default: var(--color-neutral-200);
-  --border-strong: var(--color-neutral-300);
+  --border-default: #e9e8e3;
+  --border-strong: #dcdad3;
 
   --focus-ring: var(--color-brand-600);
 
@@ -118,14 +120,17 @@
   /* ----------------------------------------------------------------------- *
    *  7. RADIOS, SOMBRAS, TRANSICIONES
    * ----------------------------------------------------------------------- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12);
+  /* Sombras suaves multicapa y cálidas (tono del texto), como la landing. */
+  --shadow-sm: 0 1px 2px rgba(28, 28, 26, 0.05);
+  --shadow-md: 0 4px 10px -2px rgba(28, 28, 26, 0.06),
+    0 2px 4px -2px rgba(28, 28, 26, 0.05);
+  --shadow-lg: 0 18px 40px -12px rgba(28, 28, 26, 0.14),
+    0 6px 14px -6px rgba(28, 28, 26, 0.08);
 
   --transition-fast: 120ms ease;
   --transition-base: 200ms ease;
@@ -149,40 +154,40 @@
  *  Contraste cuidado: textos sobre superficies oscuras mantienen WCAG AA.
  * ========================================================================== */
 :root[data-theme="dark"] {
-  /* Roles de fondo: de mas oscuro (app) a algo mas claro (superficie). */
-  --bg-app: #0b1120;
-  --bg-surface: #111827;
-  --bg-subtle: #1e293b;
+  /* Charcoal cálido (no negro puro), alineado con la landing. */
+  --bg-app: #111110;
+  --bg-surface: #1a1a18;
+  --bg-subtle: #201f1d;
 
-  /* Texto: claros sobre fondo oscuro. */
-  --text-primary: #f1f5f9; /* ~16:1 sobre bg-surface */
-  --text-secondary: #cbd5e1; /* ~10:1 */
-  --text-muted: #94a3b8; /* ~5:1 -> AA */
+  /* Texto: claros y cálidos sobre fondo oscuro. */
+  --text-primary: #f5f4f1; /* alto contraste */
+  --text-secondary: #b8b7b0;
+  --text-muted: #86857e; /* AA sobre superficie oscura */
   --text-on-brand: #ffffff;
 
-  --border-default: #243044;
-  --border-strong: #334155;
+  --border-default: #2a2a27;
+  --border-strong: #3a3a35;
 
-  /* La marca se aclara un poco para resaltar sobre fondo oscuro. */
-  --color-brand-600: #3b82f6;
-  --color-brand-700: #93c5fd; /* texto/acento sobre oscuro */
-  --focus-ring: #60a5fa;
+  /* La marca (índigo) se aclara para resaltar sobre fondo oscuro. */
+  --color-brand-600: #818cf8;
+  --color-brand-700: #a5b0ff; /* texto/acento sobre oscuro */
+  --focus-ring: #818cf8;
 
-  /* Tintes de fondo de estados: versiones oscuras translucidas para que
-     no "brillen" sobre el fondo oscuro pero sigan diferenciandose. */
-  --color-brand-50: #172554;
-  --color-brand-100: #1e3a8a;
-  --color-success-50: #052e16;
+  /* Tintes de fondo de estados: versiones oscuras para que no "brillen"
+     pero sigan diferenciandose. */
+  --color-brand-50: #1e1e3a;
+  --color-brand-100: #34345e;
+  --color-success-50: #0d2417;
   --color-success-700: #4ade80;
   --color-warning-50: #2e1f05;
   --color-warning-700: #fbbf24;
   --color-danger-50: #2a0a0a;
   --color-danger-700: #f87171;
-  --color-info-50: #172554;
-  --color-info-700: #93c5fd;
+  --color-info-50: #1e1e3a;
+  --color-info-700: #a5b0ff;
 
-  /* Sombras mas marcadas para que las tarjetas se separen del fondo. */
+  /* Sombras marcadas para separar las tarjetas del fondo. */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 20px 44px -12px rgba(0, 0, 0, 0.6);
 }

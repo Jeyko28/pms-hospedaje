@@ -208,7 +208,13 @@
 .shell__brand-mark {
   display: inline-flex;
   align-items: center;
-  color: var(--color-brand-600);
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-700));
+  color: #fff;
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--color-brand-600) 55%, transparent);
   flex-shrink: 0;
 }
 
