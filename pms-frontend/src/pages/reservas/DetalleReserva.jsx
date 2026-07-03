@@ -53,8 +53,10 @@ function nochesEntre(entrada, salida) {
 }
 
 export default function DetalleReserva({ reservaId, onClose }) {
+  // Solo pedir el detalle cuando hay una reserva seleccionada (evita una
+  // petición inútil a /api/reservas/null/detalle -> 422 con el modal cerrado).
   const { data, loading, error } = useApi(
-    () => api.reservaDetalle(reservaId),
+    () => (reservaId ? api.reservaDetalle(reservaId) : Promise.resolve(null)),
     [reservaId]
   );
 

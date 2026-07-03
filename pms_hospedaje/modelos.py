@@ -10,7 +10,7 @@ from datetime import datetime
 class Habitacion:
     def __init__(self, id=None, numero="", tipo="", precio_base=0.0,
                  estado_limpieza="Limpia", estado="disponible", activa=True,
-                 hospedaje_id=None):
+                 hospedaje_id=None, **_):
         self.id = id
         self.numero = numero
         self.tipo = tipo
@@ -94,7 +94,7 @@ class Habitacion:
 
 
 class TareaLimpieza:
-    def __init__(self, id=None, habitacion_id=None, fecha="", estado="Pendiente", asignado_a="", notas=""):
+    def __init__(self, id=None, habitacion_id=None, fecha="", estado="Pendiente", asignado_a="", notas="", **_):
         self.id = id
         self.habitacion_id = habitacion_id
         self.fecha = fecha
@@ -222,7 +222,7 @@ class Huesped:
 class Reserva:
     def __init__(self, id=None, huesped_id=None, habitacion_id=None, fecha_entrada="", fecha_salida="",
                  estado="Confirmada", total=0.0, notas="", creado_en=None, hospedaje_id=None,
-                 origen="manual", grupo_id=None):
+                 origen="manual", grupo_id=None, **_):
         self.id = id
         self.huesped_id = huesped_id
         self.habitacion_id = habitacion_id
@@ -396,7 +396,7 @@ class Reserva:
 class Estancia:
     def __init__(self, id=None, reserva_id=None, huesped_id=None, habitacion_id=None,
                  fecha_checkin="", fecha_checkout_esperado="", fecha_checkout_real=None, estado="activa",
-                 hospedaje_id=None, usuario_checkin_id=None, usuario_checkout_id=None):
+                 hospedaje_id=None, usuario_checkin_id=None, usuario_checkout_id=None, **_):
         self.id = id
         self.reserva_id = reserva_id
         self.huesped_id = huesped_id
@@ -473,7 +473,7 @@ class Estancia:
 class Factura:
     def __init__(self, id=None, estancia_id=None, huesped_id=None, fecha_emision="",
                  subtotal=0.0, impuestos=0.0, total=0.0, estado="pendiente", pdf_generado=0,
-                 hospedaje_id=None, descuento=0.0, descuento_motivo=""):
+                 hospedaje_id=None, descuento=0.0, descuento_motivo="", **_):
         self.id = id
         self.estancia_id = estancia_id
         self.huesped_id = huesped_id
@@ -525,7 +525,7 @@ class Factura:
 
 class Pago:
     def __init__(self, id=None, factura_id=None, monto=0.0, metodo="efectivo", fecha="", referencia="",
-                 hospedaje_id=None, usuario_id=None):
+                 hospedaje_id=None, usuario_id=None, **_):
         self.id = id
         self.factura_id = factura_id
         self.monto = monto
@@ -636,7 +636,7 @@ class ServicioHabitacion:
 class Consumo:
     def __init__(self, id=None, reserva_id=None, tipo="servicio", descripcion="",
                  cantidad=1, precio_unitario=0.0, total=0.0, notas="",
-                 creado_en=None, hospedaje_id=None):
+                 creado_en=None, hospedaje_id=None, **_):
         self.id = id
         self.reserva_id = reserva_id
         self.tipo = tipo            # 'servicio' | 'pedido'

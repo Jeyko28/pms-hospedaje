@@ -126,9 +126,27 @@ la lista sin perder acceso). *(Reservas.jsx, Reservas.css)*
 
 ---
 
-## ROADMAP (siguientes fases)
+## FASE 5 (hecha) — Auditoría crítica + loop
 
-### FASE 5 — Auditoría completa + loop de mejora
+Ver `AUDITORIA.md` (detalle completo). Resumen:
+- **🔴 Clase de bug corregida:** modelos `Modelo(**dict(row))` fallaban con `TypeError` al
+  añadir columnas. Detectado por auditoría automática (TareaLimpieza/hospedaje_id;
+  Huesped/archivado que rompía **check-out** desde F2; ServicioHabitacion/inventario_item_id).
+  Los 9 modelos ahora aceptan sus columnas + `**_`. Re-auditoría: 0 rotos.
+- **🟠 Corregido:** `DetalleReserva` pedía `/reservas/null/detalle` (422) con el modal cerrado.
+- **🟢 Barrido de las 14 secciones:** 0 errores de consola, 0 fallos de API.
+- Revisado OK: dark mode, responsive, performance (code-splitting), a11y, seguridad.
+- Recomendaciones registradas (notificaciones móvil, recetas/insumos, tests de modelos, etc.).
+
+---
+
+## ROADMAP (mayores, producto)
+
+### Hitos de producto restantes (ver ANALISIS_COMPETITIVO.md)
+- Facturación SUNAT en producción · Pagos online (Culqi/MP) · Channel Manager.
+
+### Deuda técnica sugerida
+- Tests que instancian cada modelo desde una fila real (atraparía la clase de bug de arriba).
 - Auditoría crítica de todo (landing → PMS → cada módulo → responsive → dark → performance →
   a11y → código → conversión). Detectar debilidades, priorizar, corregir, repetir.
 
