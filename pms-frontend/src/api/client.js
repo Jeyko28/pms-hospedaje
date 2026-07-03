@@ -142,6 +142,7 @@ export const api = {
   ocupacion: (anio, mes) => get(`/api/reportes/ocupacion?anio=${anio}&mes=${mes}`),
   reporteFinanciero: (anio, mes) => get(`/api/reportes/financiero?anio=${anio}&mes=${mes}`),
   reportesPeriodos: () => get("/api/reportes/periodos"),
+  notificaciones: () => get("/api/notificaciones"),
 
   // URL del PDF de una factura (referencia; NO sirve para abrir directo en el
   // navegador porque el endpoint exige token y la navegación no lo envía).

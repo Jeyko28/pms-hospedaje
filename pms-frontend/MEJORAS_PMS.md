@@ -61,6 +61,24 @@ la lista sin perder acceso). *(Reservas.jsx, Reservas.css)*
   dirección ausente de la tarjeta. *(api.py, migracion_multitenant.py, client.js,
   huespedes/Huespedes.jsx + Huespedes.css)*
 
+## FASE 4 (hecha) — Centro de notificaciones real
+
+- **Decisión de arquitectura:** las notificaciones se **calculan del estado actual**
+  (`GET /api/notificaciones`), no se guardan en un buzón. Evita montar infraestructura de
+  eventos y siempre refleja la realidad: cuando el evento se resuelve (p. ej. confirmas la
+  reserva), la notificación desaparece sola. El estado **"leída" vive en el cliente**
+  (localStorage por usuario, con el id estable de cada notificación) → contador de no leídas.
+- **Eventos con prioridad** (crítica/alta/media/baja): reservas por confirmar (alta),
+  salidas vencidas (crítica), check-in/check-out de hoy (media; check-out con saldo → alta),
+  y suscripción por vencer/vencida (solo admin). Ordenadas por prioridad y fecha.
+- **UI:** campana en el header con **contador** de no leídas; panel desplegable con filtro
+  Todas/No leídas, punto de color por prioridad, "Marcar todas como leídas", clic en un ítem
+  → navega a la sección y lo marca leído. Cierra al hacer clic fuera / Escape; refresco cada
+  60s. *(components/NotificationCenter.jsx + .css, AppShell.jsx, api.py, client.js)*
+- Verificado: badge=3, panel con ítems, "marcar todas" → 0 no leídas + persistencia.
+- Pendiente menor: la campana está en el header de escritorio; añadir acceso en móvil y más
+  fuentes (stock bajo cuando exista Inventario) en próximas iteraciones.
+
 ---
 
 ## ROADMAP (siguientes fases)

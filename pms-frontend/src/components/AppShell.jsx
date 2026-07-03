@@ -22,11 +22,11 @@ import {
   Sparkles,
   Coffee,
   Tag,
-  Bell,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../auth/AuthContext";
+import NotificationCenter from "./NotificationCenter";
 import "./AppShell.css";
 
 /**
@@ -235,14 +235,7 @@ export default function AppShell({ children }) {
               </span>
             </span>
           </div>
-          <button
-            type="button"
-            className="shell__header-icon-btn"
-            aria-label="Notificaciones"
-            title="Notificaciones"
-          >
-            <Bell size={18} />
-          </button>
+          <NotificationCenter />
           <button
             type="button"
             className="shell__header-icon-btn shell__header-logout"

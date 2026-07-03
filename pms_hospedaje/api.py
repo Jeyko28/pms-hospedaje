@@ -3277,6 +3277,124 @@ def dashboard_agenda(hid: int = Depends(auth.hospedaje_actual)):
         conn.close()
 
 
+@app.get("/api/notificaciones")
+def notificaciones(
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Centro de notificaciones: eventos ACCIONABLES calculados del estado actual
+    (no un buzón persistido). Cada uno con id estable (para marcar leído en el
+    cliente), prioridad (critica/alta/media/baja) y ruta a dónde ir."""
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    es_admin = actual.get("rol") in ("admin", "superadmin")
+    notis = []
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+
+        # 1) Reservas por confirmar (Pendiente; muchas llegan por el link público).
+        cursor.execute(
+            """SELECT r.id, h.nombre AS huesped, hab.numero AS hab, r.fecha_entrada, r.origen
+               FROM reservas r JOIN huespedes h ON r.huesped_id = h.id
+               JOIN habitaciones hab ON r.habitacion_id = hab.id
+               WHERE r.estado = 'Pendiente' AND r.hospedaje_id = ?
+               ORDER BY r.fecha_entrada""",
+            (hid,),
+        )
+        for r in [dict(x) for x in cursor.fetchall()]:
+            delLink = " · vino del link" if r.get("origen") == "publico" else ""
+            notis.append({
+                "id": f"pendiente-{r['id']}", "tipo": "reserva", "prioridad": "alta",
+                "titulo": "Reserva por confirmar",
+                "texto": f"{r['huesped']} · Hab. {r['hab']} · llega {r['fecha_entrada']}{delLink}",
+                "ruta": "reservas", "fecha": r["fecha_entrada"],
+            })
+
+        # 2) Salidas vencidas (estancia activa cuyo checkout esperado ya pasó).
+        cursor.execute(
+            """SELECT e.id, h.nombre AS huesped, hab.numero AS hab,
+                      e.fecha_checkout_esperado AS fce
+               FROM estancias e JOIN huespedes h ON e.huesped_id = h.id
+               JOIN habitaciones hab ON e.habitacion_id = hab.id
+               WHERE e.estado = 'activa' AND e.hospedaje_id = ?
+               AND e.fecha_checkout_esperado < ?
+               ORDER BY e.fecha_checkout_esperado""",
+            (hid, hoy),
+        )
+        for r in [dict(x) for x in cursor.fetchall()]:
+            notis.append({
+                "id": f"vencida-{r['id']}", "tipo": "recepcion", "prioridad": "critica",
+                "titulo": "Salida vencida",
+                "texto": f"{r['huesped']} · Hab. {r['hab']} debió salir el {r['fce']}",
+                "ruta": "recepcion", "fecha": r["fce"],
+            })
+
+        # 3) Llegadas de hoy (confirmadas con entrada = hoy y sin check-in aún).
+        cursor.execute(
+            """SELECT r.id, h.nombre AS huesped, hab.numero AS hab
+               FROM reservas r JOIN huespedes h ON r.huesped_id = h.id
+               JOIN habitaciones hab ON r.habitacion_id = hab.id
+               WHERE r.estado = 'Confirmada' AND r.hospedaje_id = ? AND r.fecha_entrada = ?
+               AND NOT EXISTS (SELECT 1 FROM estancias e WHERE e.reserva_id = r.id)""",
+            (hid, hoy),
+        )
+        for r in [dict(x) for x in cursor.fetchall()]:
+            notis.append({
+                "id": f"checkin-{r['id']}-{hoy}", "tipo": "reserva", "prioridad": "media",
+                "titulo": "Check-in hoy", "texto": f"{r['huesped']} · Hab. {r['hab']}",
+                "ruta": "recepcion", "fecha": hoy,
+            })
+
+        # 4) Salidas de hoy (con saldo pendiente si aplica → sube a alta).
+        cursor.execute(
+            """SELECT e.id, h.nombre AS huesped, hab.numero AS hab,
+                      COALESCE(f.total, 0) AS total,
+                      COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado
+               FROM estancias e JOIN huespedes h ON e.huesped_id = h.id
+               JOIN habitaciones hab ON e.habitacion_id = hab.id
+               LEFT JOIN facturas f ON f.estancia_id = e.id
+               WHERE e.estado = 'activa' AND e.hospedaje_id = ? AND e.fecha_checkout_esperado = ?""",
+            (hid, hoy),
+        )
+        for r in [dict(x) for x in cursor.fetchall()]:
+            saldo = round((r["total"] or 0) - (r["pagado"] or 0), 2)
+            notis.append({
+                "id": f"checkout-{r['id']}-{hoy}", "tipo": "recepcion",
+                "prioridad": "alta" if saldo > 0 else "media",
+                "titulo": "Check-out hoy",
+                "texto": f"{r['huesped']} · Hab. {r['hab']}" + (f" · debe S/ {saldo:.2f}" if saldo > 0 else ""),
+                "ruta": "recepcion", "fecha": hoy,
+            })
+
+        # 5) Suscripción por vencer / vencida (solo admin).
+        if es_admin:
+            cursor.execute("SELECT fecha_expira FROM hospedajes WHERE id = ?", (hid,))
+            row = cursor.fetchone()
+            fe = (row["fecha_expira"] if hasattr(row, "keys") else row[0]) if row else None
+            dias = _dias_restantes(fe)
+            if dias is not None and dias <= 7:
+                if dias < 0:
+                    notis.append({
+                        "id": "plan-vencido", "tipo": "sistema", "prioridad": "critica",
+                        "titulo": "Suscripción vencida",
+                        "texto": f"Venció hace {abs(dias)} día(s). Renueva para no perder acceso.",
+                        "ruta": "configuracion", "fecha": hoy,
+                    })
+                else:
+                    notis.append({
+                        "id": "plan-porvencer", "tipo": "sistema", "prioridad": "alta",
+                        "titulo": "Suscripción por vencer",
+                        "texto": "Vence hoy." if dias == 0 else f"Vence en {dias} día(s).",
+                        "ruta": "configuracion", "fecha": hoy,
+                    })
+    finally:
+        conn.close()
+
+    orden = {"critica": 0, "alta": 1, "media": 2, "baja": 3}
+    notis.sort(key=lambda n: (orden.get(n["prioridad"], 9), n.get("fecha", "")))
+    return {"notificaciones": notis, "total": len(notis)}
+
+
 @app.get("/api/dashboard/overview")
 def dashboard_overview(
     actual: dict = Depends(auth.usuario_actual),
