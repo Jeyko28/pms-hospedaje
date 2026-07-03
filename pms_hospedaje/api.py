@@ -313,6 +313,23 @@ class ContactoNuevo(BaseModel):
     mensaje: str = Field(..., min_length=1, max_length=2000)
 
 
+class ItemInventarioDatos(BaseModel):
+    nombre: str = Field(..., max_length=120)
+    categoria: str = Field("Operación", max_length=30)   # Cocina|Minimarket|Limpieza|Operación
+    unidad: str = Field("unidad", max_length=20)
+    stock: float = Field(0, ge=0)
+    stock_minimo: float = Field(0, ge=0)
+    costo_unitario: float = Field(0, ge=0)
+    proveedor: str = Field("", max_length=120)
+
+
+class MovimientoInventarioDatos(BaseModel):
+    tipo: str = Field(..., max_length=10)                # entrada | salida | ajuste
+    cantidad: float = Field(..., ge=0)
+    motivo: str = Field("", max_length=200)
+    costo_unitario: float = Field(0, ge=0)               # opcional; en 'entrada' actualiza el costo
+
+
 class PagoSuscripcionNuevo(BaseModel):
     monto: float = Field(..., gt=0)
     metodo: str = Field("yape", max_length=20)       # yape|transferencia|efectivo|otro
@@ -1812,6 +1829,212 @@ def desarchivar_huesped(
     finally:
         conn.close()
     return {"id": huesped_id, "archivado": False}
+
+
+# --------------------------------------------------------------------------- #
+#  Inventario (SOLO admin) — existencias por categoría + movimientos.
+# --------------------------------------------------------------------------- #
+CATEGORIAS_INV = ("Cocina", "Minimarket", "Limpieza", "Operación")
+
+
+def _item_inv_dict(row):
+    d = dict(row)
+    stock = float(d.get("stock") or 0)
+    minimo = float(d.get("stock_minimo") or 0)
+    d["en_alerta"] = bool(minimo > 0 and stock <= minimo)
+    d["agotado"] = stock <= 0
+    d["valor"] = round(stock * float(d.get("costo_unitario") or 0), 2)
+    return d
+
+
+@app.get("/api/inventario")
+def listar_inventario(
+    categoria: str = "", incluir_inactivos: int = 0,
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    """Items de inventario del hospedaje (con alerta de stock bajo y valorización)."""
+    cond = ["hospedaje_id = ?"]
+    params = [hid]
+    if not incluir_inactivos:
+        cond.append("activo = 1")
+    if categoria:
+        cond.append("categoria = ?")
+        params.append(categoria)
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, nombre, categoria, unidad, stock, stock_minimo, costo_unitario, "
+            f"proveedor, activo FROM inventario_items WHERE {' AND '.join(cond)} "
+            "ORDER BY categoria, nombre",
+            tuple(params),
+        )
+        return [_item_inv_dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.get("/api/inventario/resumen")
+def resumen_inventario(
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual)
+):
+    """Totales del inventario: nº de items, cuántos en alerta y valor total."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT stock, stock_minimo, costo_unitario FROM inventario_items "
+            "WHERE hospedaje_id = ? AND activo = 1",
+            (hid,),
+        )
+        items = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+    en_alerta = sum(
+        1 for i in items if (i["stock_minimo"] or 0) > 0 and (i["stock"] or 0) <= i["stock_minimo"]
+    )
+    valor = round(sum((i["stock"] or 0) * (i["costo_unitario"] or 0) for i in items), 2)
+    return {"items": len(items), "en_alerta": en_alerta, "valor_total": valor}
+
+
+@app.post("/api/inventario", status_code=201)
+def crear_item_inventario(
+    datos: ItemInventarioDatos,
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    if not datos.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre es obligatorio.")
+    cat = datos.categoria if datos.categoria in CATEGORIAS_INV else "Operación"
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO inventario_items "
+            "(hospedaje_id, nombre, categoria, unidad, stock, stock_minimo, costo_unitario, proveedor, activo) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (hid, datos.nombre.strip(), cat, datos.unidad.strip() or "unidad",
+             datos.stock, datos.stock_minimo, datos.costo_unitario, datos.proveedor.strip()),
+        )
+        nid = cursor.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": nid}
+
+
+@app.put("/api/inventario/{item_id}")
+def editar_item_inventario(
+    item_id: int, datos: ItemInventarioDatos,
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    """Edita los datos del item. El STOCK no se toca aquí: se cambia con
+    movimientos (entrada/salida/ajuste) para mantener la trazabilidad."""
+    cat = datos.categoria if datos.categoria in CATEGORIAS_INV else "Operación"
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM inventario_items WHERE id = ? AND hospedaje_id = ?", (item_id, hid))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Item no encontrado.")
+        cursor.execute(
+            "UPDATE inventario_items SET nombre=?, categoria=?, unidad=?, stock_minimo=?, "
+            "costo_unitario=?, proveedor=? WHERE id=? AND hospedaje_id=?",
+            (datos.nombre.strip(), cat, datos.unidad.strip() or "unidad", datos.stock_minimo,
+             datos.costo_unitario, datos.proveedor.strip(), item_id, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": item_id}
+
+
+@app.delete("/api/inventario/{item_id}")
+def archivar_item_inventario(
+    item_id: int,
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    """Archiva el item (soft-delete): conserva su historial de movimientos."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM inventario_items WHERE id = ? AND hospedaje_id = ?", (item_id, hid))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Item no encontrado.")
+        cursor.execute("UPDATE inventario_items SET activo = 0 WHERE id = ? AND hospedaje_id = ?", (item_id, hid))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": item_id, "archivado": True}
+
+
+@app.post("/api/inventario/{item_id}/movimiento", status_code=201)
+def registrar_movimiento_inventario(
+    item_id: int, datos: MovimientoInventarioDatos,
+    actual: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    """Registra un movimiento y actualiza el stock: entrada (+), salida (-),
+    ajuste (fija el stock absoluto). El movimiento queda en el historial."""
+    tipo = datos.tipo.strip().lower()
+    if tipo not in ("entrada", "salida", "ajuste"):
+        raise HTTPException(status_code=422, detail="Tipo inválido (entrada|salida|ajuste).")
+    if tipo in ("entrada", "salida") and datos.cantidad <= 0:
+        raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a 0.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT stock FROM inventario_items WHERE id = ? AND hospedaje_id = ?", (item_id, hid))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Item no encontrado.")
+        stock = float((row["stock"] if hasattr(row, "keys") else row[0]) or 0)
+        if tipo == "entrada":
+            nuevo = stock + datos.cantidad
+        elif tipo == "salida":
+            if datos.cantidad > stock:
+                raise HTTPException(status_code=409, detail=f"No hay stock suficiente (disponible: {stock:g}).")
+            nuevo = stock - datos.cantidad
+        else:
+            nuevo = datos.cantidad  # ajuste = stock absoluto
+
+        if tipo == "entrada" and datos.costo_unitario and datos.costo_unitario > 0:
+            cursor.execute(
+                "UPDATE inventario_items SET stock=?, costo_unitario=? WHERE id=? AND hospedaje_id=?",
+                (nuevo, datos.costo_unitario, item_id, hid),
+            )
+        else:
+            cursor.execute(
+                "UPDATE inventario_items SET stock=? WHERE id=? AND hospedaje_id=?", (nuevo, item_id, hid)
+            )
+        cursor.execute(
+            "INSERT INTO inventario_movimientos "
+            "(hospedaje_id, item_id, tipo, cantidad, stock_resultante, motivo, costo_unitario, usuario_id, usuario_nombre) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (hid, item_id, tipo, datos.cantidad, nuevo, datos.motivo.strip(),
+             (datos.costo_unitario or None), actual.get("id"), actual.get("nombre", "")),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": item_id, "stock": nuevo}
+
+
+@app.get("/api/inventario/{item_id}/movimientos")
+def movimientos_inventario(
+    item_id: int,
+    _admin: dict = Depends(auth.solo_admin), hid: int = Depends(auth.hospedaje_actual),
+):
+    """Historial de movimientos de un item (últimos 100)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, tipo, cantidad, stock_resultante, motivo, usuario_nombre, fecha "
+            "FROM inventario_movimientos WHERE item_id = ? AND hospedaje_id = ? ORDER BY id DESC LIMIT 100",
+            (item_id, hid),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -3387,6 +3610,25 @@ def notificaciones(
                         "texto": "Vence hoy." if dias == 0 else f"Vence en {dias} día(s).",
                         "ruta": "configuracion", "fecha": hoy,
                     })
+
+            # Stock bajo / agotado en el inventario.
+            try:
+                cursor.execute(
+                    "SELECT id, nombre, stock, stock_minimo, unidad FROM inventario_items "
+                    "WHERE hospedaje_id = ? AND activo = 1 AND stock_minimo > 0 AND stock <= stock_minimo",
+                    (hid,),
+                )
+                for r in [dict(x) for x in cursor.fetchall()]:
+                    agotado = (r["stock"] or 0) <= 0
+                    notis.append({
+                        "id": f"stock-{r['id']}", "tipo": "inventario",
+                        "prioridad": "critica" if agotado else "alta",
+                        "titulo": "Producto agotado" if agotado else "Stock bajo",
+                        "texto": f"{r['nombre']}: {r['stock']:g} {r['unidad']} (mínimo {r['stock_minimo']:g})",
+                        "ruta": "inventario", "fecha": hoy,
+                    })
+            except Exception:
+                pass  # si la tabla aún no existe, no bloquear las notificaciones
     finally:
         conn.close()
 

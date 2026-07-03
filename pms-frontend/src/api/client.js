@@ -144,6 +144,20 @@ export const api = {
   reportesPeriodos: () => get("/api/reportes/periodos"),
   notificaciones: () => get("/api/notificaciones"),
 
+  // Inventario (admin)
+  inventario: (categoria = "", incluirInactivos = false) => {
+    const qs = [];
+    if (categoria) qs.push(`categoria=${encodeURIComponent(categoria)}`);
+    if (incluirInactivos) qs.push("incluir_inactivos=1");
+    return get(`/api/inventario${qs.length ? "?" + qs.join("&") : ""}`);
+  },
+  inventarioResumen: () => get("/api/inventario/resumen"),
+  crearItemInventario: (datos) => post("/api/inventario", datos),
+  editarItemInventario: (id, datos) => put(`/api/inventario/${id}`, datos),
+  archivarItemInventario: (id) => del(`/api/inventario/${id}`),
+  movimientoInventario: (id, datos) => post(`/api/inventario/${id}/movimiento`, datos),
+  movimientosInventario: (id) => get(`/api/inventario/${id}/movimientos`),
+
   // URL del PDF de una factura (referencia; NO sirve para abrir directo en el
   // navegador porque el endpoint exige token y la navegación no lo envía).
   urlFacturaPdf: (facturaId) => `${BASE_URL}/api/facturas/${facturaId}/pdf`,

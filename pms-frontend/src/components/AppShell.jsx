@@ -22,6 +22,7 @@ import {
   Sparkles,
   Coffee,
   Tag,
+  Boxes,
 } from "lucide-react";
 import { useRuta } from "../router/Router";
 import { useTheme } from "../hooks/useTheme";
@@ -57,6 +58,7 @@ const NAV = [
   { id: "tarifas", icon: Tag, label: "Tarifas", title: "Tarifas", subtitle: "Precios por temporada y fin de semana.", soloAdmin: true, operativa: true },
   { id: "housekeeping", icon: Sparkles, label: "Limpieza", title: "Limpieza", subtitle: "Estado de limpieza de las habitaciones.", operativa: true },
   { id: "servicios", icon: Coffee, label: "Servicios", title: "Catálogo de servicios", subtitle: "Productos y servicios disponibles para huéspedes.", soloAdmin: true, operativa: true },
+  { id: "inventario", icon: Boxes, label: "Inventario", title: "Inventario", subtitle: "Existencias, stock mínimo y movimientos.", soloAdmin: true, operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", title: "Huéspedes", subtitle: "Tu directorio de huéspedes registrados.", operativa: true },
   { id: "facturas", icon: Receipt, label: "Facturas", title: "Facturas", subtitle: "Historial de facturación de tu hospedaje.", operativa: true },
   { id: "sunat", icon: FileText, label: "Facturación", title: "Facturación electrónica", subtitle: "Emite boletas de venta electrónicas (SUNAT).", soloAdmin: true, operativa: true },

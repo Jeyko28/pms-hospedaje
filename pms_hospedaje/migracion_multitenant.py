@@ -357,6 +357,51 @@ def migrar(conn):
             cursor.execute("UPDATE huespedes SET archivado = 0 WHERE archivado IS NULL")
             conn.commit()
 
+    # ----- 22. Inventario (módulo escalable): items + movimientos -----
+    # Base para gestionar existencias (Cocina/Minimarket/Limpieza/Operación):
+    # stock, mínimo, costo, proveedor y un historial de movimientos (entradas,
+    # salidas, ajustes) que es la fuente de verdad del stock.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS inventario_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            nombre TEXT NOT NULL,
+            categoria TEXT DEFAULT 'Operación',
+            unidad TEXT DEFAULT 'unidad',
+            stock REAL DEFAULT 0,
+            stock_minimo REAL DEFAULT 0,
+            costo_unitario REAL DEFAULT 0,
+            proveedor TEXT DEFAULT '',
+            activo INTEGER DEFAULT 1,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS inventario_movimientos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER,
+            item_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,           -- entrada | salida | ajuste
+            cantidad REAL NOT NULL,
+            stock_resultante REAL,
+            motivo TEXT DEFAULT '',
+            costo_unitario REAL,
+            usuario_id INTEGER,
+            usuario_nombre TEXT DEFAULT '',
+            fecha TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    # Enlace opcional para integrar el catálogo de servicios/productos con el
+    # inventario (vender un producto podrá descontar stock). Se prepara la columna.
+    if _tabla_existe(cursor, "servicios_habitacion"):
+        if "inventario_item_id" not in _columnas_de(cursor, "servicios_habitacion"):
+            cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN inventario_item_id INTEGER")
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -398,6 +443,8 @@ _INDICES = [
     ("idx_reservas_grupo", "reservas", "grupo_id"),
     ("idx_tarifas_hosp", "tarifas", "hospedaje_id"),
     ("idx_pagos_susc_hosp", "pagos_suscripcion", "hospedaje_id"),
+    ("idx_inv_items_hosp", "inventario_items", "hospedaje_id"),
+    ("idx_inv_mov_item", "inventario_movimientos", "item_id"),
 ]
 
 

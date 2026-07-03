@@ -26,6 +26,7 @@ const Usuarios = lazy(() => import("./pages/usuarios/Usuarios"));
 const Hospedajes = lazy(() => import("./pages/hospedajes/Hospedajes"));
 const Servicios = lazy(() => import("./pages/servicios/Servicios"));
 const Tarifas = lazy(() => import("./pages/tarifas/Tarifas"));
+const Inventario = lazy(() => import("./pages/inventario/Inventario"));
 
 /**
  * Vista — decide que pantalla renderizar segun la ruta actual.
@@ -84,6 +85,9 @@ function Vista() {
         break;
       case "servicios":
         contenido = esAdmin ? <Servicios /> : <Dashboard />;
+        break;
+      case "inventario":
+        contenido = esAdmin ? <Inventario /> : <Dashboard />;
         break;
       case "tarifas":
         contenido = esAdmin ? <Tarifas /> : <Dashboard />;

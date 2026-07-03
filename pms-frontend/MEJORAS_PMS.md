@@ -76,26 +76,39 @@ la lista sin perder acceso). *(Reservas.jsx, Reservas.css)*
   → navega a la sección y lo marca leído. Cierra al hacer clic fuera / Escape; refresco cada
   60s. *(components/NotificationCenter.jsx + .css, AppShell.jsx, api.py, client.js)*
 - Verificado: badge=3, panel con ítems, "marcar todas" → 0 no leídas + persistencia.
-- Pendiente menor: la campana está en el header de escritorio; añadir acceso en móvil y más
-  fuentes (stock bajo cuando exista Inventario) en próximas iteraciones.
+- Pendiente menor: la campana está en el header de escritorio; añadir acceso en móvil en
+  próximas iteraciones. (La fuente "stock bajo" ya está integrada — ver Fase 3.)
+
+---
+
+## FASE 3 (hecha) — Inventario (módulo escalable)
+
+- **Arquitectura:** tablas `inventario_items` (nombre, categoría [Cocina/Minimarket/Limpieza/
+  Operación], unidad, stock, stock_minimo, costo_unitario, proveedor, activo) e
+  `inventario_movimientos` (entrada/salida/ajuste, cantidad, stock_resultante, motivo, costo,
+  usuario). El **historial de movimientos es la fuente de verdad** del stock. Migración additiva.
+- **Endpoints (admin):** GET `/api/inventario` (con alerta y valorización), GET
+  `/api/inventario/resumen`, POST/PUT/DELETE (archivar), POST `/{id}/movimiento` (actualiza
+  stock atómicamente; la salida valida stock suficiente → 409), GET `/{id}/movimientos`.
+- **UI:** sección "Inventario" (admin) con filtro por categoría, buscador, KPIs (productos, en
+  alerta, valor del stock), tabla con alerta de stock bajo/agotado, y modales para crear/editar
+  y **registrar movimiento** (entrada/salida/ajuste + historial reciente). Archivar en vez de
+  borrar. *(pages/inventario/*, App.jsx, AppShell.jsx, client.js, api.py, migración)*
+- **Integración con notificaciones:** stock bajo → "Stock bajo" (alta) / "Producto agotado"
+  (crítica) con ruta a Inventario. **Verificado.**
+- Verificado end-to-end: crear → salida 24→4 → alerta; salida excesiva → 409; resumen; nav;
+  notificación de stock bajo.
+- **Preparado para 3B:** columna `servicios_habitacion.inventario_item_id` (ya creada) para
+  enlazar el catálogo de productos con items de inventario y **descontar stock al vender**.
 
 ---
 
 ## ROADMAP (siguientes fases)
 
-### FASE 3 — Inventario (módulo escalable) + integración Productos/Servicios
-- Arquitectura: categorías (Cocina, Minimarket, Limpieza, Operación) + productos con stock,
-  stock mínimo, unidad, costo, proveedor; movimientos (entradas/salidas), valorización,
-  alertas de stock bajo, historial de consumo.
-- Integración: al vender un producto (Coca-Cola, cerveza, snack…) se **descuenta stock**
-  automáticamente. Base preparada para **recetas/insumos** (un plato consume ingredientes) —
-  se documenta cómo escalar aunque quede como fundación.
-
-### FASE 4 — Centro de notificaciones real
-- Eventos con **prioridad** (crítica/alta/media/baja): reservas (nueva del link,
-  cancelada, check-in/out próximos, sobreventa), huéspedes (VIP, frecuente), inventario
-  (stock bajo/agotado), sistema y administración (pagos pendientes). Contador real, marcar
-  leída/todas, filtrar, historial.
+### FASE 3B — Auto-descuento de stock al vender (productos ↔ inventario)
+- Enlazar `servicios_habitacion` ↔ `inventario_items` (columna ya creada) y, al registrar un
+  consumo, descontar el stock del item enlazado (movimiento 'salida' automático). Base
+  escalable a recetas/insumos (un plato consume varios items) vía una tabla de composición.
 
 ### FASE 5 — Auditoría completa + loop de mejora
 - Auditoría crítica de todo (landing → PMS → cada módulo → responsive → dark → performance →
