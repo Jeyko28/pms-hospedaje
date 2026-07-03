@@ -23,7 +23,7 @@ const FUNCIONES = [
   { icon: Globe, titulo: "Reservas directas, sin comisión", texto: "Tu propio link de reservas. El huésped reserva solo y no pagas el 15% de Booking." },
   { icon: CalendarRange, titulo: "Calendario claro", texto: "Todas tus habitaciones y fechas de un vistazo. Sin sobreventa, sin cuadernos." },
   { icon: ConciergeBell, titulo: "Check-in en segundos", texto: "Llegadas, salidas y cobros de saldo desde recepción, sin fricción." },
-  { icon: Receipt, titulo: "Boleta electrónica", texto: "Comprobantes y facturación al día, pensado para las reglas de Perú." },
+  { icon: Receipt, titulo: "Comprobantes y facturación", texto: "Cobros, facturas y comprobantes en PDF. Integración con SUNAT en camino." },
   { icon: BarChart3, titulo: "Reportes claros", texto: "Ocupación, ingresos y origen de tus reservas. Sin ser contador." },
   { icon: ShieldCheck, titulo: "En la nube, a salvo", texto: "Datos respaldados. Entra desde el celular o la compu, sin instalar nada." },
 ];
@@ -47,7 +47,7 @@ export default function Inicio() {
           <span className="hero__acento">en soles</span>
         </h1>
         <p className="hero__lead">
-          Reservas, calendario, check-in y boletas en un solo lugar. Recibe reservas
+          Reservas, calendario, check-in y facturación en un solo lugar. Recibe reservas
           directas por tu propia web <strong>sin pagar comisión a Booking</strong>. Tan
           fácil que lo usas el primer día.
         </p>

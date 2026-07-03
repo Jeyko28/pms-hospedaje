@@ -155,6 +155,20 @@ Ver `AUDITORIA.md` (detalle completo). Resumen:
 
 ---
 
+## Auditoría "Cliente Crítico" (landing → PMS) — ver `AUDITORIA_CLIENTE.md`
+
+Subagente `cliente-critico` (dueño de hostal escéptico) auditó todo, revisando el código real.
+**Veredicto: "lo evaluaría, no lo compro hoy"** (interés medio-alto). La **caja por turno** es la
+joya que casi lo hace pagar; el **link sin comisión** es el ROI que lo mueve.
+- **Accionado (integridad):** copy de la landing sobre facturación no implica ya validez SUNAT
+  ("Integración con SUNAT en camino"; "comprobantes" en vez de "boleta electrónica"). *(Inicio.jsx,
+  Funciones.jsx, Precios.jsx)*
+- **Para decisión del dueño (no ejecutado):** visibilidad del **Precio Fundador S/99** (hoy es
+  easter egg; el auditor lo considera el mejor cierre y un error esconderlo); **adelanto por Yape**
+  en el link (convierte "solicitud" en "reserva real"); **testimonios reales**; **Channel Manager**
+  y **SUNAT en producción** (bloqueadores mayores del roadmap); migración/onboarding en todos los
+  planes, no solo Pro.
+
 ## ROADMAP (mayores, producto)
 
 ### Hitos de producto restantes (ver ANALISIS_COMPETITIVO.md)

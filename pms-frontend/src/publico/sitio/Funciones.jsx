@@ -53,13 +53,13 @@ const AREAS = [
   },
   {
     icon: Receipt,
-    titulo: "Facturación y boleta electrónica",
+    titulo: "Facturación y comprobantes",
     intro: "Comprobantes al día, pensado para Perú.",
     puntos: [
-      "Emite boletas desde cada factura pagada",
+      "Genera comprobantes desde cada factura pagada",
       "Historial de comprobantes y facturas",
       "Descarga en PDF",
-      "Base lista para SUNAT en producción",
+      "Integración con SUNAT en camino",
     ],
   },
   {

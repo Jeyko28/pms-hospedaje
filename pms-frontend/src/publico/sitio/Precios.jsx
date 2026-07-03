@@ -19,7 +19,7 @@ const PLANES = [
     features: [
       "Motor de reservas con link público (0% comisión)",
       "Calendario, check-in y check-out",
-      "Huéspedes, facturación y boleta electrónica",
+      "Huéspedes, facturación y comprobantes en PDF",
       "Reportes de ocupación e ingresos",
       "Acceso para recepción + modo claro/oscuro",
       "Soporte por WhatsApp",
