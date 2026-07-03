@@ -148,8 +148,9 @@ class TareaLimpieza:
 
 class Huesped:
     def __init__(self, id=None, nombre="", email="", telefono="", documento="", direccion="",
-                 hospedaje_id=None, creado_en=None, tipo_documento="DNI"):
-        # creado_en se acepta por compatibilidad con Huesped(**row); puede ignorarse.
+                 hospedaje_id=None, creado_en=None, tipo_documento="DNI", archivado=0, **_):
+        # creado_en/archivado y cualquier columna extra (**_) se aceptan por
+        # compatibilidad con Huesped(**row); las que no se usan se ignoran.
         self.id = id
         self.nombre = nombre
         self.email = email
@@ -158,6 +159,7 @@ class Huesped:
         self.direccion = direccion
         self.hospedaje_id = hospedaje_id
         self.tipo_documento = tipo_documento or "DNI"
+        self.archivado = archivado
 
     @staticmethod
     def obtener_todos(hospedaje_id=None):
@@ -556,7 +558,8 @@ class Pago:
 
 class ServicioHabitacion:
     def __init__(self, id=None, nombre="", categoria="general", subcategoria="",
-                 precio=0.0, activo=True, hospedaje_id=None, tipo="producto"):
+                 precio=0.0, activo=True, hospedaje_id=None, tipo="producto",
+                 inventario_item_id=None, **_):
         self.id = id
         self.nombre = nombre
         self.categoria = categoria      # 'limpieza' | 'mantenimiento' | 'bebida' | 'snack' | 'general'
@@ -565,6 +568,7 @@ class ServicioHabitacion:
         self.activo = activo
         self.hospedaje_id = hospedaje_id
         self.tipo = tipo or "producto"  # 'producto' | 'servicio'
+        self.inventario_item_id = inventario_item_id  # enlace opcional con inventario
 
     @staticmethod
     def obtener_todos(hospedaje_id=None):

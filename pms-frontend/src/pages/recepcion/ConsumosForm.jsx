@@ -85,6 +85,8 @@ export default function ConsumosForm({ estancia, onCambio }) {
         cantidad: cant,
         precio_unitario: precio,
         notas: "",
+        // Si viene del catálogo, el backend descuenta el stock del item enlazado.
+        servicio_id: form.catalogo ? Number(form.catalogo) : 0,
       });
       setForm(VACIO);
       consumos.recargar();

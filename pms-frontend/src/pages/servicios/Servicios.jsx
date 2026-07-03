@@ -45,10 +45,11 @@ function estadoServicio(activo) {
     : { tone: "neutral", label: "Inactivo" };
 }
 
-const VACIO = { nombre: "", tipo: "producto", categoria: "general", subcategoria: "", precio: "" };
+const VACIO = { nombre: "", tipo: "producto", categoria: "general", subcategoria: "", precio: "", inventario_item_id: 0 };
 
 export default function Servicios() {
   const servicios = useApi(api.serviciosHabitacion);
+  const inventario = useApi(() => api.inventario());
   const toast = useToast();
   const [busqueda, setBusqueda] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
@@ -102,6 +103,7 @@ export default function Servicios() {
       categoria: s.categoria || "general",
       subcategoria: s.subcategoria || "",
       precio: String(s.precio || ""),
+      inventario_item_id: s.inventario_item_id || 0,
     });
     setErrores({});
     setModal({ modo: "editar", servicio: s });
@@ -126,6 +128,8 @@ export default function Servicios() {
         categoria: form.categoria,
         subcategoria: form.subcategoria.trim(),
         precio: parseFloat(form.precio) || 0,
+        // Solo los productos descuentan inventario; los servicios no.
+        inventario_item_id: form.tipo === "producto" ? Number(form.inventario_item_id) || 0 : 0,
       };
       if (modal.modo === "crear") {
         await api.crearServicioHabitacion(datos);
@@ -155,6 +159,7 @@ export default function Servicios() {
         subcategoria: s.subcategoria || "",
         precio: s.precio,
         activo: !s.activo,
+        inventario_item_id: s.inventario_item_id || 0,
       });
       toast.success(s.activo ? "Desactivado." : "Activado.");
       servicios.recargar();
@@ -420,6 +425,27 @@ export default function Servicios() {
               />
             </Field>
           </div>
+
+          {!esServicioModal && (
+            <Field
+              id="s-inv"
+              label="Descuenta del inventario (opcional)"
+              hint="Al vender este producto, se descuenta el stock del item elegido."
+            >
+              <select
+                id="s-inv"
+                value={form.inventario_item_id}
+                onChange={(e) => setForm({ ...form, inventario_item_id: e.target.value })}
+              >
+                <option value={0}>— Sin enlace —</option>
+                {(inventario.data || []).map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.nombre} · {i.categoria} · stock {i.stock} {i.unidad}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <div className="servicios__form-acciones">
             <Button variant="secondary" type="button" onClick={() => setModal(null)}>

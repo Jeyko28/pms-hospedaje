@@ -366,6 +366,7 @@ class ServicioHabitacionNuevo(BaseModel):
     subcategoria: str = Field("", max_length=100)
     precio: float = 0.0
     tipo: str = Field("producto", max_length=20)  # 'producto' | 'servicio'
+    inventario_item_id: int = 0                    # 0 = sin enlace a inventario
 
 
 class ServicioHabitacionEdit(BaseModel):
@@ -375,6 +376,7 @@ class ServicioHabitacionEdit(BaseModel):
     precio: float = 0.0
     activo: bool = True
     tipo: str = Field("producto", max_length=20)
+    inventario_item_id: int = 0
 
 
 class ConsumoNuevo(BaseModel):
@@ -384,6 +386,7 @@ class ConsumoNuevo(BaseModel):
     cantidad: int = 1
     precio_unitario: float = 0.0
     notas: str = Field("", max_length=500)
+    servicio_id: int = 0                    # si viene del catálogo: para descontar stock
 
 
 class TarifaNueva(BaseModel):
@@ -4367,8 +4370,39 @@ def listar_consumos(reserva_id: int = 0, hid: int = Depends(auth.hospedaje_actua
     return [_a_dict(c) for c in consumos]
 
 
+def _descontar_inventario_por_venta(cursor, hid, item_id, cantidad, usuario_id, usuario_nombre):
+    """Descuenta stock de un item por una venta/consumo (nunca baja de 0) y
+    registra el movimiento 'salida'. No bloquea la venta si falta stock."""
+    cursor.execute(
+        "SELECT stock FROM inventario_items WHERE id = ? AND hospedaje_id = ? AND activo = 1",
+        (item_id, hid),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return
+    stock = float((row["stock"] if hasattr(row, "keys") else row[0]) or 0)
+    descontar = min(float(cantidad), stock)
+    if descontar <= 0:
+        return
+    nuevo = stock - descontar
+    cursor.execute(
+        "UPDATE inventario_items SET stock = ? WHERE id = ? AND hospedaje_id = ?",
+        (nuevo, item_id, hid),
+    )
+    cursor.execute(
+        "INSERT INTO inventario_movimientos "
+        "(hospedaje_id, item_id, tipo, cantidad, stock_resultante, motivo, usuario_id, usuario_nombre) "
+        "VALUES (?, ?, 'salida', ?, ?, 'Venta a huésped', ?, ?)",
+        (hid, item_id, descontar, nuevo, usuario_id, usuario_nombre),
+    )
+
+
 @app.post("/api/consumos", status_code=201)
-def crear_consumo(datos: ConsumoNuevo, hid: int = Depends(auth.hospedaje_actual)):
+def crear_consumo(
+    datos: ConsumoNuevo,
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
     if not datos.descripcion.strip():
         raise HTTPException(status_code=422, detail="La descripcion es obligatoria.")
     if datos.tipo not in ("servicio", "pedido"):
@@ -4389,6 +4423,29 @@ def crear_consumo(datos: ConsumoNuevo, hid: int = Depends(auth.hospedaje_actual)
         hospedaje_id=hid,
     )
     consumo.guardar()
+
+    # Auto-descuento de inventario: si el consumo viene de un producto del
+    # catálogo enlazado a un item, se descuenta su stock (no rompe la venta).
+    if datos.servicio_id:
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT inventario_item_id FROM servicios_habitacion WHERE id = ? AND hospedaje_id = ?",
+                (datos.servicio_id, hid),
+            )
+            r = cur.fetchone()
+            iid = (r["inventario_item_id"] if hasattr(r, "keys") else r[0]) if r else None
+            if iid:
+                _descontar_inventario_por_venta(
+                    cur, hid, iid, datos.cantidad, actual.get("id"), actual.get("nombre", "")
+                )
+                conn.commit()
+        except Exception:
+            pass  # el descuento de inventario no debe romper el registro del consumo
+        finally:
+            conn.close()
+
     return _a_dict(consumo)
 
 
@@ -4416,9 +4473,46 @@ def eliminar_consumo(consumo_id: int, hid: int = Depends(auth.hospedaje_actual))
 #  Catalogo de servicios de habitacion
 # --------------------------------------------------------------------------- #
 
+def _guardar_enlace_inventario(servicio_id, item_id, hid):
+    """Guarda (o quita, si item_id es 0/None) el enlace de un servicio del
+    catálogo con un item de inventario."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE servicios_habitacion SET inventario_item_id = ? WHERE id = ? AND hospedaje_id = ?",
+            (item_id or None, servicio_id, hid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @app.get("/api/servicios-habitacion")
 def listar_servicios(hid: int = Depends(auth.hospedaje_actual)):
-    return [_a_dict(s) for s in ServicioHabitacion.obtener_todos(hospedaje_id=hid)]
+    servicios = [_a_dict(s) for s in ServicioHabitacion.obtener_todos(hospedaje_id=hid)]
+    # Adjuntar el enlace con inventario (id + nombre del item) para la UI.
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT s.id AS sid, s.inventario_item_id AS iid, i.nombre AS inv_nombre "
+            "FROM servicios_habitacion s "
+            "LEFT JOIN inventario_items i ON i.id = s.inventario_item_id "
+            "WHERE s.hospedaje_id = ?",
+            (hid,),
+        )
+        enlaces = {}
+        for r in cur.fetchall():
+            r = dict(r)
+            enlaces[r["sid"]] = (r["iid"], r["inv_nombre"])
+    finally:
+        conn.close()
+    for sv in servicios:
+        iid, inv_nombre = enlaces.get(sv["id"], (None, None))
+        sv["inventario_item_id"] = iid or 0
+        sv["inventario_nombre"] = inv_nombre
+    return servicios
 
 
 @app.post("/api/servicios-habitacion", status_code=201)
@@ -4439,7 +4533,10 @@ def crear_servicio(
         tipo=tipo,
     )
     s.guardar()
-    return _a_dict(s)
+    _guardar_enlace_inventario(s.id, datos.inventario_item_id, hid)
+    out = _a_dict(s)
+    out["inventario_item_id"] = datos.inventario_item_id or 0
+    return out
 
 
 @app.put("/api/servicios-habitacion/{servicio_id}")
@@ -4459,7 +4556,10 @@ def editar_servicio(
     s.activo = datos.activo
     s.tipo = datos.tipo if datos.tipo in ("producto", "servicio") else "producto"
     s.guardar()
-    return _a_dict(s)
+    _guardar_enlace_inventario(servicio_id, datos.inventario_item_id, hid)
+    out = _a_dict(s)
+    out["inventario_item_id"] = datos.inventario_item_id or 0
+    return out
 
 
 @app.delete("/api/servicios-habitacion/{servicio_id}")
