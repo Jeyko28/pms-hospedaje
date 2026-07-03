@@ -2,9 +2,9 @@ import { Sparkles, MessageCircle } from "lucide-react";
 import { waLink } from "./datos";
 
 /**
- * FounderReveal — panel del Precio Fundador. NO se muestra por defecto: solo
- * aparece cuando el visitante lo "descubre" (ver founder.js + Precios.jsx).
- * Es una recompensa a quien explora, no un banner de descuento.
+ * FounderReveal — panel del Precio Fundador. Oferta de lanzamiento VISIBLE: un
+ * precio de por vida para los primeros hospedajes que se suman. Se muestra en la
+ * página de Precios como argumento de cierre.
  */
 export default function FounderReveal() {
   return (
@@ -12,21 +12,21 @@ export default function FounderReveal() {
       <div className="founder__panel" role="status">
         <Sparkles size={30} aria-hidden="true" className="founder__icon" />
         <div>
-          <p className="founder__eyebrow">Beneficio reservado</p>
+          <p className="founder__eyebrow">Oferta de lanzamiento · cupos limitados</p>
           <h2 className="founder__titulo">Precio fundador — S/99/mes de por vida</h2>
           <p className="founder__texto">
-            Lo descubriste porque exploraste. Los primeros 10 hospedajes pagan{" "}
-            <strong>S/99 al mes para siempre</strong>, en cualquier plan. El precio no
-            sube aunque crezcamos.
+            Los primeros <strong>10 hospedajes</strong> en sumarse pagan{" "}
+            <strong>S/99 al mes para siempre</strong>, en cualquier plan. Tu precio no
+            sube aunque crezcas ni aunque crezcamos nosotros.
           </p>
         </div>
         <a
           className="s-btn s-btn--primary founder__cta"
-          href={waLink("Hola, descubrí el precio fundador de S/99 y quiero reservarlo para mi hospedaje.")}
+          href={waLink("Hola, quiero reservar el precio fundador de S/99/mes para mi hospedaje.")}
           target="_blank"
           rel="noopener noreferrer"
         >
-          <MessageCircle size={18} aria-hidden="true" /> Reclamarlo
+          <MessageCircle size={18} aria-hidden="true" /> Reclamar precio fundador
         </a>
       </div>
     </div>

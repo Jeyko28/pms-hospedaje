@@ -150,8 +150,9 @@ export default function Precios() {
         })}
       </section>
 
-      {/* Easter egg: solo si fue descubierto */}
-      {unlocked && <FounderReveal />}
+      {/* Precio Fundador visible (antes era easter egg; la mecánica de unlock se
+          conserva más abajo por si se vuelve a un modo "descubrible"). */}
+      <FounderReveal />
 
       {/* FAQ — su visibilidad alimenta la mecánica del easter egg */}
       <section className="s-section" ref={faqRef}>
