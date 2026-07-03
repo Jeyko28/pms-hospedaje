@@ -402,6 +402,19 @@ def migrar(conn):
             cursor.execute("ALTER TABLE servicios_habitacion ADD COLUMN inventario_item_id INTEGER")
     conn.commit()
 
+    # ----- 23. Inventario: presentación de compra (ej. "saco" = N kg) -----
+    # Permite comprar a granel por presentación y que el stock (en unidad base)
+    # suba por el factor. presentacion_factor = unidades base por 1 presentación;
+    # 0/'' = producto sin presentación (comportamiento normal). El factor lo
+    # define el dueño por producto (no hay valores fijos).
+    if _tabla_existe(cursor, "inventario_items"):
+        cols_inv = _columnas_de(cursor, "inventario_items")
+        if "presentacion" not in cols_inv:
+            cursor.execute("ALTER TABLE inventario_items ADD COLUMN presentacion TEXT DEFAULT ''")
+        if "presentacion_factor" not in cols_inv:
+            cursor.execute("ALTER TABLE inventario_items ADD COLUMN presentacion_factor REAL DEFAULT 0")
+        conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

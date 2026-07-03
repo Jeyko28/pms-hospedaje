@@ -153,7 +153,14 @@ export default function Inventario() {
               <tbody>
                 {filtrados.map((i) => (
                   <tr key={i.id} className={i.activo ? "" : "is-archived"}>
-                    <td className="inv-nombre">{i.nombre}</td>
+                    <td className="inv-nombre">
+                      {i.nombre}
+                      {i.presentacion && i.presentacion_factor > 0 && (
+                        <span className="inv-nombre-pres">
+                          1 {i.presentacion} = {num(i.presentacion_factor)} {i.unidad}
+                        </span>
+                      )}
+                    </td>
                     <td>{i.categoria}</td>
                     <td className="inv-num">
                       <span className={`inv-stock ${i.en_alerta ? "inv-stock--alerta" : ""}`}>

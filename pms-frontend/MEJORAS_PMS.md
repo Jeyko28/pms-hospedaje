@@ -126,6 +126,21 @@ la lista sin perder acceso). *(Reservas.jsx, Reservas.css)*
 
 ---
 
+## Mejora — Inventario: unidades variadas + presentación de compra
+
+- **Unidad de medida** como `<select>` claro (unidad, kg, g, litro, ml, saco, paquete, caja,
+  bolsa, botella, lata, docena, arroba) + **"Otra…"** personalizada (antes era un `datalist`
+  que solo mostraba "unidad"). Cada producto se mide en su unidad base; stock decimal.
+- **Presentación de compra (opcional)**: el dueño define "1 <presentacion> = N <unidad base>"
+  (el factor lo pone él; no hay valores fijos — un saco de arroz ~49–50 kg, etc.). Columnas
+  `presentacion` + `presentacion_factor` en `inventario_items` (migración).
+- **Entrada por presentación**: en el movimiento de entrada, toggle "saco / kg"; al elegir la
+  presentación, la cantidad se convierte a la unidad base (`base = cantidad × factor`), el
+  costo ingresado por presentación se guarda por unidad base (`costo/factor`), y el motivo
+  antepone "N saco". Salida/ajuste siguen en unidad base.
+- Verificado: 1 saco (factor 50) → 50 kg y costo/kg 2.6; salida 5 kg → 45; selector con todas
+  las unidades; toggle con conversión en vivo (2 sacos = 100 kg).
+
 ## FASE 5 (hecha) — Auditoría crítica + loop
 
 Ver `AUDITORIA.md` (detalle completo). Resumen:

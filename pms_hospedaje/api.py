@@ -316,11 +316,13 @@ class ContactoNuevo(BaseModel):
 class ItemInventarioDatos(BaseModel):
     nombre: str = Field(..., max_length=120)
     categoria: str = Field("Operación", max_length=30)   # Cocina|Minimarket|Limpieza|Operación
-    unidad: str = Field("unidad", max_length=20)
+    unidad: str = Field("unidad", max_length=20)         # unidad base (kg, litro, unidad, saco…)
     stock: float = Field(0, ge=0)
     stock_minimo: float = Field(0, ge=0)
     costo_unitario: float = Field(0, ge=0)
     proveedor: str = Field("", max_length=120)
+    presentacion: str = Field("", max_length=30)         # presentación de compra (ej. "saco")
+    presentacion_factor: float = Field(0, ge=0)          # unidades base por 1 presentación
 
 
 class MovimientoInventarioDatos(BaseModel):
@@ -328,6 +330,7 @@ class MovimientoInventarioDatos(BaseModel):
     cantidad: float = Field(..., ge=0)
     motivo: str = Field("", max_length=200)
     costo_unitario: float = Field(0, ge=0)               # opcional; en 'entrada' actualiza el costo
+    en_presentacion: bool = False                        # si la cantidad viene en presentación
 
 
 class PagoSuscripcionNuevo(BaseModel):
@@ -1868,7 +1871,9 @@ def listar_inventario(
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, nombre, categoria, unidad, stock, stock_minimo, costo_unitario, "
-            f"proveedor, activo FROM inventario_items WHERE {' AND '.join(cond)} "
+            "proveedor, activo, COALESCE(presentacion,'') AS presentacion, "
+            "COALESCE(presentacion_factor,0) AS presentacion_factor "
+            f"FROM inventario_items WHERE {' AND '.join(cond)} "
             "ORDER BY categoria, nombre",
             tuple(params),
         )
@@ -1913,10 +1918,12 @@ def crear_item_inventario(
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO inventario_items "
-            "(hospedaje_id, nombre, categoria, unidad, stock, stock_minimo, costo_unitario, proveedor, activo) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            "(hospedaje_id, nombre, categoria, unidad, stock, stock_minimo, costo_unitario, proveedor, "
+            "presentacion, presentacion_factor, activo) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
             (hid, datos.nombre.strip(), cat, datos.unidad.strip() or "unidad",
-             datos.stock, datos.stock_minimo, datos.costo_unitario, datos.proveedor.strip()),
+             datos.stock, datos.stock_minimo, datos.costo_unitario, datos.proveedor.strip(),
+             datos.presentacion.strip(), datos.presentacion_factor or 0),
         )
         nid = cursor.lastrowid
         conn.commit()
@@ -1941,9 +1948,11 @@ def editar_item_inventario(
             raise HTTPException(status_code=404, detail="Item no encontrado.")
         cursor.execute(
             "UPDATE inventario_items SET nombre=?, categoria=?, unidad=?, stock_minimo=?, "
-            "costo_unitario=?, proveedor=? WHERE id=? AND hospedaje_id=?",
+            "costo_unitario=?, proveedor=?, presentacion=?, presentacion_factor=? "
+            "WHERE id=? AND hospedaje_id=?",
             (datos.nombre.strip(), cat, datos.unidad.strip() or "unidad", datos.stock_minimo,
-             datos.costo_unitario, datos.proveedor.strip(), item_id, hid),
+             datos.costo_unitario, datos.proveedor.strip(),
+             datos.presentacion.strip(), datos.presentacion_factor or 0, item_id, hid),
         )
         conn.commit()
     finally:
@@ -1985,35 +1994,57 @@ def registrar_movimiento_inventario(
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT stock FROM inventario_items WHERE id = ? AND hospedaje_id = ?", (item_id, hid))
+        cursor.execute(
+            "SELECT stock, COALESCE(presentacion,'') AS presentacion, "
+            "COALESCE(presentacion_factor,0) AS presentacion_factor "
+            "FROM inventario_items WHERE id = ? AND hospedaje_id = ?",
+            (item_id, hid),
+        )
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Item no encontrado.")
-        stock = float((row["stock"] if hasattr(row, "keys") else row[0]) or 0)
-        if tipo == "entrada":
-            nuevo = stock + datos.cantidad
-        elif tipo == "salida":
-            if datos.cantidad > stock:
-                raise HTTPException(status_code=409, detail=f"No hay stock suficiente (disponible: {stock:g}).")
-            nuevo = stock - datos.cantidad
-        else:
-            nuevo = datos.cantidad  # ajuste = stock absoluto
+        row = dict(row)
+        stock = float(row.get("stock") or 0)
+        factor = float(row.get("presentacion_factor") or 0)
 
-        if tipo == "entrada" and datos.costo_unitario and datos.costo_unitario > 0:
+        # Si la cantidad viene en la presentación (ej. sacos), convertir a unidad
+        # base multiplicando por el factor. El costo ingresado es por presentación
+        # → se guarda por unidad base (costo / factor).
+        usa_pres = bool(datos.en_presentacion and factor > 0)
+        base_cantidad = datos.cantidad * factor if usa_pres else datos.cantidad
+        costo_base = (datos.costo_unitario / factor) if (usa_pres and datos.costo_unitario) else datos.costo_unitario
+
+        if tipo == "entrada":
+            nuevo = stock + base_cantidad
+        elif tipo == "salida":
+            if base_cantidad > stock:
+                raise HTTPException(status_code=409, detail=f"No hay stock suficiente (disponible: {stock:g}).")
+            nuevo = stock - base_cantidad
+        else:
+            nuevo = base_cantidad  # ajuste = stock absoluto (en unidad base)
+
+        if tipo == "entrada" and costo_base and costo_base > 0:
             cursor.execute(
                 "UPDATE inventario_items SET stock=?, costo_unitario=? WHERE id=? AND hospedaje_id=?",
-                (nuevo, datos.costo_unitario, item_id, hid),
+                (nuevo, round(costo_base, 4), item_id, hid),
             )
         else:
             cursor.execute(
                 "UPDATE inventario_items SET stock=? WHERE id=? AND hospedaje_id=?", (nuevo, item_id, hid)
             )
+
+        # El movimiento se guarda en UNIDAD BASE; si vino en presentación, se
+        # antepone al motivo para trazabilidad (ej. "2 saco · compra").
+        motivo = datos.motivo.strip()
+        if usa_pres:
+            etq = f"{datos.cantidad:g} {row.get('presentacion') or 'presentación'}"
+            motivo = f"{etq}" + (f" · {motivo}" if motivo else "")
         cursor.execute(
             "INSERT INTO inventario_movimientos "
             "(hospedaje_id, item_id, tipo, cantidad, stock_resultante, motivo, costo_unitario, usuario_id, usuario_nombre) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (hid, item_id, tipo, datos.cantidad, nuevo, datos.motivo.strip(),
-             (datos.costo_unitario or None), actual.get("id"), actual.get("nombre", "")),
+            (hid, item_id, tipo, base_cantidad, nuevo, motivo,
+             (round(costo_base, 4) if costo_base else None), actual.get("id"), actual.get("nombre", "")),
         )
         conn.commit()
     finally:
