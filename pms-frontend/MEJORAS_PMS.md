@@ -192,8 +192,15 @@ activa, el flujo actual no cambia — cero regresión).
 - Verificado end-to-end (backend curl + preview): config S/45 sobre total S/90 (1 noche de 2);
   público muestra el bloque y el botón "Reservar y registrar adelanto"; notificación aparece y se
   resuelve; detalle marca "✓ Verificado".
-- **Pendiente (siguiente iteración):** aplicar automáticamente el adelanto verificado como pago
-  en la factura al hacer check-in (hoy se ve el monto para descontarlo en recepción).
+- **Enganche al check-in (hecho):** al hacer check-in, si la reserva trae un adelanto
+  **verificado**, se registra automáticamente como **pago (Yape) sobre la cuenta** (con el código
+  de operación en la referencia) y el adelanto pasa a estado **`aplicado`** (chip "Adelanto
+  aplicado"); el saldo ya lo refleja. Se limita al total (evita saldo negativo si se acortó la
+  estadía) y no se duplica. Es solo el registro del pago — el **comprobante suele ser boleta** (la
+  factura es específica para empresa con RUC) y se emite aparte. *(hacer_checkin en api.py,
+  Reservas.jsx, DetalleReserva.jsx)*
+  Verificado: check-in de reserva con adelanto S/45 → pago Yape S/45 en la cuenta, saldo 90→45,
+  estado `aplicado`.
 
 ## ROADMAP (mayores, producto)
 

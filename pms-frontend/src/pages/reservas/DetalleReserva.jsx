@@ -214,6 +214,9 @@ export default function DetalleReserva({ reservaId, onClose }) {
                   {data.reserva.adelanto_estado === "rechazado" && (
                     <Badge tone="danger" icon="✕">Rechazado</Badge>
                   )}
+                  {data.reserva.adelanto_estado === "aplicado" && (
+                    <Badge tone="success" icon="✓">Aplicado a la cuenta</Badge>
+                  )}
                 </div>
                 {data.reserva.adelanto_codigo && (
                   <p className="dr__adelanto-cod">
@@ -223,6 +226,11 @@ export default function DetalleReserva({ reservaId, onClose }) {
                 {data.reserva.adelanto_estado === "por_verificar" && (
                   <p className="dr__muted dr__adelanto-hint">
                     Revisa tu Yape/cuenta y confirma que recibiste el adelanto.
+                  </p>
+                )}
+                {data.reserva.adelanto_estado === "aplicado" && (
+                  <p className="dr__muted dr__adelanto-hint">
+                    Registrado como pago en la cuenta (aparece abajo en Pagos).
                   </p>
                 )}
                 {adErr && <p className="dr__adelanto-err" role="alert">{adErr}</p>}

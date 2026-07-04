@@ -2804,6 +2804,49 @@ def hacer_checkin(
     )
     factura.guardar()
 
+    # Enganche del adelanto: si la reserva trae un adelanto YA verificado, se
+    # aplica como pago (Yape) sobre la cuenta para que el saldo lo refleje desde
+    # el check-in. Se marca 'aplicado' para no duplicarlo. Es solo el registro
+    # del pago; el comprobante (normalmente boleta) se emite aparte. Se limita al
+    # total por si el check-in acortó la estadía (evita saldo negativo).
+    adelanto_aplicado = 0.0
+    conn_ad = get_connection()
+    try:
+        cur_ad = conn_ad.cursor()
+        cur_ad.execute(
+            "SELECT COALESCE(adelanto_monto,0) AS m, COALESCE(adelanto_estado,'') AS e, "
+            "COALESCE(adelanto_codigo,'') AS c FROM reservas WHERE id=? AND hospedaje_id=?",
+            (reserva.id, hid),
+        )
+        ad = cur_ad.fetchone()
+    finally:
+        conn_ad.close()
+    if ad and ad["e"] == "verificado" and (ad["m"] or 0) > 0:
+        adelanto_aplicado = round(min(float(ad["m"]), float(total_real)), 2)
+        if adelanto_aplicado > 0:
+            ref = f"Adelanto de reserva #{reserva.id}"
+            if ad["c"]:
+                ref += f" · op. {ad['c']}"
+            Pago(
+                factura_id=factura.id,
+                monto=adelanto_aplicado,
+                metodo="yape",
+                fecha=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                referencia=ref,
+                hospedaje_id=hid,
+                usuario_id=actual.get("id"),
+            ).guardar()
+            conn_up = get_connection()
+            try:
+                cur_up = conn_up.cursor()
+                cur_up.execute(
+                    "UPDATE reservas SET adelanto_estado='aplicado' WHERE id=? AND hospedaje_id=?",
+                    (reserva.id, hid),
+                )
+                conn_up.commit()
+            finally:
+                conn_up.close()
+
     hab.cambiar_estado_ocupacion("ocupada")
     reserva.estado = "Check-in"
     reserva.guardar()
@@ -2815,6 +2858,7 @@ def hacer_checkin(
         "fecha_checkin": fecha_real,
         "noches": noches_reales,
         "total": factura.total,
+        "adelanto_aplicado": adelanto_aplicado,
     }
 
 
