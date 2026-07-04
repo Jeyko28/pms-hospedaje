@@ -250,6 +250,11 @@ export const api = {
   miHospedaje: () => get("/api/mi-hospedaje"),
   guardarMiHospedaje: (datos) => put("/api/mi-hospedaje", datos),
 
+  // Config del adelanto (Yape) del motor de reservas
+  adelantoConfig: () => get("/api/mi-hospedaje/adelanto"),
+  guardarAdelantoConfig: (datos) => put("/api/mi-hospedaje/adelanto", datos),
+  verificarAdelanto: (id, estado) => post(`/api/reservas/${id}/adelanto`, { estado }),
+
   // Detalle de reserva (estancia, factura, pagos, consumos)
   reservaDetalle: (id) => get(`/api/reservas/${id}/detalle`),
 

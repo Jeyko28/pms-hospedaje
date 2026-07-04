@@ -34,6 +34,7 @@ export default function ReservaPublica({ slug }) {
 
   const [seleccion, setSeleccion] = useState(null); // habitacion elegida
   const [datos, setDatos] = useState({ nombre: "", email: "", telefono: "" });
+  const [codigoOp, setCodigoOp] = useState(""); // código de operación del adelanto (Yape)
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [exito, setExito] = useState(null); // {reserva_id, total}
@@ -94,6 +95,7 @@ export default function ReservaPublica({ slug }) {
         nombre: datos.nombre.trim(),
         email: datos.email.trim(),
         telefono: datos.telefono.trim(),
+        adelanto_codigo: codigoOp.trim(),
       });
       setExito(r);
     } catch (err) {
@@ -132,9 +134,16 @@ export default function ReservaPublica({ slug }) {
             Código #{exito.reserva_id} · {exito.noches} noche(s) ·{" "}
             <strong>{moneda.format(exito.total)}</strong>
           </p>
-          <p className="pub__nota">
-            El hospedaje confirmará tu reserva. Te contactarán por los datos que dejaste.
-          </p>
+          {exito.adelanto_monto > 0 ? (
+            <p className="pub__nota">
+              Registramos tu adelanto de <strong>{moneda.format(exito.adelanto_monto)}</strong>.
+              El hospedaje lo verificará y te confirmará la reserva por los datos que dejaste.
+            </p>
+          ) : (
+            <p className="pub__nota">
+              El hospedaje confirmará tu reserva. Te contactarán por los datos que dejaste.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -242,13 +251,43 @@ export default function ReservaPublica({ slug }) {
                 />
               </Field>
             </div>
+            {hospedaje.adelanto?.activo && seleccion.adelanto > 0 && (
+              <div className="pub__adelanto">
+                <p className="pub__adelanto-titulo">
+                  Asegura tu reserva con un adelanto de{" "}
+                  <strong>{moneda.format(seleccion.adelanto)}</strong>
+                </p>
+                <p className="pub__adelanto-yape">
+                  Yapea o transfiere a{" "}
+                  <strong>{hospedaje.adelanto.yape_numero}</strong>
+                  {hospedaje.adelanto.yape_titular && <> · {hospedaje.adelanto.yape_titular}</>}
+                </p>
+                <Field id="cod-op" label="Código de operación (Yape/transferencia)">
+                  <input
+                    id="cod-op"
+                    value={codigoOp}
+                    onChange={(e) => setCodigoOp(e.target.value)}
+                    placeholder="Ej. 01234567"
+                    inputMode="numeric"
+                  />
+                </Field>
+                <p className="pub__adelanto-nota">
+                  El hospedaje verificará tu adelanto y confirmará la reserva. El resto lo
+                  pagas al llegar.
+                </p>
+              </div>
+            )}
             {errorEnvio && <p className="pub__error" role="alert">{errorEnvio}</p>}
             <div className="pub__acciones">
               <Button type="button" variant="secondary" onClick={() => setSeleccion(null)}>
                 Cambiar habitación
               </Button>
               <Button type="submit" disabled={enviando}>
-                {enviando ? "Enviando…" : "Confirmar reserva"}
+                {enviando
+                  ? "Enviando…"
+                  : hospedaje.adelanto?.activo && seleccion.adelanto > 0
+                  ? "Reservar y registrar adelanto"
+                  : "Confirmar reserva"}
               </Button>
             </div>
           </form>

@@ -196,6 +196,20 @@ class ReservaPublica(BaseModel):
     email: str = Field("", max_length=254)
     telefono: str = Field("", max_length=20)
     notas: str = Field("", max_length=2000)
+    adelanto_codigo: str = Field("", max_length=40)   # código de operación Yape/transf. que pega el huésped
+
+
+class AdelantoConfig(BaseModel):
+    """Config del adelanto del motor de reservas (por hospedaje)."""
+    activo: bool = False
+    tipo: str = Field("noche", max_length=12)         # noche | porcentaje | monto
+    valor: float = Field(0, ge=0)                     # % (si porcentaje) o soles (si monto)
+    yape_numero: str = Field("", max_length=40)
+    yape_titular: str = Field("", max_length=120)
+
+
+class AdelantoVerificacion(BaseModel):
+    estado: str = Field(..., max_length=12)           # verificado | rechazado | por_verificar
 
 
 class HuespedDatos(BaseModel):
@@ -714,6 +728,84 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
     return obtener_mi_hospedaje(admin)
 
 
+_ADELANTO_TIPOS = ("noche", "porcentaje", "monto")
+
+
+def _calcular_adelanto(tipo: str, valor: float, total: float, noches: int) -> float:
+    """Monto de adelanto a pedir, según la política del hospedaje. Nunca supera
+    el total. 'noche' = promedio de una noche (total/noches)."""
+    total = float(total or 0)
+    if total <= 0:
+        return 0.0
+    if tipo == "porcentaje":
+        monto = total * max(0.0, min(float(valor or 0), 100.0)) / 100.0
+    elif tipo == "monto":
+        monto = min(float(valor or 0), total)
+    else:  # 'noche'
+        monto = (total / noches) if noches and noches > 0 else total
+    return round(min(monto, total), 2)
+
+
+def _adelanto_config_de(cursor, hid: int) -> dict:
+    """Lee la config de adelanto del hospedaje (con defaults seguros)."""
+    cursor.execute(
+        """SELECT COALESCE(adelanto_activo,0) AS activo, COALESCE(adelanto_tipo,'noche') AS tipo,
+                  COALESCE(adelanto_valor,0) AS valor, COALESCE(yape_numero,'') AS yape_numero,
+                  COALESCE(yape_titular,'') AS yape_titular
+           FROM hospedajes WHERE id = ?""",
+        (hid,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return {"activo": False, "tipo": "noche", "valor": 0, "yape_numero": "", "yape_titular": ""}
+    d = dict(row)
+    d["activo"] = bool(d["activo"])
+    return d
+
+
+@app.get("/api/mi-hospedaje/adelanto")
+def obtener_adelanto_config(admin: dict = Depends(auth.solo_admin)):
+    """Config del adelanto (Yape) del motor de reservas — para Configuración."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        return _adelanto_config_de(cursor, admin["hospedaje_id"])
+    finally:
+        conn.close()
+
+
+@app.put("/api/mi-hospedaje/adelanto")
+def guardar_adelanto_config(datos: AdelantoConfig, admin: dict = Depends(auth.solo_admin)):
+    """Guarda la config del adelanto. Si se activa, exige número Yape y una
+    política válida (para no pedir un adelanto de S/0 o sin a dónde pagar)."""
+    hid = admin["hospedaje_id"]
+    tipo = (datos.tipo or "noche").strip()
+    if tipo not in _ADELANTO_TIPOS:
+        raise HTTPException(status_code=422, detail="Tipo de adelanto inválido.")
+    yape_numero = (datos.yape_numero or "").strip()
+    yape_titular = (datos.yape_titular or "").strip()
+    valor = float(datos.valor or 0)
+    if datos.activo:
+        if not yape_numero:
+            raise HTTPException(status_code=422, detail="Indica el número de Yape/transferencia para recibir el adelanto.")
+        if tipo == "porcentaje" and not (0 < valor <= 100):
+            raise HTTPException(status_code=422, detail="El porcentaje debe estar entre 1 y 100.")
+        if tipo == "monto" and valor <= 0:
+            raise HTTPException(status_code=422, detail="Indica el monto del adelanto en soles.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """UPDATE hospedajes SET adelanto_activo=?, adelanto_tipo=?, adelanto_valor=?,
+                      yape_numero=?, yape_titular=? WHERE id=?""",
+            (1 if datos.activo else 0, tipo, valor, yape_numero, yape_titular, hid),
+        )
+        conn.commit()
+        return _adelanto_config_de(cursor, hid)
+    finally:
+        conn.close()
+
+
 @app.get("/api/usuarios")
 def listar_usuarios(admin: dict = Depends(auth.solo_admin)):
     # Cada admin SOLO ve los usuarios de su propio hospedaje (aislamiento).
@@ -1186,9 +1278,18 @@ def hospedaje_publico(slug: str):
             (h["id"],),
         )
         habitaciones = [dict(r) for r in cursor.fetchall()]
+
+        # Config de adelanto (solo se exponen los datos de pago si está activo).
+        cfg = _adelanto_config_de(cursor, h["id"])
+        adelanto = {"activo": cfg["activo"], "tipo": cfg["tipo"], "valor": cfg["valor"]}
+        if cfg["activo"]:
+            adelanto["yape_numero"] = cfg["yape_numero"]
+            adelanto["yape_titular"] = cfg["yape_titular"]
+
         return {
             "hospedaje": {"nombre": h["nombre"], "slug": h["slug"]},
             "habitaciones": habitaciones,
+            "adelanto": adelanto,
         }
     finally:
         conn.close()
@@ -1242,9 +1343,14 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
         libres = [dict(r) for r in cursor.fetchall()]
         noches = (fs - fe).days
         _reglas = tarifas.obtener_reglas(hid)
+        cfg = _adelanto_config_de(cursor, hid)
         for r in libres:
             r["total"] = tarifas.total_estadia(
                 hid, r["id"], r["precio_base"], fecha_entrada, fecha_salida, reglas=_reglas
+            )
+            r["adelanto"] = (
+                _calcular_adelanto(cfg["tipo"], cfg["valor"], r["total"], noches)
+                if cfg["activo"] else 0
             )
         return {"noches": noches, "habitaciones": libres}
     finally:
@@ -1329,15 +1435,27 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
             datos.fecha_entrada, datos.fecha_salida,
         )
 
+        # Adelanto (Yape): si el hospedaje lo pide, se calcula el monto en el
+        # servidor (autoritativo, no se confía en el front) y la reserva queda
+        # con el adelanto 'por_verificar' + el código de operación del huésped.
+        cfg = _adelanto_config_de(cursor, hid)
+        adelanto_monto = (
+            _calcular_adelanto(cfg["tipo"], cfg["valor"], total, noches)
+            if cfg["activo"] else 0.0
+        )
+        adelanto_estado = "por_verificar" if adelanto_monto > 0 else ""
+        adelanto_codigo = (datos.adelanto_codigo or "").strip() if adelanto_monto > 0 else ""
+
         # Reserva en estado 'Pendiente' (la confirma/paga despues). origen
         # 'publico' = llegó por el link del motor de reservas.
         cursor.execute(
             """
-            INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id, origen)
-            VALUES (?, ?, ?, ?, 'Pendiente', ?, ?, ?, 'publico')
+            INSERT INTO reservas (huesped_id, habitacion_id, fecha_entrada, fecha_salida, estado, total, notas, hospedaje_id, origen,
+                                  adelanto_monto, adelanto_codigo, adelanto_estado)
+            VALUES (?, ?, ?, ?, 'Pendiente', ?, ?, ?, 'publico', ?, ?, ?)
             """,
             (huesped_id, datos.habitacion_id, datos.fecha_entrada, datos.fecha_salida,
-             total, datos.notas, hid),
+             total, datos.notas, hid, adelanto_monto, adelanto_codigo, adelanto_estado),
         )
         reserva_id = cursor.lastrowid
         conn.commit()
@@ -1346,6 +1464,8 @@ def crear_reserva_publica(slug: str, datos: ReservaPublica):
             "total": total,
             "noches": noches,
             "estado": "Pendiente",
+            "adelanto_monto": adelanto_monto,
+            "adelanto_estado": adelanto_estado,
         }
     finally:
         conn.close()
@@ -2084,7 +2204,10 @@ def listar_reservas(hid: int = Depends(auth.hospedaje_actual)):
             SELECT r.id, r.huesped_id, r.habitacion_id,
                    r.fecha_entrada, r.fecha_salida, r.estado, r.total,
                    h.nombre AS huesped, h.telefono AS telefono,
-                   hab.numero AS habitacion, hab.tipo AS tipo
+                   hab.numero AS habitacion, hab.tipo AS tipo,
+                   COALESCE(r.adelanto_monto,0) AS adelanto_monto,
+                   COALESCE(r.adelanto_codigo,'') AS adelanto_codigo,
+                   COALESCE(r.adelanto_estado,'') AS adelanto_estado
             FROM reservas r
             JOIN huespedes h    ON r.huesped_id = h.id
             JOIN habitaciones hab ON r.habitacion_id = hab.id
@@ -2094,6 +2217,41 @@ def listar_reservas(hid: int = Depends(auth.hospedaje_actual)):
             (hid,),
         )
         return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/reservas/{reserva_id}/adelanto")
+def verificar_adelanto(
+    reserva_id: int,
+    datos: AdelantoVerificacion,
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Marca el adelanto de una reserva como verificado o rechazado (tras
+    comprobar el Yape en la cuenta). Es la acción que convierte una solicitud
+    con adelanto en una reserva con compromiso confirmado."""
+    estado = (datos.estado or "").strip()
+    if estado not in ("verificado", "rechazado", "por_verificar"):
+        raise HTTPException(status_code=422, detail="Estado de adelanto inválido.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COALESCE(adelanto_estado,'') AS ae, COALESCE(adelanto_monto,0) AS am "
+            "FROM reservas WHERE id = ? AND hospedaje_id = ?",
+            (reserva_id, hid),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+        if not row["ae"]:
+            raise HTTPException(status_code=409, detail="Esta reserva no tiene un adelanto registrado.")
+        cursor.execute(
+            "UPDATE reservas SET adelanto_estado = ? WHERE id = ? AND hospedaje_id = ?",
+            (estado, reserva_id, hid),
+        )
+        conn.commit()
+        return {"reserva_id": reserva_id, "adelanto_estado": estado, "adelanto_monto": row["am"]}
     finally:
         conn.close()
 
@@ -3565,6 +3723,24 @@ def notificaciones(
                 "titulo": "Reserva por confirmar",
                 "texto": f"{r['huesped']} · Hab. {r['hab']} · llega {r['fecha_entrada']}{delLink}",
                 "ruta": "reservas", "fecha": r["fecha_entrada"],
+            })
+
+        # 1b) Adelantos por verificar (el huésped dice que ya pagó por Yape).
+        cursor.execute(
+            """SELECT r.id, h.nombre AS huesped, hab.numero AS hab,
+                      COALESCE(r.adelanto_monto,0) AS monto
+               FROM reservas r JOIN huespedes h ON r.huesped_id = h.id
+               JOIN habitaciones hab ON r.habitacion_id = hab.id
+               WHERE r.adelanto_estado = 'por_verificar' AND r.hospedaje_id = ?
+               ORDER BY r.fecha_entrada""",
+            (hid,),
+        )
+        for r in [dict(x) for x in cursor.fetchall()]:
+            notis.append({
+                "id": f"adelanto-{r['id']}", "tipo": "reserva", "prioridad": "alta",
+                "titulo": "Adelanto por verificar",
+                "texto": f"{r['huesped']} · Hab. {r['hab']} · S/ {r['monto']:.2f} por Yape",
+                "ruta": "reservas", "fecha": hoy,
             })
 
         # 2) Salidas vencidas (estancia activa cuyo checkout esperado ya pasó).

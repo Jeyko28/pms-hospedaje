@@ -373,6 +373,12 @@ export default function Reservas() {
                           <Badge tone={est.tone} icon={est.icon}>
                             {est.label}
                           </Badge>
+                          {r.adelanto_estado === "por_verificar" && (
+                            <Badge tone="warning" icon="⏳">Adelanto por verificar</Badge>
+                          )}
+                          {r.adelanto_estado === "verificado" && (
+                            <Badge tone="success" icon="✓">Adelanto</Badge>
+                          )}
                         </div>
                         <div className="reserva-item__meta">
                           <span>Hab. {r.habitacion}</span>

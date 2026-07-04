@@ -415,6 +415,37 @@ def migrar(conn):
             cursor.execute("ALTER TABLE inventario_items ADD COLUMN presentacion_factor REAL DEFAULT 0")
         conn.commit()
 
+    # ----- 24. Adelanto (Yape) en el motor de reservas -----
+    # El hospedaje puede pedir un ADELANTO por Yape/transferencia al reservar por
+    # el link público (convierte una "solicitud" en reserva con compromiso). El
+    # dueño configura: si está activo, su número/titular Yape y la política del
+    # adelanto (1ª noche | % del total | monto fijo). La reserva guarda el monto
+    # calculado, el código de operación que pega el huésped y el estado de
+    # verificación. Todo opcional: si no se activa, el flujo actual no cambia.
+    if _tabla_existe(cursor, "hospedajes"):
+        cols_h_ad = _columnas_de(cursor, "hospedajes")
+        if "adelanto_activo" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN adelanto_activo INTEGER DEFAULT 0")
+        if "adelanto_tipo" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN adelanto_tipo TEXT DEFAULT 'noche'")  # noche|porcentaje|monto
+        if "adelanto_valor" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN adelanto_valor REAL DEFAULT 0")
+        if "yape_numero" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN yape_numero TEXT DEFAULT ''")
+        if "yape_titular" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN yape_titular TEXT DEFAULT ''")
+        conn.commit()
+    if _tabla_existe(cursor, "reservas"):
+        cols_r_ad = _columnas_de(cursor, "reservas")
+        if "adelanto_monto" not in cols_r_ad:
+            cursor.execute("ALTER TABLE reservas ADD COLUMN adelanto_monto REAL DEFAULT 0")
+        if "adelanto_codigo" not in cols_r_ad:
+            cursor.execute("ALTER TABLE reservas ADD COLUMN adelanto_codigo TEXT DEFAULT ''")
+        if "adelanto_estado" not in cols_r_ad:
+            # '' = sin adelanto | por_verificar | verificado | rechazado
+            cursor.execute("ALTER TABLE reservas ADD COLUMN adelanto_estado TEXT DEFAULT ''")
+        conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

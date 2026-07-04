@@ -20,6 +20,19 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+.cfg__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.cfg__check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand-600);
+}
 .cfg__tema {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

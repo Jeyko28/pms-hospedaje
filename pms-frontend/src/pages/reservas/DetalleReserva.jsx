@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Modal from "../../components/Modal";
 import Badge from "../../components/Badge";
+import Button from "../../components/Button";
 import StateMessage from "../../components/StateMessage";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
@@ -55,10 +56,26 @@ function nochesEntre(entrada, salida) {
 export default function DetalleReserva({ reservaId, onClose }) {
   // Solo pedir el detalle cuando hay una reserva seleccionada (evita una
   // petición inútil a /api/reservas/null/detalle -> 422 con el modal cerrado).
-  const { data, loading, error } = useApi(
+  const detalle = useApi(
     () => (reservaId ? api.reservaDetalle(reservaId) : Promise.resolve(null)),
     [reservaId]
   );
+  const { data, loading, error } = detalle;
+  const [verificando, setVerificando] = useState(false);
+  const [adErr, setAdErr] = useState(null);
+
+  async function marcarAdelanto(estado) {
+    setAdErr(null);
+    setVerificando(true);
+    try {
+      await api.verificarAdelanto(reservaId, estado);
+      detalle.recargar();
+    } catch (e) {
+      setAdErr(e.message);
+    } finally {
+      setVerificando(false);
+    }
+  }
 
   const totalConsumos = useMemo(() => {
     if (!data?.consumos) return 0;
@@ -177,6 +194,59 @@ export default function DetalleReserva({ reservaId, onClose }) {
               {data.reserva?.origen === "publico" ? "🌐 Link público" : "✏ Manual"}
             </span>
           </div>
+
+          {/* ── Adelanto por Yape (del motor de reservas) ── */}
+          {data.reserva?.adelanto_estado && (
+            <>
+              <div className="dr__divider" />
+              <div className="dr__section">
+                <h4 className="dr__section-title">Adelanto por Yape</h4>
+                <div className="dr__adelanto">
+                  <span className="dr__adelanto-monto">
+                    {formatoMoneda.format(data.reserva.adelanto_monto || 0)}
+                  </span>
+                  {data.reserva.adelanto_estado === "por_verificar" && (
+                    <Badge tone="warning" icon="⏳">Por verificar</Badge>
+                  )}
+                  {data.reserva.adelanto_estado === "verificado" && (
+                    <Badge tone="success" icon="✓">Verificado</Badge>
+                  )}
+                  {data.reserva.adelanto_estado === "rechazado" && (
+                    <Badge tone="danger" icon="✕">Rechazado</Badge>
+                  )}
+                </div>
+                {data.reserva.adelanto_codigo && (
+                  <p className="dr__adelanto-cod">
+                    Código de operación: <strong>{data.reserva.adelanto_codigo}</strong>
+                  </p>
+                )}
+                {data.reserva.adelanto_estado === "por_verificar" && (
+                  <p className="dr__muted dr__adelanto-hint">
+                    Revisa tu Yape/cuenta y confirma que recibiste el adelanto.
+                  </p>
+                )}
+                {adErr && <p className="dr__adelanto-err" role="alert">{adErr}</p>}
+                {(data.reserva.adelanto_estado === "por_verificar" ||
+                  data.reserva.adelanto_estado === "rechazado") && (
+                  <div className="dr__adelanto-acc">
+                    <Button
+                      variant="secondary"
+                      disabled={verificando}
+                      onClick={() => marcarAdelanto("rechazado")}
+                    >
+                      Rechazar
+                    </Button>
+                    <Button
+                      disabled={verificando}
+                      onClick={() => marcarAdelanto("verificado")}
+                    >
+                      {verificando ? "Guardando…" : "Marcar verificado"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* ── Consumos ── */}
           {data.consumos && data.consumos.length > 0 && (

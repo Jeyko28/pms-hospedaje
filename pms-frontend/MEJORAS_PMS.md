@@ -172,6 +172,29 @@ joya que casi lo hace pagar; el **link sin comisión** es el ROI que lo mueve.
   y **SUNAT en producción** (bloqueadores mayores del roadmap); migración/onboarding en todos los
   planes, no solo Pro.
 
+## Mejora — Motor de reservas: adelanto por Yape (hallazgo del cliente-crítico)
+
+Convierte una "solicitud" del link público en una **reserva con compromiso**: el hospedaje
+puede pedir un adelanto por Yape/transferencia. **Todo es configurable y opcional** (si no se
+activa, el flujo actual no cambia — cero regresión).
+- **Config (Configuración → "Adelanto en reservas (Yape)")**: activar/desactivar, política
+  (**1 noche** | **% del total** | **monto fijo**), número Yape + titular. El monto se calcula
+  en el **servidor** (no se confía en el front). *(migración paso 24: `hospedajes.adelanto_*` +
+  `yape_*`; `reservas.adelanto_monto/codigo/estado`)*
+- **Link público (ReservaPublica)**: al elegir habitación se muestra el adelanto a pagar, el
+  número Yape + titular y un campo para el **código de operación**. La reserva queda con el
+  adelanto `por_verificar`. Copy de éxito acorde.
+- **PMS**: chip **"⏳ Adelanto por verificar" / "✓ Adelanto"** en la lista de Reservas; en el
+  **detalle** de reserva, sección "Adelanto por Yape" con monto, código y botones
+  **Verificar/Rechazar**. Notificación de prioridad alta **"Adelanto por verificar"** (desaparece
+  al verificar). *(api.py, client.js, ReservaPublica.*, Configuracion.*, Reservas.jsx,
+  DetalleReserva.*)*
+- Verificado end-to-end (backend curl + preview): config S/45 sobre total S/90 (1 noche de 2);
+  público muestra el bloque y el botón "Reservar y registrar adelanto"; notificación aparece y se
+  resuelve; detalle marca "✓ Verificado".
+- **Pendiente (siguiente iteración):** aplicar automáticamente el adelanto verificado como pago
+  en la factura al hacer check-in (hoy se ve el monto para descontarlo en recepción).
+
 ## ROADMAP (mayores, producto)
 
 ### Hitos de producto restantes (ver ANALISIS_COMPETITIVO.md)

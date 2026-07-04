@@ -96,6 +96,67 @@ export default function Configuracion() {
     }
   }
 
+  // --- Adelanto (Yape) del motor de reservas ---
+  const adel = useApi(api.adelantoConfig);
+  const [adForm, setAdForm] = useState({
+    activo: false, tipo: "noche", valor: 0, yape_numero: "", yape_titular: "",
+  });
+  const [adGuardando, setAdGuardando] = useState(false);
+  const [adError, setAdError] = useState(null);
+  const [adOk, setAdOk] = useState(false);
+
+  useEffect(() => {
+    if (adel.data) {
+      setAdForm({
+        activo: !!adel.data.activo,
+        tipo: adel.data.tipo || "noche",
+        valor: adel.data.valor || 0,
+        yape_numero: adel.data.yape_numero || "",
+        yape_titular: adel.data.yape_titular || "",
+      });
+    }
+  }, [adel.data]);
+
+  const setAd = (campo) => (e) =>
+    setAdForm((f) => ({ ...f, [campo]: e.target.value }));
+
+  async function guardarAdelanto(ev) {
+    ev.preventDefault();
+    setAdError(null);
+    setAdOk(false);
+    if (adForm.activo) {
+      if (!adForm.yape_numero.trim()) {
+        setAdError("Indica el número de Yape/transferencia para recibir el adelanto.");
+        return;
+      }
+      if (adForm.tipo === "porcentaje" && !(Number(adForm.valor) > 0 && Number(adForm.valor) <= 100)) {
+        setAdError("El porcentaje debe estar entre 1 y 100.");
+        return;
+      }
+      if (adForm.tipo === "monto" && !(Number(adForm.valor) > 0)) {
+        setAdError("Indica el monto del adelanto en soles.");
+        return;
+      }
+    }
+    setAdGuardando(true);
+    try {
+      await api.guardarAdelantoConfig({
+        activo: adForm.activo,
+        tipo: adForm.tipo,
+        valor: Number(adForm.valor) || 0,
+        yape_numero: adForm.yape_numero.trim(),
+        yape_titular: adForm.yape_titular.trim(),
+      });
+      setAdOk(true);
+      adel.recargar();
+      setTimeout(() => setAdOk(false), 3000);
+    } catch (e) {
+      setAdError(e.message);
+    } finally {
+      setAdGuardando(false);
+    }
+  }
+
   // --- Estado de la suscripción ---
   const plan = info.data?.plan || "—";
   const estado = info.data?.estado || "—";
@@ -231,6 +292,75 @@ export default function Configuracion() {
             );
           })}
         </div>
+      </Card>
+
+      {/* ---------- Adelanto en reservas (Yape) ---------- */}
+      <Card>
+        <h2 className="cfg__card-title">Adelanto en reservas (Yape)</h2>
+        <p className="cfg__sub">
+          Pide un adelanto por Yape/transferencia al reservar por tu link público. Convierte
+          una simple solicitud en una reserva con compromiso. Al huésped se le muestra tu
+          número y deja su código de operación; tú lo verificas aquí.
+        </p>
+        {adel.loading && !adel.data ? (
+          <StateMessage variant="loading" title="Cargando…" />
+        ) : (
+          <form className="cfg__form" onSubmit={guardarAdelanto} noValidate>
+            <label className="cfg__check">
+              <input
+                type="checkbox"
+                checked={adForm.activo}
+                onChange={(e) => setAdForm((f) => ({ ...f, activo: e.target.checked }))}
+              />
+              Pedir adelanto en el link de reservas
+            </label>
+
+            {adForm.activo && (
+              <>
+                <div className="cfg__fila">
+                  <Field id="ad-tipo" label="¿Cuánto adelanto?">
+                    <select id="ad-tipo" value={adForm.tipo} onChange={setAd("tipo")}>
+                      <option value="noche">El precio de 1 noche</option>
+                      <option value="porcentaje">Un % del total</option>
+                      <option value="monto">Un monto fijo (S/)</option>
+                    </select>
+                  </Field>
+                  {adForm.tipo === "porcentaje" && (
+                    <Field id="ad-valor" label="Porcentaje (%)">
+                      <input id="ad-valor" type="number" min="1" max="100" step="1"
+                        value={adForm.valor} onChange={setAd("valor")} placeholder="Ej. 30" />
+                    </Field>
+                  )}
+                  {adForm.tipo === "monto" && (
+                    <Field id="ad-valor" label="Monto (S/)">
+                      <input id="ad-valor" type="number" min="0" step="0.01"
+                        value={adForm.valor} onChange={setAd("valor")} placeholder="Ej. 50" />
+                    </Field>
+                  )}
+                </div>
+                <div className="cfg__fila">
+                  <Field id="ad-numero" label="Número de Yape / transferencia" required>
+                    <input id="ad-numero" type="tel" value={adForm.yape_numero}
+                      onChange={setAd("yape_numero")} placeholder="Ej. 987 654 321" />
+                  </Field>
+                  <Field id="ad-titular" label="Titular (opcional)">
+                    <input id="ad-titular" type="text" value={adForm.yape_titular}
+                      onChange={setAd("yape_titular")} placeholder="Nombre que ve el huésped" />
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {adError && <p className="cfg__error" role="alert">{adError}</p>}
+            {adOk && <p className="cfg__ok">Configuración guardada.</p>}
+
+            <div className="cfg__acciones">
+              <Button type="submit" disabled={adGuardando}>
+                {adGuardando ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Card>
 
       {/* ---------- Tu plan / suscripción ---------- */}

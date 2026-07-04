@@ -359,6 +359,39 @@
   line-height: var(--leading-relaxed);
 }
 
+/* ── Adelanto por Yape ── */
+.dr__adelanto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dr__adelanto-monto {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dr__adelanto-cod {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.dr__adelanto-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+}
+.dr__adelanto-err {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-600);
+}
+.dr__adelanto-acc {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 /* ── Responsive ── */
 @media (max-width: 560px) {
   .dr__two-col {
