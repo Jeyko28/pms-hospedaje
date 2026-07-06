@@ -71,6 +71,8 @@ def crear_tablas_sunat():
                 cliente_tipo_doc TEXT DEFAULT 'SIN',    -- 'DNI' | 'RUC' | 'SIN'
                 cliente_num_doc TEXT DEFAULT '',
                 cliente_nombre TEXT DEFAULT '',
+                op_gravada REAL DEFAULT 0,              -- base gravada (total sin IGV)
+                igv REAL DEFAULT 0,                     -- IGV 18% (total - base)
                 total REAL NOT NULL DEFAULT 0,
                 estado TEXT NOT NULL DEFAULT 'aceptado',-- 'aceptado'|'rechazado'|'pendiente'|'anulado'
                 modo TEXT NOT NULL DEFAULT 'sandbox',
@@ -82,8 +84,40 @@ def crear_tablas_sunat():
             """
         )
         conn.commit()
+
+        # --- Cambios aditivos idempotentes (BDs existentes) ---
+        # IGV desglosado (comprobantes previos quedan en 0; los nuevos lo calculan).
+        cols = _columnas(cursor, "comprobantes")
+        if "op_gravada" not in cols:
+            cursor.execute("ALTER TABLE comprobantes ADD COLUMN op_gravada REAL DEFAULT 0")
+        if "igv" not in cols:
+            cursor.execute("ALTER TABLE comprobantes ADD COLUMN igv REAL DEFAULT 0")
+        # Unicidad del correlativo por (hospedaje, serie): evita números duplicados
+        # ante concurrencia o un fallo entre INSERT y avance del correlativo.
+        try:
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_comprobantes_serie_corr "
+                "ON comprobantes(hospedaje_id, serie, correlativo)"
+            )
+        except Exception:
+            # Si hubiera duplicados legados, no impedir el arranque (se limpian aparte).
+            pass
+        conn.commit()
     finally:
         conn.close()
+
+
+def _columnas(cursor, tabla):
+    """Nombres de columnas de una tabla (SQLite o PostgreSQL). Local a sunat."""
+    import dbengine
+    if dbengine.USA_POSTGRES:
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+            (tabla,),
+        )
+        return {r[0] for r in cursor.fetchall()}
+    cursor.execute(f"PRAGMA table_info({tabla})")
+    return {r[1] for r in cursor.fetchall()}
 
 
 # --------------------------------------------------------------------------- #
@@ -240,6 +274,12 @@ def emitir_boleta(hid, factura, huesped, descripcion):
         else:
             cli_tipo, cli_num = "SIN", "00000000"
 
+        # IGV desglosado. En Perú el precio al consumidor es IGV-incluido, así que
+        # el total ya trae el impuesto: base = total / 1.18, IGV = total - base.
+        total = round(factura["total"] or 0, 2)
+        op_gravada = round(total / 1.18, 2)
+        igv = round(total - op_gravada, 2)
+
         comp = {
             "hospedaje_id": hid,
             "factura_id": factura["id"],
@@ -252,7 +292,9 @@ def emitir_boleta(hid, factura, huesped, descripcion):
             "cliente_tipo_doc": cli_tipo,
             "cliente_num_doc": cli_num,
             "cliente_nombre": huesped.get("nombre") or "Cliente",
-            "total": round(factura["total"] or 0, 2),
+            "op_gravada": op_gravada,
+            "igv": igv,
+            "total": total,
             "modo": config["modo"],
         }
 
@@ -268,13 +310,13 @@ def emitir_boleta(hid, factura, huesped, descripcion):
             """
             INSERT INTO comprobantes
                 (hospedaje_id, factura_id, tipo, serie, correlativo, numero, fecha_emision,
-                 moneda, cliente_tipo_doc, cliente_num_doc, cliente_nombre, total, estado,
-                 modo, hash, mensaje, pdf_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 moneda, cliente_tipo_doc, cliente_num_doc, cliente_nombre, op_gravada, igv,
+                 total, estado, modo, hash, mensaje, pdf_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (hid, factura["id"], "boleta", serie, correlativo, numero, fecha, "PEN",
-             cli_tipo, cli_num, comp["cliente_nombre"], comp["total"],
-             resultado.get("estado", "aceptado"), config["modo"],
+             cli_tipo, cli_num, comp["cliente_nombre"], comp["op_gravada"], comp["igv"],
+             comp["total"], resultado.get("estado", "aceptado"), config["modo"],
              resultado.get("hash", ""), resultado.get("mensaje", ""), pdf_path),
         )
         nuevo_id = cursor.lastrowid
@@ -353,8 +395,19 @@ def generar_boleta_pdf(comp, config, descripcion, hash_demo, ruta_destino=None):
     c.drawString(2 * cm, y, descripcion or "Servicio de hospedaje")
     c.drawRightString(width - 2 * cm, y, f"S/ {comp['total']:.2f}")
 
+    # Desglose de impuestos (IGV 18%).
+    op_gravada = comp.get("op_gravada", round((comp["total"] or 0) / 1.18, 2))
+    igv = comp.get("igv", round((comp["total"] or 0) - op_gravada, 2))
+    y -= 0.9 * cm
+    c.setFont("Helvetica", 10)
+    c.drawRightString(width - 5.5 * cm, y, "Op. gravada:")
+    c.drawRightString(width - 2 * cm, y, f"S/ {op_gravada:.2f}")
+    y -= 0.5 * cm
+    c.drawRightString(width - 5.5 * cm, y, "IGV (18%):")
+    c.drawRightString(width - 2 * cm, y, f"S/ {igv:.2f}")
+
     # Total.
-    y -= 1 * cm
+    y -= 0.7 * cm
     c.setFont("Helvetica-Bold", 12)
     c.drawRightString(width - 2 * cm, y, f"TOTAL: S/ {comp['total']:.2f}")
 

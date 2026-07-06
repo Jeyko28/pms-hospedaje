@@ -3255,6 +3255,7 @@ def sunat_emitir_boleta(
             SELECT f.id, f.total, f.huesped_id,
                    COALESCE((SELECT SUM(p.monto) FROM pagos p WHERE p.factura_id = f.id), 0) AS pagado,
                    h.nombre AS huesped_nombre, h.documento AS huesped_doc,
+                   h.tipo_documento AS huesped_tipo_doc,
                    hab.numero AS habitacion, hab.tipo AS tipo,
                    e.fecha_checkin, e.fecha_checkout_real, e.fecha_checkout_esperado
             FROM facturas f
@@ -3294,7 +3295,8 @@ def sunat_emitir_boleta(
         comp = sunat.emitir_boleta(
             hid,
             {"id": f["id"], "total": f["total"]},
-            {"nombre": f["huesped_nombre"], "documento": f.get("huesped_doc")},
+            {"nombre": f["huesped_nombre"], "documento": f.get("huesped_doc"),
+             "tipo_documento": f.get("huesped_tipo_doc")},
             descripcion,
         )
     except sunat.SunatError as e:
