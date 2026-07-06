@@ -50,7 +50,7 @@ export default function Inicio() {
         <p className="hero__lead">
           Deja el Excel y el cuaderno. Gestiona reservas directas{" "}
           <strong>sin comisión</strong>, recepción, caja y comprobantes en un solo sistema
-          hecho para Perú. En soles, profesional y listo para usar hoy.
+          hecho para Perú. Precios claros, profesional y listo para usar hoy.
         </p>
         <div className="hero__acciones">
           <a className="s-btn s-btn--primary s-btn--lg" href="#/registro">
