@@ -60,11 +60,11 @@ const NAV = [
   { id: "servicios", icon: Coffee, label: "Servicios", title: "Catálogo de servicios", subtitle: "Productos y servicios disponibles para huéspedes.", soloAdmin: true, operativa: true },
   { id: "inventario", icon: Boxes, label: "Inventario", title: "Inventario", subtitle: "Existencias, stock mínimo y movimientos.", soloAdmin: true, operativa: true },
   { id: "huespedes", icon: Users, label: "Huéspedes", title: "Huéspedes", subtitle: "Tu directorio de huéspedes registrados.", operativa: true },
-  { id: "facturas", icon: Receipt, label: "Facturas", title: "Facturas", subtitle: "Historial de facturación de tu hospedaje.", operativa: true },
-  { id: "sunat", icon: FileText, label: "Facturación", title: "Facturación electrónica", subtitle: "Emite boletas de venta electrónicas (SUNAT).", soloAdmin: true, operativa: true },
+  { id: "facturas", icon: Receipt, label: "Cuentas", title: "Cuentas", subtitle: "Cuentas de tus huéspedes y emisión de comprobantes.", operativa: true },
+  { id: "sunat", icon: FileText, label: "Comprobantes", title: "Comprobantes", subtitle: "Boletas y facturas electrónicas emitidas (SUNAT).", soloAdmin: true, operativa: true },
   { id: "reportes", icon: BarChart3, label: "Reportes", title: "Reportes", subtitle: "Finanzas y ocupación de tu hospedaje.", soloAdmin: true, operativa: true },
   { id: "usuarios", icon: ShieldCheck, label: "Usuarios", title: "Usuarios", subtitle: "Gestiona quién puede acceder al sistema.", soloAdmin: true, operativa: true },
-  { id: "configuracion", icon: Settings, label: "Configuración", title: "Configuración del negocio", subtitle: "Estos datos aparecen en tus facturas y comprobantes.", soloAdmin: true, operativa: true },
+  { id: "configuracion", icon: Settings, label: "Configuración", title: "Configuración del negocio", subtitle: "Datos comerciales y de facturación electrónica de tu hospedaje.", soloAdmin: true, operativa: true },
   { id: "hospedajes", icon: Building2, label: "Hospedajes", title: "Hospedajes", subtitle: "Panel de administración del servicio.", soloSuperadmin: true },
 ];
 

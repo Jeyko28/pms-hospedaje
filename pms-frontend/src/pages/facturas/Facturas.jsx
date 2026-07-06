@@ -60,7 +60,7 @@ export default function Facturas() {
     setEmitiendoId(facturaId);
     try {
       await api.emitirBoleta(facturaId);
-      toast.success("Boleta electrónica emitida.");
+      toast.success("Comprobante emitido.");
       facturas.recargar();
     } catch (e) {
       toast.error(e.message || "No se pudo emitir la boleta.");
@@ -146,7 +146,7 @@ export default function Facturas() {
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Huésped, habitación o n.º de factura…"
+              placeholder="Huésped, habitación o n.º de cuenta…"
             />
           </Field>
         </div>
@@ -166,7 +166,7 @@ export default function Facturas() {
       {/* Estados */}
       {facturas.loading && (
         <Card>
-          <StateMessage variant="loading" title="Cargando facturas…" />
+          <StateMessage variant="loading" title="Cargando cuentas…" />
         </Card>
       )}
 
@@ -174,7 +174,7 @@ export default function Facturas() {
         <Card>
           <StateMessage
             variant="error"
-            title="No se pudieron cargar las facturas"
+            title="No se pudieron cargar las cuentas"
             message={facturas.error}
             action={
               <Button variant="secondary" onClick={facturas.recargar}>
@@ -191,12 +191,12 @@ export default function Facturas() {
             variant="empty"
             title={
               facturas.data.length === 0
-                ? "Aún no hay facturas"
+                ? "Aún no hay cuentas"
                 : "Sin resultados"
             }
             message={
               facturas.data.length === 0
-                ? "Las facturas se generan al hacer un check-in en Recepción."
+                ? "Las cuentas se generan al hacer un check-in en Recepción."
                 : "Prueba con otra búsqueda o cambia el filtro."
             }
           />
@@ -212,7 +212,7 @@ export default function Facturas() {
               <Card key={f.id} padding="sm" className="factura-item">
                 <div className="factura-item__main">
                   <div className="factura-item__top">
-                    <span className="factura-item__num">Factura #{f.id}</span>
+                    <span className="factura-item__num">Cuenta #{f.id}</span>
                     <Badge tone={est.tone} icon={est.icon}>
                       {est.label}
                     </Badge>
@@ -261,7 +261,7 @@ export default function Facturas() {
                           onClick={() => emitirBoleta(f.id)}
                           disabled={emitiendoId === f.id}
                         >
-                          {emitiendoId === f.id ? "Emitiendo…" : "Emitir boleta"}
+                          {emitiendoId === f.id ? "Emitiendo…" : "Emitir comprobante"}
                         </Button>
                       )
                     )}

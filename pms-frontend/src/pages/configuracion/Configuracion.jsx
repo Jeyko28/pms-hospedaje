@@ -191,8 +191,8 @@ export default function Configuracion() {
 
             <p className="cfg__nota">
               Los datos fiscales (RUC, razón social y domicilio fiscal) se editan en{" "}
-              <strong>Facturación electrónica</strong>, para que sean la única fuente de
-              tus comprobantes.
+              <strong>Comprobantes → Datos del emisor</strong>, para que sean la única
+              fuente de tus boletas y facturas.
             </p>
 
             <div className="cfg__fila">

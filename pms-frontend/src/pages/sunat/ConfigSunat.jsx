@@ -167,7 +167,7 @@ export default function ConfigSunat() {
             <StateMessage
               variant="empty"
               title="Aún no hay comprobantes"
-              message="Emite una boleta desde una factura pagada (sección Facturas)."
+              message="Emite un comprobante desde una cuenta pagada (sección Cuentas)."
             />
           </Card>
         )}
