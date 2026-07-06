@@ -206,7 +206,7 @@ export default function Inicio() {
       </section>
 
       {/* ---------------- Preguntas frecuentes ---------------- */}
-      <section className="s-section s-section--alt">
+      <section id="faq" className="s-section s-section--alt">
         <Reveal className="s-head">
           <span className="s-head__eyebrow">Preguntas frecuentes</span>
           <h2>Lo que todo hospedaje pregunta antes de empezar</h2>

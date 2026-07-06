@@ -18,6 +18,7 @@ const SECCIONES = [
   { id: "inicio", hash: "#/inicio", label: "Inicio" },
   { id: "funciones", hash: "#/funciones", label: "Funciones" },
   { id: "precios", hash: "#/precios", label: "Precios" },
+  { id: "faq", hash: "#/faq", label: "FAQ" },
   { id: "contacto", hash: "#/contacto", label: "Contacto" },
 ];
 
@@ -26,8 +27,15 @@ function leerSeccion() {
   if (/^#\/funciones\b/.test(h)) return "funciones";
   if (/^#\/precios\b/.test(h)) return "precios";
   if (/^#\/contacto\b/.test(h)) return "contacto";
+  // FAQ es una sección DENTRO de Inicio: se renderiza Inicio y se hace scroll
+  // a #faq (ver el efecto que observa `seccion`). Se distingue como "faq" para
+  // el estado activo del nav.
+  if (/^#\/faq\b/.test(h)) return "faq";
   return "inicio";
 }
+
+// (El desplazamiento a #faq se hace en un efecto del componente que observa
+// `seccion`, para correr DESPUÉS de que Inicio se monte en el DOM.)
 
 export default function SitioWeb() {
   const { theme, toggle } = useTheme();
@@ -37,13 +45,42 @@ export default function SitioWeb() {
 
   useEffect(() => {
     const onHash = () => {
-      setSeccion(leerSeccion());
+      const s = leerSeccion();
+      setSeccion(s);
       setMenuAbierto(false);
-      window.scrollTo({ top: 0, behavior: "auto" });
+      // Para "faq" no subimos al tope: el efecto de abajo desplaza a la sección.
+      if (s !== "faq") window.scrollTo({ top: 0, behavior: "auto" });
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  // Cuando la sección activa es FAQ (por nav o carga directa), desplazar a #faq.
+  // En un efecto para correr tras el commit de Inicio; espera con rAF a que el
+  // ancla exista en el DOM.
+  useEffect(() => {
+    if (seccion !== "faq") return;
+    const t0 = Date.now();
+    let alineadoDesde = null;
+    // Re-alinea #faq al tope hasta que quede ESTABLE (~400 ms alineado). setInterval
+    // (no rAF) porque en carga fría el hilo se bloquea y rAF puede no reprogramarse;
+    // el intervalo sigue encolado. Tope de seguridad de 4 s.
+    const id = setInterval(() => {
+      const el = document.getElementById("faq");
+      if (el) {
+        const top = el.getBoundingClientRect().top;
+        if (top < -4 || top > 4) {
+          el.scrollIntoView({ block: "start" });
+          alineadoDesde = null;
+        } else if (alineadoDesde == null) {
+          alineadoDesde = Date.now();
+        }
+      }
+      const estable = alineadoDesde != null && Date.now() - alineadoDesde >= 400;
+      if (estable || Date.now() - t0 >= 4000) clearInterval(id);
+    }, 80);
+    return () => clearInterval(id);
+  }, [seccion]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -127,7 +164,7 @@ export default function SitioWeb() {
 
       {/* ---------------- Sección activa ---------------- */}
       <main className="sitio__main">
-        {seccion === "inicio" && <Inicio />}
+        {(seccion === "inicio" || seccion === "faq") && <Inicio />}
         {seccion === "funciones" && <Funciones />}
         {seccion === "precios" && <Precios />}
         {seccion === "contacto" && <Contacto />}

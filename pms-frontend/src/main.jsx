@@ -32,7 +32,7 @@ function Cargando() {
 /**
  * Decide qué montar según la URL (todas PÚBLICAS, sin login ni AuthProvider):
  *  - #/reservar/<slug>  -> pagina publica de reservas del hospedaje (siempre).
- *  - rutas de marketing (raíz, #/inicio, #/funciones, #/precios, #/contacto):
+ *  - rutas de marketing (raíz, #/inicio, #/funciones, #/precios, #/faq, #/contacto):
  *      -> sitio web SOLO si NO hay sesión; con token, cae a la app (dashboard).
  *  - #/login, #/registro y cualquier otra -> la app normal (con autenticacion).
  *
@@ -47,7 +47,7 @@ function leerRutaPublica() {
     hash === "" ||
     hash === "#" ||
     hash === "#/" ||
-    /^#\/(inicio|funciones|precios|contacto)\b/.test(hash);
+    /^#\/(inicio|funciones|precios|faq|contacto)\b/.test(hash);
   if (esMarketing && !tokenStore.get()) return { tipo: "sitio" };
   return null;
 }
