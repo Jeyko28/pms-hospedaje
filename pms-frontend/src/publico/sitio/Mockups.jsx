@@ -235,3 +235,108 @@ export function ReservaMockup() {
     </svg>
   );
 }
+
+/**
+ * RecepcionMockup — panel de recepción del día: una llegada (con botón Check-in),
+ * una salida con saldo por cobrar, y los métodos de cobro. Comunica el flujo de
+ * recepción, no un dashboard genérico.
+ */
+export function RecepcionMockup() {
+  const chips = ["Yape", "Plin", "Tarjeta", "Efectivo"];
+  return (
+    <svg viewBox="0 0 460 300" className="s-frame__body" role="img"
+      aria-label="Panel de recepción: llegadas, salidas y cobros"
+      style={{ background: "var(--s-surface)" }}>
+      <text x="20" y="28" fontSize="13" fontWeight="700" fill="var(--s-text)" fontFamily="Inter, sans-serif">Recepción · hoy</text>
+
+      <rect x="20" y="42" width="420" height="66" rx="12" fill="var(--s-bg-2)" stroke="var(--s-border)" />
+      <rect x="34" y="60" width="58" height="26" rx="13" fill="var(--s-success-soft)" stroke="var(--s-success-border)" />
+      <text x="63" y="77" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--s-success)" fontFamily="Inter, sans-serif">Llega</text>
+      <text x="106" y="70" fontSize="13" fontWeight="700" fill="var(--s-text)" fontFamily="Inter, sans-serif">Hab. 102 · Ana Torres</text>
+      <text x="106" y="90" fontSize="11" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">Doble · 3 noches</text>
+      <rect x="330" y="58" width="96" height="34" rx="12" fill="var(--s-accent)" />
+      <text x="378" y="80" textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff" fontFamily="Inter, sans-serif">Check-in</text>
+
+      <rect x="20" y="118" width="420" height="66" rx="12" fill="var(--s-bg-2)" stroke="var(--s-border)" />
+      <rect x="34" y="136" width="58" height="26" rx="13" fill="var(--s-accent-soft)" stroke="var(--s-accent-border)" />
+      <text x="63" y="153" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--s-accent)" fontFamily="Inter, sans-serif">Sale</text>
+      <text x="106" y="146" fontSize="13" fontWeight="700" fill="var(--s-text)" fontFamily="Inter, sans-serif">Hab. 205 · Luis Paz</text>
+      <text x="106" y="166" fontSize="11" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">Saldo por cobrar</text>
+      <text x="426" y="160" textAnchor="end" fontSize="17" fontWeight="800" fill="var(--s-text)" fontFamily="Inter, sans-serif">S/ 60</text>
+
+      <text x="20" y="216" fontSize="11" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">Cobra con</text>
+      {chips.map((c, i) => {
+        const x = 20 + i * 106;
+        return (
+          <g key={c}>
+            <rect x={x} y="228" width="96" height="34" rx="10" fill="var(--s-bg-2)" stroke="var(--s-border)" />
+            <text x={x + 48} y="250" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--s-text-2)" fontFamily="Inter, sans-serif">{c}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/**
+ * ComprobanteMockup — una boleta de venta electrónica con desglose de IGV.
+ * Comunica "facturación / comprobantes", no un panel de barras.
+ */
+export function ComprobanteMockup() {
+  return (
+    <svg viewBox="0 0 420 300" className="s-frame__body" role="img"
+      aria-label="Boleta de venta electrónica con IGV" style={{ background: "var(--s-surface)" }}>
+      <rect x="66" y="14" width="288" height="272" rx="10" fill="var(--s-bg-2)" stroke="var(--s-border)" />
+      <text x="210" y="44" textAnchor="middle" fontSize="12" fontWeight="800" fill="var(--s-text)" fontFamily="Inter, sans-serif">BOLETA ELECTRÓNICA</text>
+      <text x="210" y="62" textAnchor="middle" fontSize="10.5" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">RUC 20•••••••01 · B001-000123</text>
+      <line x1="88" y1="78" x2="332" y2="78" stroke="var(--s-border)" />
+      <text x="88" y="102" fontSize="11" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">Cliente</text>
+      <text x="332" y="102" textAnchor="end" fontSize="12" fontWeight="600" fill="var(--s-text)" fontFamily="Inter, sans-serif">Ana Torres</text>
+      <line x1="88" y1="118" x2="332" y2="118" stroke="var(--s-border)" strokeDasharray="3 3" />
+      <text x="88" y="144" fontSize="12" fill="var(--s-text-2)" fontFamily="Inter, sans-serif">Hospedaje Hab. 102</text>
+      <text x="332" y="144" textAnchor="end" fontSize="12" fill="var(--s-text-2)" fontFamily="Inter, sans-serif">S/ 254.24</text>
+      <text x="88" y="168" fontSize="12" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">IGV (18%)</text>
+      <text x="332" y="168" textAnchor="end" fontSize="12" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">S/ 45.76</text>
+      <line x1="88" y1="184" x2="332" y2="184" stroke="var(--s-border)" />
+      <text x="88" y="212" fontSize="14" fontWeight="800" fill="var(--s-text)" fontFamily="Inter, sans-serif">TOTAL</text>
+      <text x="332" y="212" textAnchor="end" fontSize="16" fontWeight="800" fill="var(--s-accent)" fontFamily="Inter, sans-serif">S/ 300.00</text>
+      <rect x="150" y="236" width="120" height="30" rx="15" fill="var(--s-success-soft)" stroke="var(--s-success-border)" />
+      <text x="210" y="256" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--s-success)" fontFamily="Inter, sans-serif">Descargar PDF</text>
+    </svg>
+  );
+}
+
+/**
+ * EquipoMockup — lista de usuarios con sus roles y permisos. Comunica el
+ * multiusuario (admin vs. recepción), no un dashboard.
+ */
+export function EquipoMockup() {
+  const users = [
+    { ini: "JG", nom: "Jeyko G.", rol: "Admin", perm: "Acceso total", admin: true },
+    { ini: "MR", nom: "María R.", rol: "Recepción", perm: "Solo operación", admin: false },
+    { ini: "LP", nom: "Luis P.", rol: "Recepción", perm: "Solo operación", admin: false },
+  ];
+  return (
+    <svg viewBox="0 0 460 300" className="s-frame__body" role="img"
+      aria-label="Usuarios del equipo con sus roles" style={{ background: "var(--s-surface)" }}>
+      <text x="20" y="28" fontSize="13" fontWeight="700" fill="var(--s-text)" fontFamily="Inter, sans-serif">Equipo · 3 usuarios</text>
+      {users.map((u, i) => {
+        const y = 44 + i * 78;
+        return (
+          <g key={u.ini}>
+            <rect x="20" y={y} width="420" height="66" rx="12" fill="var(--s-bg-2)" stroke="var(--s-border)" />
+            <circle cx="56" cy={y + 33} r="20" fill="var(--s-accent-soft)" stroke="var(--s-accent-border)" />
+            <text x="56" y={y + 39} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--s-accent)" fontFamily="Inter, sans-serif">{u.ini}</text>
+            <text x="90" y={y + 29} fontSize="14" fontWeight="700" fill="var(--s-text)" fontFamily="Inter, sans-serif">{u.nom}</text>
+            <text x="90" y={y + 48} fontSize="11" fill="var(--s-text-muted)" fontFamily="Inter, sans-serif">{u.perm}</text>
+            <rect x="318" y={y + 19} width="106" height="28" rx="14"
+              fill={u.admin ? "var(--s-accent)" : "var(--s-surface)"}
+              stroke={u.admin ? "var(--s-accent)" : "var(--s-border)"} />
+            <text x="371" y={y + 38} textAnchor="middle" fontSize="12" fontWeight="700"
+              fill={u.admin ? "#fff" : "var(--s-text-2)"} fontFamily="Inter, sans-serif">{u.rol}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}

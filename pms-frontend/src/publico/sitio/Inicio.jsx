@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { waLink } from "./datos";
 import { Reveal } from "./useReveal";
-import { Frame, CalendarMockup, DashboardMockup } from "./Mockups";
+import { Frame, CalendarMockup, ReservaMockup } from "./Mockups";
 
 /**
  * Inicio — landing principal premium. Mensaje central: profesional y potente
@@ -150,7 +150,7 @@ export default function Inicio() {
               </p>
             </div>
             <Frame url="stanza.pe/reservar/tu-hospedaje">
-              <DashboardMockup />
+              <ReservaMockup />
             </Frame>
           </Reveal>
 

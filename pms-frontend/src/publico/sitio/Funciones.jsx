@@ -9,7 +9,15 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Reveal } from "./useReveal";
-import { Frame, CalendarMockup, DashboardMockup, ReservaMockup } from "./Mockups";
+import {
+  Frame,
+  CalendarMockup,
+  DashboardMockup,
+  ReservaMockup,
+  RecepcionMockup,
+  ComprobanteMockup,
+  EquipoMockup,
+} from "./Mockups";
 
 /**
  * Funciones — detalle por área, con foco en beneficios. Algunas áreas llevan un
@@ -50,6 +58,7 @@ const AREAS = [
       "Estado de cada habitación (limpia, ocupada, mantenimiento)",
       "Cobro por noches reales al entrar o salir",
     ],
+    mockup: "recepcion",
   },
   {
     icon: Receipt,
@@ -61,6 +70,7 @@ const AREAS = [
       "Descarga en PDF",
       "Integración con SUNAT en camino",
     ],
+    mockup: "comprobante",
   },
   {
     icon: BarChart3,
@@ -84,25 +94,27 @@ const AREAS = [
       "Modo claro/oscuro y diseño accesible",
       "Desde el celular o la compu, sin instalar nada",
     ],
+    mockup: "equipo",
   },
 ];
 
+// Cada área tiene un mockup COHERENTE con su mensaje (no un dashboard genérico
+// repetido). El url del "navegador" también refuerza la sección.
+const MOCKUPS = {
+  reserva: { url: "stanza.pe/reservar/tu-hospedaje", Comp: ReservaMockup },
+  calendar: { url: "stanza.pe/calendario", Comp: CalendarMockup },
+  recepcion: { url: "stanza.pe/recepcion", Comp: RecepcionMockup },
+  comprobante: { url: "stanza.pe/comprobantes", Comp: ComprobanteMockup },
+  dashboard: { url: "stanza.pe/reportes", Comp: DashboardMockup },
+  equipo: { url: "stanza.pe/usuarios", Comp: EquipoMockup },
+};
+
 function MockupDe({ tipo }) {
-  if (tipo === "calendar")
-    return (
-      <Frame url="stanza.pe/calendario">
-        <CalendarMockup />
-      </Frame>
-    );
-  if (tipo === "dashboard")
-    return (
-      <Frame url="stanza.pe/reportes">
-        <DashboardMockup />
-      </Frame>
-    );
+  const m = MOCKUPS[tipo] || MOCKUPS.reserva;
+  const Comp = m.Comp;
   return (
-    <Frame url="stanza.pe/reservas">
-      <ReservaMockup />
+    <Frame url={m.url}>
+      <Comp />
     </Frame>
   );
 }
@@ -134,13 +146,7 @@ export default function Funciones() {
             </ul>
           </div>
           <div className="area__visual">
-            {a.mockup ? (
-              <MockupDe tipo={a.mockup} />
-            ) : (
-              <Frame url={`stanza.pe/${a.titulo.split(" ")[0].toLowerCase()}`}>
-                <DashboardMockup />
-              </Frame>
-            )}
+            <MockupDe tipo={a.mockup} />
           </div>
         </Reveal>
       ))}
