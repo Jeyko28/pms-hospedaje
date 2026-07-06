@@ -3125,10 +3125,14 @@ def listar_facturas(hid: int = Depends(auth.hospedaje_actual)):
             """,
             (hid,),
         )
+        # Emisión activa (para deshabilitar "Emitir comprobante" en la UI sin
+        # que recepción tenga que leer la config SUNAT, que es solo-admin).
+        emisor_activo = bool(sunat.obtener_config(hid).get("activo"))
         filas = []
         for row in cursor.fetchall():
             d = dict(row)
             d["saldo"] = round((d["total"] or 0) - (d["pagado"] or 0), 2)
+            d["emisor_activo"] = emisor_activo
             filas.append(d)
         return filas
     finally:
@@ -3322,7 +3326,9 @@ def sunat_listar_comprobantes(hid: int = Depends(auth.hospedaje_actual)):
         cursor.execute(
             """
             SELECT id, factura_id, tipo, numero, fecha_emision, cliente_nombre,
-                   cliente_tipo_doc, cliente_num_doc, total, estado, modo
+                   cliente_tipo_doc, cliente_num_doc,
+                   COALESCE(op_gravada, 0) AS op_gravada, COALESCE(igv, 0) AS igv,
+                   total, estado, modo
             FROM comprobantes
             WHERE hospedaje_id = ?
             ORDER BY id DESC

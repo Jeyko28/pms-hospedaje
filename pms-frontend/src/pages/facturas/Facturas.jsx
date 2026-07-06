@@ -259,7 +259,12 @@ export default function Facturas() {
                           size="sm"
                           icon="🧾"
                           onClick={() => emitirBoleta(f.id)}
-                          disabled={emitiendoId === f.id}
+                          disabled={emitiendoId === f.id || !f.emisor_activo}
+                          title={
+                            !f.emisor_activo
+                              ? "Activa la emisión en Comprobantes → Datos del emisor."
+                              : undefined
+                          }
                         >
                           {emitiendoId === f.id ? "Emitiendo…" : "Emitir comprobante"}
                         </Button>
