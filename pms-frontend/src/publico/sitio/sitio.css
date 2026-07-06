@@ -1016,6 +1016,60 @@
   line-height: 1.6;
 }
 
+/* FAQ en acordeón (landing principal) — <details>/<summary> accesible */
+.faq-acc {
+  max-width: 760px;
+  margin-inline: auto;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.faq-acc__item {
+  background-color: var(--s-surface);
+  border: 1px solid var(--s-border);
+  border-radius: var(--s-radius);
+  transition: border-color var(--s-dur) var(--s-ease);
+}
+.faq-acc__item:hover,
+.faq-acc__item[open] {
+  border-color: var(--s-border-strong);
+}
+.faq-acc__q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.faq-acc__q::-webkit-details-marker {
+  display: none;
+}
+.faq-acc__q:focus-visible {
+  outline: 2px solid var(--s-border-strong);
+  outline-offset: 2px;
+  border-radius: var(--s-radius);
+}
+.faq-acc__chevron {
+  flex-shrink: 0;
+  color: var(--s-text-2);
+  transition: transform var(--s-dur) var(--s-ease);
+}
+.faq-acc__item[open] .faq-acc__chevron {
+  transform: rotate(180deg);
+}
+.faq-acc__a {
+  margin: 0;
+  padding: 0 1.25rem 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--s-text-2);
+  line-height: 1.6;
+}
+
 /* ---------------- Contacto ---------------- */
 .contacto-grid {
   display: grid;

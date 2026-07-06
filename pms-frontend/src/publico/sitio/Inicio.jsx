@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Check,
   ArrowRight,
+  ChevronDown,
 } from "lucide-react";
 import { waLink } from "./datos";
 import { Reveal } from "./useReveal";
@@ -33,6 +34,56 @@ const PASOS = [
   { n: "1", titulo: "Crea tu cuenta gratis", texto: "Regístrate en 2 minutos y carga tus habitaciones. 14 días de prueba, sin tarjeta." },
   { n: "2", titulo: "Comparte tu link", texto: "Ponlo en WhatsApp, Instagram o Google y recibe reservas directas." },
   { n: "3", titulo: "Gestiona todo en un lugar", texto: "Calendario, check-in, cobros y reportes. Deja el cuaderno para siempre." },
+];
+
+// Preguntas frecuentes: específicas del producto y ordenadas para resolver
+// objeciones de compra (facilidad → confianza → capacidades). Respuestas
+// honestas (SUNAT en camino; suscripción por Yape/transferencia).
+const FAQS = [
+  {
+    q: "¿Necesito instalar algo?",
+    a: "No. Stanza funciona 100% en la nube, desde el navegador. Entras desde tu celular, tablet o computadora sin descargar ni instalar nada.",
+  },
+  {
+    q: "¿Funciona desde cualquier dispositivo?",
+    a: "Sí. Se usa igual de bien en el celular de recepción que en la computadora de la oficina. Solo necesitas internet.",
+  },
+  {
+    q: "¿Cuánto tiempo toma empezar?",
+    a: "Minutos. Creas tu cuenta, cargas tus habitaciones y ya puedes recibir reservas. Si quieres, te acompañamos por WhatsApp el primer día.",
+  },
+  {
+    q: "¿Cómo funciona la prueba gratis?",
+    a: "Tienes 14 días gratis con todas las funciones y sin tarjeta. Al terminar decides si continúas; si no, no se te cobra nada.",
+  },
+  {
+    q: "¿Puedo cancelar cuando quiera?",
+    a: "Sí. No hay contratos de permanencia: pagas mes a mes (o al año, con descuento) y cancelas cuando quieras. Tu información queda disponible para descargar.",
+  },
+  {
+    q: "¿Mis datos están seguros?",
+    a: "Sí. Tu información vive en la nube con respaldos, y cada hospedaje solo ve sus propios datos. Nada de cuadernos que se pierden ni archivos en una sola computadora.",
+  },
+  {
+    q: "¿Funciona con SUNAT?",
+    a: "Generas tus comprobantes (boletas y facturas) y los tienes en PDF. La conexión directa con SUNAT está en camino: dejamos todo listo para activarla en cuanto tengas tu emisor autorizado.",
+  },
+  {
+    q: "¿Puedo administrar varios hospedajes?",
+    a: "Sí. El plan Pro incluye gestión multipropiedad para manejar varias propiedades desde una sola cuenta. Escríbenos y lo configuramos contigo.",
+  },
+  {
+    q: "¿Qué métodos de pago aceptan?",
+    a: "Tu suscripción se paga por Yape o transferencia (el plan anual trae 2 meses gratis). Y a tus huéspedes les cobras en efectivo, Yape, Plin, tarjeta o transferencia, todo registrado en caja.",
+  },
+  {
+    q: "¿Cómo funcionan las actualizaciones?",
+    a: "Automáticas y sin costo. Como está en la nube, siempre usas la última versión con las mejoras nuevas; no tienes que instalar ni actualizar nada.",
+  },
+  {
+    q: "¿Qué pasa si necesito ayuda?",
+    a: "Nos escribes por WhatsApp y te ayuda una persona real, en español. En los planes superiores el soporte es prioritario.",
+  },
 ];
 
 export default function Inicio() {
@@ -150,6 +201,26 @@ export default function Inicio() {
               <div className="confianza__num">{c.num}</div>
               <div className="confianza__label">{c.label}</div>
             </div>
+          ))}
+        </Reveal>
+      </section>
+
+      {/* ---------------- Preguntas frecuentes ---------------- */}
+      <section className="s-section s-section--alt">
+        <Reveal className="s-head">
+          <span className="s-head__eyebrow">Preguntas frecuentes</span>
+          <h2>Lo que todo hospedaje pregunta antes de empezar</h2>
+          <p>Y si te queda alguna duda, te respondemos por WhatsApp.</p>
+        </Reveal>
+        <Reveal className="faq-acc" delay={60}>
+          {FAQS.map((f) => (
+            <details key={f.q} className="faq-acc__item">
+              <summary className="faq-acc__q">
+                {f.q}
+                <ChevronDown size={18} aria-hidden="true" className="faq-acc__chevron" />
+              </summary>
+              <p className="faq-acc__a">{f.a}</p>
+            </details>
           ))}
         </Reveal>
       </section>
