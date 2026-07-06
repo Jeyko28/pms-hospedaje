@@ -87,6 +87,18 @@ export default function AppShell({ children }) {
     return true;
   });
 
+  // Guard de ruta: cuando hay sesión, la `ruta` debe ser una sección VÁLIDA para
+  // el rol. Si no lo es (p. ej. el hash quedó en `login` tras iniciar sesión, o
+  // recepción llegó a una ruta soloAdmin), se redirige a la sección por defecto
+  // del rol (navVisible[0]: dashboard para admin/recepción, hospedajes para
+  // superadmin), reemplazando el historial. Esto restablece el invariante y
+  // evita el header vacío en su origen.
+  useEffect(() => {
+    if (navVisible.length && !navVisible.some((n) => n.id === ruta)) {
+      navegar(navVisible[0].id, { reemplazar: true });
+    }
+  }, [ruta, navVisible, navegar]);
+
   // Colapso en escritorio (persistido).
   const [colapsado, setColapsado] = useState(
     () => localStorage.getItem(CLAVE_COLAPSO) === "1"

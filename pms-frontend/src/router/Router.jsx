@@ -25,8 +25,14 @@ export function RouterProvider({ children }) {
     return () => window.removeEventListener("hashchange", alCambiar);
   }, []);
 
-  const navegar = (destino) => {
-    window.location.hash = `/${destino}`;
+  const navegar = (destino, { reemplazar = false } = {}) => {
+    if (reemplazar) {
+      // Reemplaza la entrada de historial (no ensucia el botón atrás) y dispara
+      // hashchange, así `setRuta` se actualiza solo.
+      window.location.replace(`#/${destino}`);
+    } else {
+      window.location.hash = `/${destino}`;
+    }
   };
 
   return (
