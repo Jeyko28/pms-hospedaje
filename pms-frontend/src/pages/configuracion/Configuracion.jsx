@@ -22,9 +22,6 @@ const SOPORTE_WHATSAPP = "51981487284";
 
 const VACIO = {
   nombre: "",
-  ruc: "",
-  razon_social: "",
-  direccion: "",
   telefono: "",
   email_contacto: "",
 };
@@ -52,9 +49,6 @@ export default function Configuracion() {
     if (info.data) {
       setForm({
         nombre: info.data.nombre || "",
-        ruc: info.data.ruc || "",
-        razon_social: info.data.razon_social || "",
-        direccion: info.data.direccion || "",
         telefono: info.data.telefono || "",
         email_contacto: info.data.email_contacto || "",
       });
@@ -72,17 +66,10 @@ export default function Configuracion() {
       setError("El nombre del negocio es obligatorio.");
       return;
     }
-    if (form.ruc.trim() && !/^\d{11}$/.test(form.ruc.trim())) {
-      setError("El RUC debe tener 11 dígitos.");
-      return;
-    }
     setGuardando(true);
     try {
       await api.guardarMiHospedaje({
         nombre: form.nombre.trim(),
-        ruc: form.ruc.trim(),
-        razon_social: form.razon_social.trim(),
-        direccion: form.direccion.trim(),
         telefono: form.telefono.trim(),
         email_contacto: form.email_contacto.trim(),
       });
@@ -202,38 +189,11 @@ export default function Configuracion() {
               />
             </Field>
 
-            <div className="cfg__fila">
-              <Field id="ruc" label="RUC (opcional)">
-                <input
-                  id="ruc"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={11}
-                  value={form.ruc}
-                  onChange={set("ruc")}
-                  placeholder="11 dígitos"
-                />
-              </Field>
-              <Field id="razon_social" label="Razón social (opcional)">
-                <input
-                  id="razon_social"
-                  type="text"
-                  value={form.razon_social}
-                  onChange={set("razon_social")}
-                  placeholder="Nombre legal del negocio"
-                />
-              </Field>
-            </div>
-
-            <Field id="direccion" label="Dirección (opcional)">
-              <input
-                id="direccion"
-                type="text"
-                value={form.direccion}
-                onChange={set("direccion")}
-                placeholder="Av. / Calle, número, distrito, ciudad"
-              />
-            </Field>
+            <p className="cfg__nota">
+              Los datos fiscales (RUC, razón social y domicilio fiscal) se editan en{" "}
+              <strong>Facturación electrónica</strong>, para que sean la única fuente de
+              tus comprobantes.
+            </p>
 
             <div className="cfg__fila">
               <Field id="telefono" label="Teléfono (opcional)">

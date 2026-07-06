@@ -103,6 +103,44 @@ def crear_tablas_sunat():
             # Si hubiera duplicados legados, no impedir el arranque (se limpian aparte).
             pass
         conn.commit()
+
+        # --- Backfill de identidad fiscal (SSOT) ---
+        # `sunat_config` es ahora la fuente única de RUC/razón social/domicilio
+        # fiscal. Consolidamos desde `hospedajes` los valores que aún no estén en
+        # sunat_config (idempotente: solo rellena vacíos, nunca pisa).
+        try:
+            cursor.execute(
+                "SELECT id, COALESCE(ruc,'') AS ruc, COALESCE(razon_social,'') AS rs, "
+                "COALESCE(direccion,'') AS dir FROM hospedajes"
+            )
+            for h in cursor.fetchall():
+                hid_ = h["id"]
+                if not (h["ruc"] or h["rs"] or h["dir"]):
+                    continue
+                cursor.execute(
+                    "SELECT ruc, razon_social, direccion FROM sunat_config WHERE hospedaje_id = ?",
+                    (hid_,),
+                )
+                sc = cursor.fetchone()
+                if sc is None:
+                    cursor.execute(
+                        "INSERT INTO sunat_config (hospedaje_id, ruc, razon_social, direccion) "
+                        "VALUES (?, ?, ?, ?)",
+                        (hid_, h["ruc"], h["rs"], h["dir"]),
+                    )
+                else:
+                    nr = (sc["ruc"] or "") or h["ruc"]
+                    nrs = (sc["razon_social"] or "") or h["rs"]
+                    nd = (sc["direccion"] or "") or h["dir"]
+                    if (nr, nrs, nd) != (sc["ruc"] or "", sc["razon_social"] or "", sc["direccion"] or ""):
+                        cursor.execute(
+                            "UPDATE sunat_config SET ruc=?, razon_social=?, direccion=? WHERE hospedaje_id=?",
+                            (nr, nrs, nd, hid_),
+                        )
+            conn.commit()
+        except Exception:
+            # El backfill nunca debe impedir el arranque.
+            pass
     finally:
         conn.close()
 

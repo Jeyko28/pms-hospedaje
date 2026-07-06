@@ -648,7 +648,18 @@ def _obtener_hospedaje(hid):
         row = cursor.fetchone()
     finally:
         conn.close()
-    return dict(row) if row else {}
+    d = dict(row) if row else {}
+    # Identidad fiscal (RUC / razón social / domicilio fiscal): fuente ÚNICA de
+    # verdad = sunat_config. Se superpone sobre los campos de `hospedajes` para
+    # que la factura interna y la boleta muestren SIEMPRE los mismos datos.
+    cfg = sunat.obtener_config(hid)
+    if cfg.get("ruc"):
+        d["ruc"] = cfg["ruc"]
+    if cfg.get("razon_social"):
+        d["razon_social"] = cfg["razon_social"]
+    if cfg.get("direccion"):
+        d["direccion"] = cfg["direccion"]
+    return d
 
 
 def _dias_restantes(fecha_expira):
@@ -682,26 +693,28 @@ def obtener_mi_hospedaje(admin: dict = Depends(auth.solo_admin)):
     if not row:
         raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
     datos = dict(row)
+    # Identidad fiscal desde la fuente única (sunat_config); Configuración ya no
+    # la edita, pero la devolvemos canónica por si algún consumidor la lee.
+    cfg = sunat.obtener_config(hid)
+    for campo in ("ruc", "razon_social", "direccion"):
+        if cfg.get(campo):
+            datos[campo] = cfg[campo]
     datos["dias_restantes"] = _dias_restantes(datos.get("fecha_expira"))
     return datos
 
 
 @app.put("/api/mi-hospedaje")
 def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.solo_admin)):
-    """Actualiza la identidad del negocio (nombre, RUC, razón social, dirección,
-    teléfono, email). Sincroniza RUC/razón social/dirección con la config SUNAT
-    sin tocar serie/correlativo/modo/activo (merge)."""
+    """Actualiza los datos COMERCIALES del negocio (nombre, teléfono, email).
+    La identidad FISCAL (RUC, razón social, domicilio fiscal) NO se edita aquí:
+    su fuente única de verdad es la config de facturación electrónica
+    (`sunat_config`), editable en su propia sección. Así se evita la divergencia
+    de RUC entre pantallas."""
     hid = admin["hospedaje_id"]
 
     nombre = (datos.nombre or "").strip()
     if not nombre:
         raise HTTPException(status_code=422, detail="El nombre del negocio es obligatorio.")
-    ruc = (datos.ruc or "").strip()
-    if ruc and (not ruc.isdigit() or len(ruc) != 11):
-        raise HTTPException(status_code=422, detail="El RUC debe tener 11 dígitos.")
-
-    razon_social = (datos.razon_social or "").strip()
-    direccion = (datos.direccion or "").strip()
     telefono = (datos.telefono or "").strip()
     email_contacto = (datos.email_contacto or "").strip()
 
@@ -711,19 +724,15 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
         cursor.execute("SELECT id FROM hospedajes WHERE id = ?", (hid,))
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
+        # Solo datos comerciales. Los campos fiscales (ruc/razon_social/direccion)
+        # quedan intactos en `hospedajes` y ya no se editan desde aquí.
         cursor.execute(
-            """UPDATE hospedajes SET nombre=?, ruc=?, razon_social=?, direccion=?,
-                      telefono=?, email_contacto=? WHERE id=?""",
-            (nombre, ruc, razon_social, direccion, telefono, email_contacto, hid),
+            "UPDATE hospedajes SET nombre=?, telefono=?, email_contacto=? WHERE id=?",
+            (nombre, telefono, email_contacto, hid),
         )
         conn.commit()
     finally:
         conn.close()
-
-    # Sincronizar con SUNAT (merge: conserva serie/modo/activo existentes).
-    config = sunat.obtener_config(hid)
-    config.update({"ruc": ruc, "razon_social": razon_social, "direccion": direccion})
-    sunat.guardar_config(hid, config)
 
     return obtener_mi_hospedaje(admin)
 
