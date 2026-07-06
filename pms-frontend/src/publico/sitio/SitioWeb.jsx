@@ -144,8 +144,8 @@ export default function SitioWeb() {
               <span className="sitio__brand-name">Stanza</span>
             </a>
             <p className="sitio__footer-tag">
-              El PMS simple, en soles, para el hospedaje peruano. Reservas directas sin
-              comisión.
+              El PMS profesional, en soles, para el hospedaje peruano. Reservas directas
+              sin comisión.
             </p>
           </div>
           <nav className="sitio__footer-links" aria-label="Enlaces del pie">

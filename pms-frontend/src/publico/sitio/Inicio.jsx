@@ -15,8 +15,9 @@ import { Reveal } from "./useReveal";
 import { Frame, CalendarMockup, DashboardMockup } from "./Mockups";
 
 /**
- * Inicio — landing principal premium. Mensaje central: simple, en soles, sin
- * comisión de Booking. Hero con producto visible + secciones reveladas al scroll.
+ * Inicio — landing principal premium. Mensaje central: profesional y potente
+ * pero fácil, en soles, sin comisión de Booking. Hero con producto visible +
+ * secciones reveladas al scroll.
  */
 
 const FUNCIONES = [
@@ -43,13 +44,13 @@ export default function Inicio() {
           <Sparkles size={14} aria-hidden="true" /> Hecho en Perú para hospedajes del Perú
         </span>
         <h1 className="hero__titulo">
-          El software simple para tu hospedaje,{" "}
-          <span className="hero__acento">en soles</span>
+          Moderniza tu hospedaje,{" "}
+          <span className="hero__acento">sin complicarte</span>
         </h1>
         <p className="hero__lead">
-          Reservas, calendario, check-in y facturación en un solo lugar. Recibe reservas
-          directas por tu propia web <strong>sin pagar comisión a Booking</strong>. Tan
-          fácil que lo usas el primer día.
+          Cambia el Excel y el cuaderno por un sistema profesional, en soles: reservas
+          directas <strong>sin comisión</strong>, recepción, caja y comprobantes. Fácil de
+          usar, potente de verdad.
         </p>
         <div className="hero__acciones">
           <a className="s-btn s-btn--primary s-btn--lg" href="#/registro">
@@ -82,7 +83,7 @@ export default function Inicio() {
         <Reveal className="s-head">
           <span className="s-head__eyebrow">Todo en un lugar</span>
           <h2>Lo que tu hospedaje necesita, sin lo que sobra</h2>
-          <p>Simple por fuera, potente por dentro. Nada de menús que abruman.</p>
+          <p>Fácil por fuera, potente por dentro. Nada de menús que abruman.</p>
         </Reveal>
 
         <div className="bento">
