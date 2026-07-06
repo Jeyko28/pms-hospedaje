@@ -47,7 +47,7 @@ function leerRutaPublica() {
     hash === "" ||
     hash === "#" ||
     hash === "#/" ||
-    /^#\/(inicio|funciones|precios|faq|contacto)\b/.test(hash);
+    /^#\/(inicio|funciones|precios|faq|contacto|terminos|privacidad|cookies)\b/.test(hash);
   if (esMarketing && !tokenStore.get()) return { tipo: "sitio" };
   return null;
 }

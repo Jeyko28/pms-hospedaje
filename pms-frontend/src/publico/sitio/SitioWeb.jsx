@@ -7,7 +7,15 @@ import Inicio from "./Inicio";
 import Funciones from "./Funciones";
 import Precios from "./Precios";
 import Contacto from "./Contacto";
+import Legal from "./Legal";
 import "./sitio.css";
+
+// Rutas legales (páginas propias, enlazadas desde el footer).
+const LEGALES = [
+  { id: "terminos", hash: "#/terminos", label: "Términos y Condiciones" },
+  { id: "privacidad", hash: "#/privacidad", label: "Política de Privacidad" },
+  { id: "cookies", hash: "#/cookies", label: "Política de Cookies" },
+];
 
 /**
  * SitioWeb — cascarón del sitio de marketing PÚBLICO de Stanza (sin login).
@@ -27,6 +35,9 @@ function leerSeccion() {
   if (/^#\/funciones\b/.test(h)) return "funciones";
   if (/^#\/precios\b/.test(h)) return "precios";
   if (/^#\/contacto\b/.test(h)) return "contacto";
+  if (/^#\/terminos\b/.test(h)) return "terminos";
+  if (/^#\/privacidad\b/.test(h)) return "privacidad";
+  if (/^#\/cookies\b/.test(h)) return "cookies";
   // FAQ es una sección DENTRO de Inicio: se renderiza Inicio y se hace scroll
   // a #faq (ver el efecto que observa `seccion`). Se distingue como "faq" para
   // el estado activo del nav.
@@ -168,6 +179,9 @@ export default function SitioWeb() {
         {seccion === "funciones" && <Funciones />}
         {seccion === "precios" && <Precios />}
         {seccion === "contacto" && <Contacto />}
+        {(seccion === "terminos" || seccion === "privacidad" || seccion === "cookies") && (
+          <Legal doc={seccion} />
+        )}
       </main>
 
       {/* ---------------- Footer ---------------- */}
@@ -201,6 +215,14 @@ export default function SitioWeb() {
             </a>
           </nav>
         </div>
+        <nav className="sitio__footer-legal" aria-label="Legal">
+          {LEGALES.map((l) => (
+            <a key={l.id} href={l.hash}>
+              {l.label}
+            </a>
+          ))}
+        </nav>
+
         <div className="sitio__footer-copy">
           <span>© {new Date().getFullYear()} Stanza · Hecho en Perú para hospedajes del Perú</span>
           {/* Disparador discreto y accesible del easter egg del fundador */}

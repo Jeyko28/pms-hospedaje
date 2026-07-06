@@ -1220,3 +1220,78 @@
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* Enlaces legales del footer */
+.sitio__footer-legal {
+  max-width: 1120px;
+  margin: 1.5rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+.sitio__footer-legal a {
+  font-size: 0.8125rem;
+  color: var(--s-text-muted);
+  text-decoration: none;
+  transition: color var(--s-dur) var(--s-ease);
+}
+.sitio__footer-legal a:hover {
+  color: var(--s-accent);
+}
+
+/* ---------------- Páginas legales ---------------- */
+.legal {
+  max-width: 780px;
+  margin-inline: auto;
+  padding: 3.5rem 1.5rem 4rem;
+}
+.legal__head {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--s-border);
+}
+.legal__head h1 {
+  font-size: clamp(1.75rem, 4vw, 2.4rem);
+  margin: 0 0 0.5rem;
+}
+.legal__fecha {
+  font-size: 0.875rem;
+  color: var(--s-text-muted);
+  margin: 0 0 1rem;
+}
+.legal__intro {
+  font-size: 1.0625rem;
+  color: var(--s-text-2);
+  line-height: 1.7;
+  margin: 0;
+}
+.legal__seccion {
+  margin-bottom: 1.75rem;
+}
+.legal__seccion h2 {
+  font-size: 1.125rem;
+  margin: 0 0 0.6rem;
+}
+.legal__seccion p {
+  color: var(--s-text-2);
+  line-height: 1.7;
+  margin: 0;
+}
+.legal__seccion ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--s-text-2);
+  line-height: 1.7;
+}
+.legal__seccion li {
+  margin-bottom: 0.35rem;
+}
+.legal__seccion a {
+  color: var(--s-accent);
+  text-decoration: underline;
+}
+.legal__contacto {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--s-border);
+}
