@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { api, tokenStore, registrarManejadorSesion } from "../api/client";
+import { setMonedaActual } from "../utils/moneda";
 
 /**
  * AuthContext — estado global de sesion.
@@ -36,6 +37,12 @@ export function AuthProvider({ children }) {
       })
       .finally(() => setCargando(false));
   }, []);
+
+  // Fija la moneda ACTUAL (para el formateo de dinero) según el hospedaje del
+  // usuario. Al cerrar sesión vuelve al defecto.
+  useEffect(() => {
+    setMonedaActual(usuario?.moneda);
+  }, [usuario]);
 
   async function login(nombreUsuario, password) {
     const resp = await api.login(nombreUsuario, password);

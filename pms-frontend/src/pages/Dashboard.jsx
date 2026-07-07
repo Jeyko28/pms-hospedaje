@@ -1,3 +1,4 @@
+import { nfMoneda } from "../utils/moneda";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useApi } from "../hooks/useApi";
@@ -23,11 +24,11 @@ import { SparkBars, MiniLine, MiniPie, C } from "./dashboard/charts";
 import "./Dashboard.css";
 import "./dashboard/widgets.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });
-const moneda0 = new Intl.NumberFormat("es-PE", {
+const moneda0 = nfMoneda({
   style: "currency",
   currency: "PEN",
   maximumFractionDigits: 0,

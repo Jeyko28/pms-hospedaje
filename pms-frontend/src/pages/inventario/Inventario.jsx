@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { api } from "../../api/client";
@@ -14,7 +15,7 @@ import MovimientoForm from "./MovimientoForm";
 import "../entidades.css";
 import "./Inventario.css";
 
-const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
+const moneda = nfMoneda({ style: "currency", currency: "PEN" });
 const num = (n) => Number(n ?? 0).toLocaleString("es-PE", { maximumFractionDigits: 2 });
 const CATS = ["Cocina", "Minimarket", "Limpieza", "Operación"];
 

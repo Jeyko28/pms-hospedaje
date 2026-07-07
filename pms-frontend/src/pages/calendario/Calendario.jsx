@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "../../api/client";
@@ -49,7 +50,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 const DIAS_SEMANA = ["D", "L", "M", "M", "J", "V", "S"];
-const formatoMoneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
+const formatoMoneda = nfMoneda({ style: "currency", currency: "PEN" });
 
 // Color de la barra según el estado de la reserva (reusa los tonos del sistema).
 const TONO_BARRA = {

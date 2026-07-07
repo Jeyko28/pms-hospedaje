@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -34,7 +35,7 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

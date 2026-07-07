@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import Field from "../../components/Field";
 import Button from "../../components/Button";
@@ -54,7 +55,7 @@ export default function NuevaReservaForm({
     [habitaciones, form.habitacion_id]
   );
 
-  const formatoMoneda = new Intl.NumberFormat("es-PE", {
+  const formatoMoneda = nfMoneda({
     style: "currency",
     currency: "PEN",
   });

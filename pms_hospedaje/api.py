@@ -367,6 +367,7 @@ class MiHospedajeDatos(BaseModel):
     direccion: str = Field("", max_length=300)
     telefono: str = Field("", max_length=20)
     email_contacto: str = Field("", max_length=254)
+    moneda: str = Field("PEN", max_length=8)   # código ISO: PEN | USD
 
 
 class RegistroPublico(BaseModel):
@@ -683,7 +684,8 @@ def obtener_mi_hospedaje(admin: dict = Depends(auth.solo_admin)):
         cursor = conn.cursor()
         cursor.execute(
             """SELECT nombre, slug, ruc, razon_social, direccion, telefono,
-                      email_contacto, plan, estado, fecha_expira
+                      email_contacto, plan, estado, fecha_expira,
+                      COALESCE(moneda,'PEN') AS moneda
                FROM hospedajes WHERE id = ?""",
             (hid,),
         )
@@ -717,6 +719,9 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
         raise HTTPException(status_code=422, detail="El nombre del negocio es obligatorio.")
     telefono = (datos.telefono or "").strip()
     email_contacto = (datos.email_contacto or "").strip()
+    moneda = (datos.moneda or "PEN").strip().upper()
+    if moneda not in ("PEN", "USD"):
+        raise HTTPException(status_code=422, detail="Moneda no soportada.")
 
     conn = get_connection()
     try:
@@ -724,11 +729,11 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
         cursor.execute("SELECT id FROM hospedajes WHERE id = ?", (hid,))
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
-        # Solo datos comerciales. Los campos fiscales (ruc/razon_social/direccion)
-        # quedan intactos en `hospedajes` y ya no se editan desde aquí.
+        # Datos comerciales + moneda del hospedaje. Los campos fiscales
+        # (ruc/razon_social/direccion) quedan intactos y ya no se editan aquí.
         cursor.execute(
-            "UPDATE hospedajes SET nombre=?, telefono=?, email_contacto=? WHERE id=?",
-            (nombre, telefono, email_contacto, hid),
+            "UPDATE hospedajes SET nombre=?, telefono=?, email_contacto=?, moneda=? WHERE id=?",
+            (nombre, telefono, email_contacto, moneda, hid),
         )
         conn.commit()
     finally:

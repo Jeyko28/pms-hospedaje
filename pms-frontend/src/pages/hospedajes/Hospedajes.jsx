@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -21,7 +22,7 @@ const formatoFecha = (iso) => {
   return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
+const moneda = nfMoneda({ style: "currency", currency: "PEN" });
 
 /**
  * Hospedajes — panel del SUPER ADMIN (dueño del SaaS).

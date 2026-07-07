@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -34,7 +35,7 @@ const SUGERENCIAS = [
   { nombre: "Late check-out", tipo: "servicio", categoria: "servicio", precio: 25 },
 ];
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

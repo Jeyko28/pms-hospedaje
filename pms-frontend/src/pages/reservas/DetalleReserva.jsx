@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import Modal from "../../components/Modal";
 import Badge from "../../components/Badge";
@@ -8,7 +9,7 @@ import { api } from "../../api/client";
 import { ESTADO_RESERVA, presentar } from "../../config/estados";
 import "./DetalleReserva.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

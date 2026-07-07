@@ -77,6 +77,10 @@ const FAQS = [
     a: "Tu suscripción se paga por Yape o transferencia (el plan anual trae 2 meses gratis). Y a tus huéspedes les cobras en efectivo, Yape, Plin, tarjeta o transferencia, todo registrado en caja.",
   },
   {
+    q: "¿Puedo llevar mi hospedaje en dólares?",
+    a: "Sí. Eliges la moneda de tu hospedaje (soles o dólares) en Configuración, y todos los montos —tarifas, cobros, reportes y comprobantes— se muestran en ella.",
+  },
+  {
     q: "¿Cómo funcionan las actualizaciones?",
     a: "Automáticas y sin costo. Como está en la nube, siempre usas la última versión con las mejoras nuevas; no tienes que instalar ni actualizar nada.",
   },

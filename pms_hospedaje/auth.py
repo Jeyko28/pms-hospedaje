@@ -340,6 +340,7 @@ def publico(usuario_dict: dict) -> dict:
     slug = None
     nombre_h = None
     slug_cambios = 0
+    moneda = "PEN"
     if hid is not None:
         conn = get_connection()
         try:
@@ -354,6 +355,15 @@ def publico(usuario_dict: dict) -> dict:
                     slug_cambios = row["slug_cambios"] or 0
                 except (KeyError, IndexError):
                     slug_cambios = 0
+            # Moneda del hospedaje (multi-moneda). Best-effort por si la columna
+            # aún no existe en una base muy antigua.
+            try:
+                cursor.execute("SELECT COALESCE(moneda,'PEN') AS moneda FROM hospedajes WHERE id = ?", (hid,))
+                r2 = cursor.fetchone()
+                if r2:
+                    moneda = r2["moneda"] or "PEN"
+            except Exception:
+                moneda = "PEN"
         finally:
             conn.close()
     return {
@@ -365,6 +375,7 @@ def publico(usuario_dict: dict) -> dict:
         "hospedaje_id": hid,
         "hospedaje_slug": slug,
         "hospedaje_nombre": nombre_h,
+        "moneda": moneda,
         "slug_cambios": slug_cambios,
         "slug_cambios_max": MAX_CAMBIOS_SLUG,
     }

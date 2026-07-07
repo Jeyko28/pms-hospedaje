@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useState } from "react";
 import { api } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
@@ -15,7 +16,7 @@ import CajaDia from "./CajaDia";
 import { abrirFacturaPdf } from "../../utils/pdf";
 import "./Recepcion.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

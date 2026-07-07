@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { api } from "../../api/client";
@@ -19,7 +20,7 @@ import NuevaReservaForm from "./NuevaReservaForm";
 import DetalleReserva from "./DetalleReserva";
 import "./Reservas.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

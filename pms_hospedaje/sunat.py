@@ -21,6 +21,13 @@ from datetime import datetime
 from database import get_connection
 
 
+_SIMBOLOS_MONEDA = {"PEN": "S/", "USD": "$"}
+
+
+def _simbolo_moneda(codigo) -> str:
+    return _SIMBOLOS_MONEDA.get((codigo or "PEN"), "S/")
+
+
 def _sanitize_filename(texto: str) -> str:
     """Convierte un texto en un nombre de archivo seguro (sin path traversal)."""
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
@@ -289,6 +296,13 @@ def emitir_boleta(hid, factura, huesped, descripcion):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        # Moneda del hospedaje (multi-moneda). El comprobante se emite en ella.
+        try:
+            cursor.execute("SELECT COALESCE(moneda,'PEN') AS moneda FROM hospedajes WHERE id = ?", (hid,))
+            _mr = cursor.fetchone()
+            moneda_h = (_mr["moneda"] if _mr else "PEN") or "PEN"
+        except Exception:
+            moneda_h = "PEN"
         # ¿Ya hay un comprobante para esta factura?
         cursor.execute(
             "SELECT id, numero FROM comprobantes WHERE factura_id = ? AND hospedaje_id = ? AND estado != 'anulado'",
@@ -326,7 +340,7 @@ def emitir_boleta(hid, factura, huesped, descripcion):
             "correlativo": correlativo,
             "numero": numero,
             "fecha_emision": fecha,
-            "moneda": "PEN",
+            "moneda": moneda_h,
             "cliente_tipo_doc": cli_tipo,
             "cliente_num_doc": cli_num,
             "cliente_nombre": huesped.get("nombre") or "Cliente",
@@ -352,7 +366,7 @@ def emitir_boleta(hid, factura, huesped, descripcion):
                  total, estado, modo, hash, mensaje, pdf_path)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (hid, factura["id"], "boleta", serie, correlativo, numero, fecha, "PEN",
+            (hid, factura["id"], "boleta", serie, correlativo, numero, fecha, moneda_h,
              cli_tipo, cli_num, comp["cliente_nombre"], comp["op_gravada"], comp["igv"],
              comp["total"], resultado.get("estado", "aceptado"), config["modo"],
              resultado.get("hash", ""), resultado.get("mensaje", ""), pdf_path),
@@ -388,6 +402,7 @@ def generar_boleta_pdf(comp, config, descripcion, hash_demo, ruta_destino=None):
 
     c = canvas.Canvas(ruta_destino, pagesize=A4)
     width, height = A4
+    sim = _simbolo_moneda(comp.get("moneda"))
 
     # Encabezado del emisor.
     c.setFont("Helvetica-Bold", 14)
@@ -431,7 +446,7 @@ def generar_boleta_pdf(comp, config, descripcion, hash_demo, ruta_destino=None):
     y -= 0.6 * cm
     c.setFont("Helvetica", 10)
     c.drawString(2 * cm, y, descripcion or "Servicio de hospedaje")
-    c.drawRightString(width - 2 * cm, y, f"S/ {comp['total']:.2f}")
+    c.drawRightString(width - 2 * cm, y, f"{sim} {comp['total']:.2f}")
 
     # Desglose de impuestos (IGV 18%).
     op_gravada = comp.get("op_gravada", round((comp["total"] or 0) / 1.18, 2))
@@ -439,15 +454,15 @@ def generar_boleta_pdf(comp, config, descripcion, hash_demo, ruta_destino=None):
     y -= 0.9 * cm
     c.setFont("Helvetica", 10)
     c.drawRightString(width - 5.5 * cm, y, "Op. gravada:")
-    c.drawRightString(width - 2 * cm, y, f"S/ {op_gravada:.2f}")
+    c.drawRightString(width - 2 * cm, y, f"{sim} {op_gravada:.2f}")
     y -= 0.5 * cm
     c.drawRightString(width - 5.5 * cm, y, "IGV (18%):")
-    c.drawRightString(width - 2 * cm, y, f"S/ {igv:.2f}")
+    c.drawRightString(width - 2 * cm, y, f"{sim} {igv:.2f}")
 
     # Total.
     y -= 0.7 * cm
     c.setFont("Helvetica-Bold", 12)
-    c.drawRightString(width - 2 * cm, y, f"TOTAL: S/ {comp['total']:.2f}")
+    c.drawRightString(width - 2 * cm, y, f"TOTAL: {sim} {comp['total']:.2f}")
 
     # Hash / pie.
     y -= 1.5 * cm

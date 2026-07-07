@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 /**
  * Datos internos del sitio (Stanza) y helpers compartidos.
  *
@@ -15,7 +16,7 @@ export const waLink = (texto) =>
   `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`;
 
 /** Formateador de moneda en soles (sin decimales). */
-export const moneda = new Intl.NumberFormat("es-PE", {
+export const moneda = nfMoneda({
   style: "currency",
   currency: "PEN",
   maximumFractionDigits: 0,

@@ -1,9 +1,10 @@
+import { nfMoneda } from "./moneda";
 /**
  * Utilidades de WhatsApp para avisar al huésped (canal directo, sin infra).
  * Abre wa.me con el mensaje ya escrito; el dueño solo presiona "enviar".
  */
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

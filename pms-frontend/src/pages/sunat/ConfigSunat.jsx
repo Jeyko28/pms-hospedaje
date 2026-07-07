@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { api } from "../../api/client";
@@ -10,7 +11,7 @@ import StateMessage from "../../components/StateMessage";
 import { abrirComprobantePdf } from "../../utils/pdf";
 import "./ConfigSunat.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

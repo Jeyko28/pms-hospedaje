@@ -1,3 +1,4 @@
+import { nfMoneda } from "../utils/moneda";
 import { useEffect, useMemo, useState } from "react";
 import { Hotel, BedDouble, CheckCircle2 } from "lucide-react";
 import Field from "../components/Field";
@@ -7,7 +8,7 @@ import { useTheme } from "../hooks/useTheme";
 import { ymdLocal } from "../utils/fechas";
 import "./ReservaPublica.css";
 
-const moneda = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" });
+const moneda = nfMoneda({ style: "currency", currency: "PEN" });
 
 /**
  * ReservaPublica — pagina PUBLICA de reservas (motor de reservas).

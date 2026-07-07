@@ -8,6 +8,7 @@ import Button from "../../components/Button";
 import Badge from "../../components/Badge";
 import Field from "../../components/Field";
 import StateMessage from "../../components/StateMessage";
+import { MONEDAS, setMonedaActual } from "../../utils/moneda";
 import "./Configuracion.css";
 
 // Opciones de apariencia (tema claro / oscuro / seguir el sistema).
@@ -24,6 +25,7 @@ const VACIO = {
   nombre: "",
   telefono: "",
   email_contacto: "",
+  moneda: "PEN",
 };
 
 // Etiqueta amable para el plan y el estado.
@@ -51,6 +53,7 @@ export default function Configuracion() {
         nombre: info.data.nombre || "",
         telefono: info.data.telefono || "",
         email_contacto: info.data.email_contacto || "",
+        moneda: info.data.moneda || "PEN",
       });
     }
   }, [info.data]);
@@ -72,7 +75,10 @@ export default function Configuracion() {
         nombre: form.nombre.trim(),
         telefono: form.telefono.trim(),
         email_contacto: form.email_contacto.trim(),
+        moneda: form.moneda,
       });
+      // Aplica la moneda al instante para el formateo de dinero de la app.
+      setMonedaActual(form.moneda);
       setOk(true);
       info.recargar();
       setTimeout(() => setOk(false), 3000);
@@ -187,6 +193,14 @@ export default function Configuracion() {
                 onChange={set("nombre")}
                 placeholder="Ej. Casa de Rex"
               />
+            </Field>
+
+            <Field id="moneda" label="Moneda" hint="Todos los montos se muestran en esta moneda.">
+              <select id="moneda" value={form.moneda} onChange={set("moneda")}>
+                {Object.values(MONEDAS).map((m) => (
+                  <option key={m.codigo} value={m.codigo}>{m.nombre}</option>
+                ))}
+              </select>
             </Field>
 
             <p className="cfg__nota">

@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import Field from "../../components/Field";
 import Button from "../../components/Button";
@@ -7,7 +8,7 @@ import "./PagoForm.css";
 import "./CheckinForm.css";
 import "./CobroEstanciaForm.css";
 
-const formatoMoneda = new Intl.NumberFormat("es-PE", {
+const formatoMoneda = nfMoneda({
   style: "currency",
   currency: "PEN",
 });

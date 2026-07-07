@@ -446,6 +446,16 @@ def migrar(conn):
             cursor.execute("ALTER TABLE reservas ADD COLUMN adelanto_estado TEXT DEFAULT ''")
         conn.commit()
 
+    # ----- 25. Moneda del hospedaje (multi-moneda, Fase 1) -----
+    # Cada hospedaje opera en una moneda (código ISO: 'PEN', 'USD', …). Todos sus
+    # montos se interpretan y muestran en ella. Aditivo; default 'PEN' conserva el
+    # comportamiento actual.
+    if _tabla_existe(cursor, "hospedajes"):
+        if "moneda" not in _columnas_de(cursor, "hospedajes"):
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN moneda TEXT DEFAULT 'PEN'")
+            cursor.execute("UPDATE hospedajes SET moneda = 'PEN' WHERE moneda IS NULL")
+            conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

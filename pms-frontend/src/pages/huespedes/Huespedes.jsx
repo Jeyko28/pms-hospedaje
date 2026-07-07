@@ -1,3 +1,4 @@
+import { nfMoneda } from "../../utils/moneda";
 import { useMemo, useState } from "react";
 import { LayoutGrid, List, Archive, RotateCcw, Star } from "lucide-react";
 import { api } from "../../api/client";
@@ -16,7 +17,7 @@ import HuespedForm from "./HuespedForm";
 import "../entidades.css";
 import "./Huespedes.css";
 
-const moneda0 = new Intl.NumberFormat("es-PE", {
+const moneda0 = nfMoneda({
   style: "currency",
   currency: "PEN",
   maximumFractionDigits: 0,
