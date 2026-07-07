@@ -13,6 +13,23 @@
   min-width: 0;
 }
 
+/* Bloque de cobro en dólares (efectivo). */
+.cobro-usd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: var(--space-3);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.cobro-usd__nota {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 /* En pantallas angostas, una sola columna (apilado). */
 @media (max-width: 680px) {
   .cobro-form__cols {

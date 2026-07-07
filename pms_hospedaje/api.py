@@ -262,9 +262,12 @@ class CheckoutIn(BaseModel):
 
 class PagoNuevo(BaseModel):
     factura_id: int
-    monto: float
+    monto: float                                     # en la moneda BASE (liquida el saldo)
     metodo: str = Field("efectivo", max_length=30)
     referencia: str = Field("", max_length=200)
+    moneda_recibida: str = Field("", max_length=8)   # moneda física recibida (p. ej. USD)
+    monto_recibido: float | None = None              # cuánto se recibió en esa moneda
+    tipo_cambio: float = Field(1, gt=0)              # tipo usado (base por 1 de moneda_recibida)
 
 
 class CierreTurnoDatos(BaseModel):
@@ -3445,6 +3448,14 @@ def registrar_pago(
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada.")
 
+    # Moneda recibida: por defecto la base (monto_recibido = monto, tipo 1).
+    moneda_recibida = (datos.moneda_recibida or "").strip().upper()
+    monto_recibido = datos.monto_recibido
+    tipo_cambio = datos.tipo_cambio or 1
+    if not moneda_recibida:
+        monto_recibido = datos.monto
+        tipo_cambio = 1
+
     pago = Pago(
         factura_id=datos.factura_id,
         monto=datos.monto,
@@ -3453,6 +3464,9 @@ def registrar_pago(
         referencia=datos.referencia,
         hospedaje_id=hid,
         usuario_id=actual.get("id"),
+        moneda_recibida=moneda_recibida,
+        monto_recibido=monto_recibido,
+        tipo_cambio=tipo_cambio,
     )
     pago.guardar()
 

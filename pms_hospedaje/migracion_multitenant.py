@@ -481,6 +481,20 @@ def migrar(conn):
             cursor.execute("ALTER TABLE hospedajes ADD COLUMN margen_cambio REAL DEFAULT 0")
     conn.commit()
 
+    # ----- 27. Pagos: moneda recibida (efectivo en USD) -----
+    # El `monto` sigue en la moneda BASE (liquida el saldo). Se añade la moneda
+    # física recibida + el monto recibido + el tipo de cambio usado (auditoría).
+    # Existentes: moneda_recibida=base implícita, tipo_cambio=1 → sin cambios.
+    if _tabla_existe(cursor, "pagos"):
+        cols_pg = _columnas_de(cursor, "pagos")
+        if "moneda_recibida" not in cols_pg:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN moneda_recibida TEXT DEFAULT ''")
+        if "monto_recibido" not in cols_pg:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN monto_recibido REAL")
+        if "tipo_cambio" not in cols_pg:
+            cursor.execute("ALTER TABLE pagos ADD COLUMN tipo_cambio REAL DEFAULT 1")
+        conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

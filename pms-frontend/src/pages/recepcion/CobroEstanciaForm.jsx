@@ -1,8 +1,10 @@
-import { nfMoneda } from "../../utils/moneda";
-import { useMemo, useState } from "react";
+import { nfMoneda, convertirDesdeBase, convertirABase } from "../../utils/moneda";
+import { useEffect, useMemo, useState } from "react";
 import Field from "../../components/Field";
 import Button from "../../components/Button";
 import { api } from "../../api/client";
+import { useApi } from "../../hooks/useApi";
+import { useAuth } from "../../auth/AuthContext";
 import { ymdLocal } from "../../utils/fechas";
 import "./PagoForm.css";
 import "./CheckinForm.css";
@@ -85,6 +87,27 @@ export default function CobroEstanciaForm({
   const montoEfectivo = monto === "" ? sugerido : Number(monto);
   const difiere = fecha !== fechaSalidaEsperada;
 
+  // Cobro en dólares (efectivo): equivalencia + vuelto + tipo de cambio auditado.
+  const { usuario } = useAuth();
+  const base = usuario?.moneda || "PEN";
+  const aceptaUSD = (usuario?.monedas_aceptadas || "").includes("USD") && base !== "USD";
+  const tc = useApi(
+    () => (aceptaUSD ? api.tipoCambio("USD") : Promise.resolve(null)),
+    [aceptaUSD]
+  );
+  const [monedaRecibida, setMonedaRecibida] = useState("BASE");
+  const [usdRecibido, setUsdRecibido] = useState("");
+  const [tipoCambio, setTipoCambio] = useState("");
+  useEffect(() => {
+    if (tc.data?.tasa && !tipoCambio) setTipoCambio(String(tc.data.tasa));
+  }, [tc.data]); // eslint-disable-line
+
+  const tcNum = Number(tipoCambio) || 0;
+  const esUSD = monedaRecibida === "USD" && tcNum > 0;
+  const cobroEnUSD = esUSD ? convertirDesdeBase(montoEfectivo, tcNum) : 0;
+  const recibidoEnBase = esUSD ? convertirABase(Number(usdRecibido) || 0, tcNum) : 0;
+  const vuelto = esUSD ? Math.max(0, recibidoEnBase - montoEfectivo) : 0;
+
   async function cobrar(ev) {
     ev.preventDefault();
     setError(null);
@@ -101,10 +124,17 @@ export default function CobroEstanciaForm({
       setError(`El monto no puede superar el saldo (${formatoMoneda.format(calc.saldo)}).`);
       return;
     }
+    if (esUSD && recibidoEnBase + 0.001 < valor) {
+      setError(`Los dólares recibidos no cubren el cobro (equivalen a ${formatoMoneda.format(recibidoEnBase)}).`);
+      return;
+    }
     setGuardando(true);
     try {
       await api.recalcularEstancia(estanciaId, fecha, calc.descuento, descuentoMotivo);
-      await api.registrarPago({ factura_id: facturaId, monto: valor, metodo, referencia });
+      const extraUSD = esUSD
+        ? { moneda_recibida: "USD", monto_recibido: Number(usdRecibido) || 0, tipo_cambio: tcNum }
+        : {};
+      await api.registrarPago({ factura_id: facturaId, monto: valor, metodo, referencia, ...extraUSD });
       onCobrado();
     } catch (e) {
       setError(e.message);
@@ -218,6 +248,50 @@ export default function CobroEstanciaForm({
               <option value="plin">Plin</option>
             </select>
           </Field>
+
+          {aceptaUSD && (
+            <Field id="cobro-moneda-rec" label="Moneda recibida">
+              <select
+                id="cobro-moneda-rec"
+                value={monedaRecibida}
+                onChange={(e) => setMonedaRecibida(e.target.value)}
+              >
+                <option value="BASE">Soles (S/)</option>
+                <option value="USD">Dólares (US$)</option>
+              </select>
+            </Field>
+          )}
+
+          {esUSD && (
+            <div className="cobro-usd">
+              <Field id="cobro-tc" label="Tipo de cambio (S/ por US$)" required>
+                <input
+                  id="cobro-tc"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.001"
+                  value={tipoCambio}
+                  onChange={(e) => setTipoCambio(e.target.value)}
+                />
+              </Field>
+              <Field id="cobro-usd-recibido" label="Dólares recibidos (US$)" required>
+                <input
+                  id="cobro-usd-recibido"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={usdRecibido}
+                  onChange={(e) => setUsdRecibido(e.target.value)}
+                  placeholder={cobroEnUSD ? cobroEnUSD.toFixed(2) : ""}
+                />
+              </Field>
+              <p className="cobro-usd__nota">
+                Cobro ≈ <strong>US$ {cobroEnUSD.toFixed(2)}</strong> · Recibes US${" "}
+                {(Number(usdRecibido) || 0).toFixed(2)} = {formatoMoneda.format(recibidoEnBase)} ·{" "}
+                Vuelto <strong>{formatoMoneda.format(vuelto)}</strong>
+              </p>
+            </div>
+          )}
 
           <Field id="cobro-ref" label="Referencia (opcional)">
             <input

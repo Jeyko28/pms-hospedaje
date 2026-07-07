@@ -525,15 +525,20 @@ class Factura:
 
 class Pago:
     def __init__(self, id=None, factura_id=None, monto=0.0, metodo="efectivo", fecha="", referencia="",
-                 hospedaje_id=None, usuario_id=None, **_):
+                 hospedaje_id=None, usuario_id=None, moneda_recibida="", monto_recibido=None,
+                 tipo_cambio=1, **_):
         self.id = id
         self.factura_id = factura_id
-        self.monto = monto
+        self.monto = monto              # en la moneda BASE (liquida el saldo)
         self.metodo = metodo
         self.fecha = fecha
         self.referencia = referencia
         self.hospedaje_id = hospedaje_id
-        self.usuario_id = usuario_id  # auditoría: quién registró el pago
+        self.usuario_id = usuario_id    # auditoría: quién registró el pago
+        # Multi-moneda: moneda física recibida, monto recibido y tipo de cambio usado.
+        self.moneda_recibida = moneda_recibida
+        self.monto_recibido = monto_recibido
+        self.tipo_cambio = tipo_cambio if tipo_cambio is not None else 1
 
     def guardar(self):
         conn = get_connection()
@@ -541,9 +546,11 @@ class Pago:
         if self.id is None:
             hid = self.hospedaje_id if self.hospedaje_id is not None else 1
             cursor.execute('''
-                INSERT INTO pagos (factura_id, monto, metodo, fecha, referencia, hospedaje_id, usuario_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (self.factura_id, self.monto, self.metodo, self.fecha, self.referencia, hid, self.usuario_id))
+                INSERT INTO pagos (factura_id, monto, metodo, fecha, referencia, hospedaje_id, usuario_id,
+                                   moneda_recibida, monto_recibido, tipo_cambio)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (self.factura_id, self.monto, self.metodo, self.fecha, self.referencia, hid, self.usuario_id,
+                  self.moneda_recibida, self.monto_recibido, self.tipo_cambio))
             self.id = cursor.lastrowid
             self.hospedaje_id = hid
         else:
