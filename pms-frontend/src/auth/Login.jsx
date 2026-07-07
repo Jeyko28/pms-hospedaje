@@ -12,7 +12,7 @@ import "./Login.css";
  * Muestra errores claros y deshabilita el boton mientras valida
  * (heuristica: prevencion de errores + visibilidad del estado).
  */
-export default function Login({ onIrARegistro }) {
+export default function Login({ onIrARegistro, onIrARecuperar }) {
   const { login } = useAuth();
   const { theme } = useTheme(); // asegura que el tema se aplique tambien aqui
 
@@ -80,6 +80,14 @@ export default function Login({ onIrARegistro }) {
         <Button type="submit" disabled={entrando} className="login__submit">
           {entrando ? "Entrando…" : "Entrar"}
         </Button>
+
+        {onIrARecuperar && (
+          <p className="login__alt login__alt--right">
+            <button type="button" className="login__link" onClick={onIrARecuperar}>
+              ¿Olvidaste tu contraseña?
+            </button>
+          </p>
+        )}
 
         <BotonGoogle onError={setError} />
 

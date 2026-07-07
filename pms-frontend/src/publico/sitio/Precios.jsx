@@ -133,7 +133,7 @@ export default function Precios() {
                 )}
               </p>
               <p className="plan__habitaciones">{p.habitaciones}</p>
-              <a className={`s-btn plan__cta ${p.destacado ? "s-btn--primary" : "s-btn--ghost"}`} href="#/registro">
+              <a className={`s-btn plan__cta ${p.destacado ? "s-btn--primary" : "s-btn--ghost"}`} href={`#/registro?plan=${p.id}`}>
                 Empieza gratis
               </a>
               <p className="plan__features-head">{p.encabezadoFeatures}</p>

@@ -25,9 +25,14 @@ export default function Registro({ onIrALogin }) {
     usuario: "",
     password: "",
   });
+  const [acepta, setAcepta] = useState(false);
   const [errores, setErrores] = useState({});
   const [errorGeneral, setErrorGeneral] = useState(null);
   const [creando, setCreando] = useState(false);
+
+  // Plan elegido en Precios (llega como #/registro?plan=crece). Informativo.
+  const planDeseado =
+    new URLSearchParams(window.location.hash.split("?")[1] || "").get("plan") || "";
 
   const set = (campo) => (e) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
@@ -41,6 +46,7 @@ export default function Registro({ onIrALogin }) {
       e.email = "Escribe un correo válido.";
     if (!form.usuario.trim()) e.usuario = "Elige un usuario para entrar.";
     if (form.password.length < 6) e.password = "Mínimo 6 caracteres.";
+    if (!acepta) e.acepta = "Debes aceptar los Términos y la Política de Privacidad.";
     setErrores(e);
     return Object.keys(e).length === 0;
   }
@@ -57,6 +63,8 @@ export default function Registro({ onIrALogin }) {
         email: form.email.trim(),
         usuario: form.usuario.trim(),
         password: form.password,
+        acepta_terminos: acepta,
+        plan_deseado: planDeseado,
       });
       // Al tener éxito, AuthProvider entra directo a la app.
     } catch (err) {
@@ -133,6 +141,29 @@ export default function Registro({ onIrALogin }) {
             aria-invalid={!!errores.password}
           />
         </Field>
+
+        {planDeseado && (
+          <p className="login__plan-nota">
+            Plan elegido: <strong>{planDeseado[0].toUpperCase() + planDeseado.slice(1)}</strong> ·
+            empiezas con 14 días de prueba.
+          </p>
+        )}
+
+        <label className="login__terminos">
+          <input
+            type="checkbox"
+            checked={acepta}
+            onChange={(e) => setAcepta(e.target.checked)}
+            aria-invalid={!!errores.acepta}
+          />
+          <span>
+            Acepto los{" "}
+            <a href="#/terminos" target="_blank" rel="noopener noreferrer">Términos y Condiciones</a>{" "}
+            y la{" "}
+            <a href="#/privacidad" target="_blank" rel="noopener noreferrer">Política de Privacidad</a>.
+          </span>
+        </label>
+        {errores.acepta && <p className="login__error" role="alert">{errores.acepta}</p>}
 
         {errorGeneral && (
           <p className="login__error" role="alert">

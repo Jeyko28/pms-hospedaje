@@ -495,6 +495,26 @@ def migrar(conn):
             cursor.execute("ALTER TABLE pagos ADD COLUMN tipo_cambio REAL DEFAULT 1")
         conn.commit()
 
+    # ----- 28. Contratación: aceptación de términos + plan elegido -----
+    # Registro profesional: se guarda cuándo el usuario aceptó los términos y el
+    # plan que eligió en Precios (informativo; la activación real es por pago).
+    if _tabla_existe(cursor, "usuarios"):
+        cols_u = _columnas_de(cursor, "usuarios")
+        if "acepto_terminos_en" not in cols_u:
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN acepto_terminos_en TEXT")
+        if "email_verificado_en" not in cols_u:
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN email_verificado_en TEXT")
+        # Recuperación de contraseña: hash del token de reseteo + su vencimiento.
+        if "reset_token_hash" not in cols_u:
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN reset_token_hash TEXT")
+        if "reset_expira" not in cols_u:
+            cursor.execute("ALTER TABLE usuarios ADD COLUMN reset_expira TEXT")
+        conn.commit()
+    if _tabla_existe(cursor, "hospedajes"):
+        if "plan_deseado" not in _columnas_de(cursor, "hospedajes"):
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN plan_deseado TEXT DEFAULT ''")
+            conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

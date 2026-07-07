@@ -3,6 +3,7 @@ import { RouterProvider, useRuta } from "./router/Router";
 import { useAuth } from "./auth/AuthContext";
 import Login from "./auth/Login";
 import Registro from "./auth/Registro";
+import Recuperar from "./auth/Recuperar";
 import AppShell from "./components/AppShell";
 import AsistenteBienvenida from "./components/AsistenteBienvenida";
 import { ToastProvider } from "./components/Toast";
@@ -123,13 +124,24 @@ function Vista() {
  * directo el registro; #/login (o cualquier otro) muestra el inicio de sesión.
  */
 function Acceso() {
-  const [vista, setVista] = useState(() =>
-    /^#\/registro\b/.test(window.location.hash) ? "registro" : "login"
-  );
+  const [vista, setVista] = useState(() => {
+    const h = window.location.hash;
+    if (/^#\/registro\b/.test(h)) return "registro";
+    if (/^#\/(recuperar|reset)\b/.test(h)) return "recuperar";
+    return "login";
+  });
   if (vista === "registro") {
     return <Registro onIrALogin={() => setVista("login")} />;
   }
-  return <Login onIrARegistro={() => setVista("registro")} />;
+  if (vista === "recuperar") {
+    return <Recuperar onIrALogin={() => { window.location.hash = "/login"; setVista("login"); }} />;
+  }
+  return (
+    <Login
+      onIrARegistro={() => setVista("registro")}
+      onIrARecuperar={() => { window.location.hash = "/recuperar"; setVista("recuperar"); }}
+    />
+  );
 }
 
 /**

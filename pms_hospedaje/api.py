@@ -382,6 +382,17 @@ class RegistroPublico(BaseModel):
     email: str = Field(..., max_length=254)
     usuario: str = Field(..., max_length=100)
     password: str = Field(..., max_length=200)
+    acepta_terminos: bool = False              # debe ser True para registrarse
+    plan_deseado: str = Field("", max_length=20)  # plan elegido en Precios (informativo)
+
+
+class RecuperarIn(BaseModel):
+    email: str = Field(..., max_length=254)
+
+
+class ResetIn(BaseModel):
+    token: str = Field(..., max_length=200)
+    password: str = Field(..., max_length=200)
 
 
 class ServicioHabitacionNuevo(BaseModel):
@@ -460,28 +471,46 @@ def registro_publico(datos: RegistroPublico, request: Request):
         raise HTTPException(
             status_code=422, detail="La contrasena debe tener al menos 6 caracteres."
         )
+    if not datos.acepta_terminos:
+        raise HTTPException(
+            status_code=422,
+            detail="Debes aceptar los Términos y la Política de Privacidad para continuar.",
+        )
     if auth.buscar_por_usuario(usuario):
         raise HTTPException(status_code=409, detail="Ese nombre de usuario ya esta en uso.")
 
     from datetime import timedelta as _td
-    fecha_expira = (datetime.now() + _td(days=14)).strftime("%Y-%m-%d")
+    ahora = datetime.now()
+    fecha_expira = (ahora + _td(days=14)).strftime("%Y-%m-%d")
+    aceptado_en = ahora.strftime("%Y-%m-%d %H:%M:%S")
+    plan_deseado = (datos.plan_deseado or "").strip().lower()
+    if plan_deseado not in ("inicia", "crece", "pro"):
+        plan_deseado = ""
 
     conn = get_connection()
     try:
         cursor = conn.cursor()
         slug = _slug_unico(cursor, _slugify(nombre_h))
         cursor.execute(
-            "INSERT INTO hospedajes (nombre, slug, plan, estado, fecha_expira) VALUES (?, ?, ?, ?, ?)",
-            (nombre_h, slug, "trial", "prueba", fecha_expira),
+            "INSERT INTO hospedajes (nombre, slug, plan, estado, fecha_expira, plan_deseado) VALUES (?, ?, ?, ?, ?, ?)",
+            (nombre_h, slug, "trial", "prueba", fecha_expira, plan_deseado),
         )
         nuevo_hid = cursor.lastrowid
         cursor.execute(
-            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id, email) VALUES (?, ?, ?, ?, ?, ?)",
-            (usuario, nombre, auth.hashear_password(datos.password), "admin", nuevo_hid, email),
+            "INSERT INTO usuarios (usuario, nombre, password_hash, rol, hospedaje_id, email, acepto_terminos_en) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (usuario, nombre, auth.hashear_password(datos.password), "admin", nuevo_hid, email, aceptado_en),
         )
         conn.commit()
     finally:
         conn.close()
+
+    # Correo de bienvenida (best-effort; no bloquea el registro si el email falla).
+    try:
+        import correo
+        correo.bienvenida(email, nombre, nombre_h)
+    except Exception:
+        pass
 
     # Entrar directo: emitir token del nuevo admin.
     u = auth.buscar_por_usuario(usuario)
@@ -491,6 +520,74 @@ def registro_publico(datos: RegistroPublico, request: Request):
         "usuario": auth.publico(u),
         "fecha_expira": fecha_expira,
     }
+
+
+@limiter.limit("4/minute")
+@app.post("/api/auth/recuperar")
+def recuperar_password(datos: RecuperarIn, request: Request):
+    """Solicita el restablecimiento de contraseña. Por seguridad SIEMPRE responde
+    igual (no revela si el correo existe). Si existe, guarda un token con
+    vencimiento (1 h) y envía el enlace por correo."""
+    import secrets
+    import hashlib
+    import correo
+    email = (datos.email or "").strip()
+    u = auth.buscar_por_email(email) if email else None
+    if u:
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        expira = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE usuarios SET reset_token_hash = ?, reset_expira = ? WHERE id = ?",
+                (token_hash, expira, u["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        enlace = f"{correo.app_url()}/#/reset?token={token}"
+        try:
+            correo.recuperar_password(email, u["nombre"], enlace)
+        except Exception:
+            pass
+    return {"ok": True, "mensaje": "Si el correo existe, te enviamos un enlace para restablecerla."}
+
+
+@limiter.limit("6/minute")
+@app.post("/api/auth/reset")
+def reset_password(datos: ResetIn, request: Request):
+    """Fija una nueva contraseña usando el token del correo. Valida el token y su
+    vencimiento; al usarlo, lo invalida."""
+    import hashlib
+    if len(datos.password) < 6:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 6 caracteres.")
+    token_hash = hashlib.sha256((datos.token or "").encode()).hexdigest()
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, reset_expira FROM usuarios WHERE reset_token_hash = ?",
+            (token_hash,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="El enlace no es válido o ya se usó.")
+        try:
+            vence = datetime.strptime(str(row["reset_expira"]), "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            vence = None
+        if not vence or datetime.now() > vence:
+            raise HTTPException(status_code=400, detail="El enlace venció. Solicita uno nuevo.")
+        cursor.execute(
+            "UPDATE usuarios SET password_hash = ?, reset_token_hash = NULL, reset_expira = NULL WHERE id = ?",
+            (auth.hashear_password(datos.password), row["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
 
 
 @limiter.limit("5/minute")

@@ -239,6 +239,8 @@ export const api = {
   // Autenticacion
   login: (usuario, password) => post("/api/auth/login", { usuario, password }),
   registro: (datos) => post("/api/auth/registro", datos),
+  recuperarPassword: (email) => post("/api/auth/recuperar", { email }),
+  resetPassword: (token, password) => post("/api/auth/reset", { token, password }),
   loginGoogle: (credential) => post("/api/auth/google", { credential }),
   config: () => get("/api/config"),
   yo: () => get("/api/auth/yo"),
