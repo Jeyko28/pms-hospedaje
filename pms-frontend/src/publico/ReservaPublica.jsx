@@ -1,4 +1,3 @@
-import { nfMoneda } from "../utils/moneda";
 import { useEffect, useMemo, useState } from "react";
 import { Hotel, BedDouble, CheckCircle2 } from "lucide-react";
 import Field from "../components/Field";
@@ -6,9 +5,8 @@ import Button from "../components/Button";
 import { api } from "../api/client";
 import { useTheme } from "../hooks/useTheme";
 import { ymdLocal } from "../utils/fechas";
+import { formatoMoneda, convertirDesdeBase } from "../utils/moneda";
 import "./ReservaPublica.css";
-
-const moneda = nfMoneda({ style: "currency", currency: "PEN" });
 
 /**
  * ReservaPublica — pagina PUBLICA de reservas (motor de reservas).
@@ -108,6 +106,15 @@ export default function ReservaPublica({ slug }) {
 
   const set = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
 
+  // Formateo en la MONEDA BASE del hospedaje (la página pública no tiene sesión,
+  // así que no se usa la moneda global). Si el hospedaje acepta USD, se muestra
+  // un equivalente REFERENCIAL.
+  const base = hospedaje?.cambio?.base || "PEN";
+  const refTasa = hospedaje?.cambio?.referencia?.tasa || 0;
+  const fmt = (x) => formatoMoneda(x, base);
+  const refUSD = (x) =>
+    refTasa > 0 ? `≈ US$ ${convertirDesdeBase(x, refTasa).toFixed(2)}` : "";
+
   // ---------- Render ----------
   if (cargando) {
     return <div className="pub__centro">Cargando…</div>;
@@ -133,11 +140,11 @@ export default function ReservaPublica({ slug }) {
           </p>
           <p className="pub__exito-detalle">
             Código #{exito.reserva_id} · {exito.noches} noche(s) ·{" "}
-            <strong>{moneda.format(exito.total)}</strong>
+            <strong>{fmt(exito.total)}</strong>
           </p>
           {exito.adelanto_monto > 0 ? (
             <p className="pub__nota">
-              Registramos tu adelanto de <strong>{moneda.format(exito.adelanto_monto)}</strong>.
+              Registramos tu adelanto de <strong>{fmt(exito.adelanto_monto)}</strong>.
               El hospedaje lo verificará y te confirmará la reserva por los datos que dejaste.
             </p>
           ) : (
@@ -208,10 +215,13 @@ export default function ReservaPublica({ slug }) {
                 <span className="pub__hab-info">
                   <strong>Hab. {h.numero}</strong> · {h.tipo}
                   <span className="pub__hab-precio">
-                    {moneda.format(h.precio_base)}/noche
+                    {fmt(h.precio_base)}/noche
                   </span>
                 </span>
-                <span className="pub__hab-total">{moneda.format(h.total)}</span>
+                <span className="pub__hab-total">
+                  {fmt(h.total)}
+                  {refUSD(h.total) && <span className="pub__hab-ref">{refUSD(h.total)}</span>}
+                </span>
               </button>
             ))}
           </div>
@@ -224,7 +234,12 @@ export default function ReservaPublica({ slug }) {
               <span>
                 Hab. {seleccion.numero} · {seleccion.tipo} · {noches} noche(s)
               </span>
-              <strong>{moneda.format(seleccion.total)}</strong>
+              <span className="pub__resumen-precio">
+                <strong>{fmt(seleccion.total)}</strong>
+                {refUSD(seleccion.total) && (
+                  <span className="pub__hab-ref">{refUSD(seleccion.total)} referencial</span>
+                )}
+              </span>
             </div>
             <Field id="nombre" label="Tu nombre" required>
               <input id="nombre" value={datos.nombre} onChange={set("nombre")} autoFocus />
@@ -256,7 +271,7 @@ export default function ReservaPublica({ slug }) {
               <div className="pub__adelanto">
                 <p className="pub__adelanto-titulo">
                   Asegura tu reserva con un adelanto de{" "}
-                  <strong>{moneda.format(seleccion.adelanto)}</strong>
+                  <strong>{fmt(seleccion.adelanto)}</strong>
                 </p>
                 <p className="pub__adelanto-yape">
                   Yapea o transfiere a{" "}

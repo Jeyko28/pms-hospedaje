@@ -250,6 +250,9 @@ export const api = {
   miHospedaje: () => get("/api/mi-hospedaje"),
   guardarMiHospedaje: (datos) => put("/api/mi-hospedaje", datos),
 
+  // Tipo de cambio efectivo del hospedaje (base ↔ moneda)
+  tipoCambio: (moneda = "USD") => get(`/api/tipo-cambio?moneda=${encodeURIComponent(moneda)}`),
+
   // Config del adelanto (Yape) del motor de reservas
   adelantoConfig: () => get("/api/mi-hospedaje/adelanto"),
   guardarAdelantoConfig: (datos) => put("/api/mi-hospedaje/adelanto", datos),

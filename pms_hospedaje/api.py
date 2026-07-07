@@ -57,6 +57,7 @@ import database
 import auth
 import sunat
 import tarifas
+import tipo_cambio
 from database import get_connection
 from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago, ServicioHabitacion, Consumo
 from utils import generar_factura_pdf
@@ -367,7 +368,9 @@ class MiHospedajeDatos(BaseModel):
     direccion: str = Field("", max_length=300)
     telefono: str = Field("", max_length=20)
     email_contacto: str = Field("", max_length=254)
-    moneda: str = Field("PEN", max_length=8)   # código ISO: PEN | USD
+    moneda: str = Field("PEN", max_length=8)   # código ISO base: PEN | USD
+    monedas_aceptadas: str = Field("", max_length=100)  # CSV ISO adicionales, p. ej. "USD"
+    margen_cambio: float = Field(0, ge=-50, le=50)      # % sobre el tipo oficial
 
 
 class RegistroPublico(BaseModel):
@@ -685,7 +688,9 @@ def obtener_mi_hospedaje(admin: dict = Depends(auth.solo_admin)):
         cursor.execute(
             """SELECT nombre, slug, ruc, razon_social, direccion, telefono,
                       email_contacto, plan, estado, fecha_expira,
-                      COALESCE(moneda,'PEN') AS moneda
+                      COALESCE(moneda,'PEN') AS moneda,
+                      COALESCE(monedas_aceptadas,'') AS monedas_aceptadas,
+                      COALESCE(margen_cambio,0) AS margen_cambio
                FROM hospedajes WHERE id = ?""",
             (hid,),
         )
@@ -720,8 +725,16 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
     telefono = (datos.telefono or "").strip()
     email_contacto = (datos.email_contacto or "").strip()
     moneda = (datos.moneda or "PEN").strip().upper()
-    if moneda not in ("PEN", "USD"):
+    _SOPORTADAS = ("PEN", "USD")
+    if moneda not in _SOPORTADAS:
         raise HTTPException(status_code=422, detail="Moneda no soportada.")
+    # Monedas aceptadas: CSV de ISO soportados, distintos de la base.
+    aceptadas = [
+        c.strip().upper() for c in (datos.monedas_aceptadas or "").split(",") if c.strip()
+    ]
+    aceptadas = [c for c in aceptadas if c in _SOPORTADAS and c != moneda]
+    monedas_aceptadas = ",".join(dict.fromkeys(aceptadas))  # sin duplicados, orden estable
+    margen = max(-50.0, min(50.0, float(datos.margen_cambio or 0)))
 
     conn = get_connection()
     try:
@@ -729,17 +742,42 @@ def guardar_mi_hospedaje(datos: MiHospedajeDatos, admin: dict = Depends(auth.sol
         cursor.execute("SELECT id FROM hospedajes WHERE id = ?", (hid,))
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Hospedaje no encontrado.")
-        # Datos comerciales + moneda del hospedaje. Los campos fiscales
-        # (ruc/razon_social/direccion) quedan intactos y ya no se editan aquí.
+        # Datos comerciales + moneda base + monedas aceptadas/margen. Los campos
+        # fiscales (ruc/razon_social/direccion) quedan intactos y ya no se editan aquí.
         cursor.execute(
-            "UPDATE hospedajes SET nombre=?, telefono=?, email_contacto=?, moneda=? WHERE id=?",
-            (nombre, telefono, email_contacto, moneda, hid),
+            """UPDATE hospedajes SET nombre=?, telefono=?, email_contacto=?, moneda=?,
+                      monedas_aceptadas=?, margen_cambio=? WHERE id=?""",
+            (nombre, telefono, email_contacto, moneda, monedas_aceptadas, margen, hid),
         )
         conn.commit()
     finally:
         conn.close()
 
     return obtener_mi_hospedaje(admin)
+
+
+@app.get("/api/tipo-cambio")
+def tipo_cambio_actual(
+    moneda: str = "USD",
+    actual: dict = Depends(auth.usuario_actual),
+    hid: int = Depends(auth.hospedaje_actual),
+):
+    """Tipo de cambio EFECTIVO (con el margen del hospedaje) entre su moneda base y
+    `moneda`. Devuelve {tasa, fuente, actualizado_en, margen_pct}. La usan la
+    Configuración (mostrar el vigente) y el cobro en recepción."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COALESCE(moneda,'PEN') AS base, COALESCE(margen_cambio,0) AS margen FROM hospedajes WHERE id = ?",
+            (hid,),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    base = row["base"] if row else "PEN"
+    margen = row["margen"] if row else 0
+    return tipo_cambio.tasa_efectiva(base, (moneda or "USD").upper(), margen)
 
 
 _ADELANTO_TIPOS = ("noche", "porcentaje", "monto")
@@ -1261,7 +1299,11 @@ def hospedaje_publico(slug: str):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, nombre, slug, estado FROM hospedajes WHERE slug = ?", (slug,)
+            """SELECT id, nombre, slug, estado, COALESCE(moneda,'PEN') AS moneda,
+                      COALESCE(monedas_aceptadas,'') AS monedas_aceptadas,
+                      COALESCE(margen_cambio,0) AS margen_cambio
+               FROM hospedajes WHERE slug = ?""",
+            (slug,),
         )
         h = cursor.fetchone()
         if not h:
@@ -1300,10 +1342,22 @@ def hospedaje_publico(slug: str):
             adelanto["yape_numero"] = cfg["yape_numero"]
             adelanto["yape_titular"] = cfg["yape_titular"]
 
+        # Multi-moneda: moneda base + equivalente REFERENCIAL en USD si el
+        # hospedaje lo acepta (para que el huésped extranjero se ubique). El cobro
+        # real es en la moneda base; el USD es solo referencial.
+        base = h.get("moneda") or "PEN"
+        aceptadas = [c.strip().upper() for c in (h.get("monedas_aceptadas") or "").split(",") if c.strip()]
+        cambio = {"base": base, "referencia": None}
+        if "USD" in aceptadas and base != "USD":
+            r = tipo_cambio.tasa_efectiva(base, "USD", h.get("margen_cambio") or 0)
+            if r["tasa"] and r["tasa"] > 0:
+                cambio["referencia"] = {"moneda": "USD", "tasa": r["tasa"]}
+
         return {
             "hospedaje": {"nombre": h["nombre"], "slug": h["slug"]},
             "habitaciones": habitaciones,
             "adelanto": adelanto,
+            "cambio": cambio,
         }
     finally:
         conn.close()

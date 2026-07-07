@@ -26,6 +26,8 @@ const VACIO = {
   telefono: "",
   email_contacto: "",
   moneda: "PEN",
+  monedas_aceptadas: "",
+  margen_cambio: 0,
 };
 
 // Etiqueta amable para el plan y el estado.
@@ -39,6 +41,7 @@ const ESTADO_TONO = {
 
 export default function Configuracion() {
   const info = useApi(api.miHospedaje);
+  const tc = useApi(api.tipoCambio);
   const { modo, setModo } = useTheme();
 
   const [form, setForm] = useState(VACIO);
@@ -54,6 +57,8 @@ export default function Configuracion() {
         telefono: info.data.telefono || "",
         email_contacto: info.data.email_contacto || "",
         moneda: info.data.moneda || "PEN",
+        monedas_aceptadas: info.data.monedas_aceptadas || "",
+        margen_cambio: info.data.margen_cambio ?? 0,
       });
     }
   }, [info.data]);
@@ -76,11 +81,14 @@ export default function Configuracion() {
         telefono: form.telefono.trim(),
         email_contacto: form.email_contacto.trim(),
         moneda: form.moneda,
+        monedas_aceptadas: form.monedas_aceptadas,
+        margen_cambio: Number(form.margen_cambio) || 0,
       });
       // Aplica la moneda al instante para el formateo de dinero de la app.
       setMonedaActual(form.moneda);
       setOk(true);
       info.recargar();
+      tc.recargar();
       setTimeout(() => setOk(false), 3000);
     } catch (e) {
       setError(e.message);
@@ -202,6 +210,47 @@ export default function Configuracion() {
                 ))}
               </select>
             </Field>
+
+            {form.moneda !== "USD" && (
+              <>
+                <label className="cfg__check">
+                  <input
+                    type="checkbox"
+                    checked={form.monedas_aceptadas.includes("USD")}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, monedas_aceptadas: e.target.checked ? "USD" : "" }))
+                    }
+                  />
+                  Mostrar el precio referencial en dólares (USD) a huéspedes extranjeros
+                </label>
+
+                {form.monedas_aceptadas.includes("USD") && (
+                  <div className="cfg__fila">
+                    <Field id="margen" label="Margen sobre el tipo oficial (%)" hint="0 = tipo oficial. Tu spread opcional.">
+                      <input
+                        id="margen"
+                        type="number"
+                        step="0.1"
+                        value={form.margen_cambio}
+                        onChange={set("margen_cambio")}
+                      />
+                    </Field>
+                    <Field id="tc-vigente" label="Tipo de cambio vigente">
+                      <input
+                        id="tc-vigente"
+                        type="text"
+                        readOnly
+                        value={
+                          tc.data && tc.data.tasa
+                            ? `1 USD = ${MONEDAS[form.moneda]?.simbolo || ""} ${Number(tc.data.tasa).toFixed(3)}`
+                            : "—"
+                        }
+                      />
+                    </Field>
+                  </div>
+                )}
+              </>
+            )}
 
             <p className="cfg__nota">
               Los datos fiscales (RUC, razón social y domicilio fiscal) se editan en{" "}

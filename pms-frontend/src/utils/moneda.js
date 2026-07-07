@@ -47,6 +47,21 @@ export function formatoMoneda(monto, moneda, opts = {}) {
  * devuelve un objeto con `.format(n)` que usa la moneda ACTUAL en cada llamada
  * (reactivo) y conserva las opciones del formateador original (decimales, etc.).
  */
+/**
+ * Convierte un monto de la moneda BASE a otra, dado el tipo de cambio.
+ * `tasa` = unidades de la moneda base por 1 unidad de la moneda destino
+ * (p. ej. PEN por 1 USD ≈ 3.75) → destino = base / tasa.
+ */
+export function convertirDesdeBase(montoBase, tasa) {
+  const t = Number(tasa) || 0;
+  return t > 0 ? (Number(montoBase) || 0) / t : 0;
+}
+
+/** Inverso: de una moneda a la base. base = monto * tasa. */
+export function convertirABase(monto, tasa) {
+  return (Number(monto) || 0) * (Number(tasa) || 0);
+}
+
 export function nfMoneda(opts = {}) {
   // Se ignora style/currency del original (se fuerzan según la moneda actual);
   // se conservan el resto de opciones (fracciones, notación, etc.).

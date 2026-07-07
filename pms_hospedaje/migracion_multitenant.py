@@ -456,6 +456,31 @@ def migrar(conn):
             cursor.execute("UPDATE hospedajes SET moneda = 'PEN' WHERE moneda IS NULL")
             conn.commit()
 
+    # ----- 26. Multi-moneda Fase 2: tipos de cambio + monedas aceptadas -----
+    # Caché GLOBAL de tipos de cambio (PEN↔USD es igual para todos): tasa = cuántas
+    # unidades de `moneda_base` equivale 1 de `moneda` (p. ej. PEN por 1 USD ≈ 3.75).
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tipos_cambio (
+            moneda_base TEXT NOT NULL,
+            moneda TEXT NOT NULL,
+            tasa REAL NOT NULL,
+            fuente TEXT DEFAULT '',
+            actualizado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (moneda_base, moneda)
+        )
+        """
+    )
+    # Por hospedaje: monedas que acepta además de la base (CSV ISO, p. ej. "USD")
+    # y margen % opcional sobre el tipo oficial.
+    if _tabla_existe(cursor, "hospedajes"):
+        cols_h_m = _columnas_de(cursor, "hospedajes")
+        if "monedas_aceptadas" not in cols_h_m:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN monedas_aceptadas TEXT DEFAULT ''")
+        if "margen_cambio" not in cols_h_m:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN margen_cambio REAL DEFAULT 0")
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
