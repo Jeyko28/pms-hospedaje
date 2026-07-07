@@ -3550,6 +3550,25 @@ def _caja_data(hid, dia=None, desde=None, hasta=None, incluir_detalle=True):
             {"metodo": r["metodo"] or "otro", "total": round(r["total"] or 0, 2), "n": r["n"]}
             for r in cursor.fetchall()
         ]
+        # Desglose por MONEDA físicamente recibida (p. ej. USD en efectivo). El
+        # consolidado sigue en la moneda base; esto solo informa cuánta divisa entró.
+        cursor.execute(
+            f"""
+            SELECT p.moneda_recibida AS moneda,
+                   COALESCE(SUM(p.monto_recibido), 0) AS recibido,
+                   COALESCE(SUM(p.monto), 0) AS en_base, COUNT(*) AS n
+            FROM pagos p
+            WHERE {where} AND p.moneda_recibida IS NOT NULL AND p.moneda_recibida != ''
+            GROUP BY p.moneda_recibida
+            ORDER BY recibido DESC
+            """,
+            tuple(params),
+        )
+        por_moneda = [
+            {"moneda": r["moneda"], "recibido": round(r["recibido"] or 0, 2),
+             "en_base": round(r["en_base"] or 0, 2), "n": r["n"]}
+            for r in cursor.fetchall()
+        ]
         detalle = []
         if incluir_detalle:
             # Detalle de los pagos (incluye quién los registró = auditoría).
@@ -3578,6 +3597,7 @@ def _caja_data(hid, dia=None, desde=None, hasta=None, incluir_detalle=True):
         "efectivo": efectivo,
         "num_pagos": num_pagos,
         "por_metodo": por_metodo,
+        "por_moneda": por_moneda,
         "detalle": detalle,
     }
 

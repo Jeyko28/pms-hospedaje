@@ -159,6 +159,22 @@ export default function CajaDia({ refreshKey = 0 }) {
             <strong>{formatoMoneda.format(d.total)}</strong>
           </div>
 
+          {d.por_moneda?.length > 0 && (
+            <div className="caja__monedas">
+              {d.por_moneda.map((m) => (
+                <div key={m.moneda} className="caja__moneda">
+                  <span>
+                    Recibido en {m.moneda === "USD" ? "dólares" : m.moneda}
+                  </span>
+                  <span>
+                    US$ {Number(m.recibido).toFixed(2)}{" "}
+                    <span className="caja__moneda-base">(= {formatoMoneda.format(m.en_base)})</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="caja__acciones">
             {esTurno ? (
               <Button size="sm" variant="secondary" onClick={abrirCierre}>

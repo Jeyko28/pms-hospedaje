@@ -85,6 +85,22 @@
   color: var(--color-success-700);
   font-variant-numeric: tabular-nums;
 }
+.caja__monedas {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.caja__moneda {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.caja__moneda-base {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 
 .caja__vacio {
   font-size: var(--text-sm);
