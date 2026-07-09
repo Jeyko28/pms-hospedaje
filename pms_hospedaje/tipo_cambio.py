@@ -72,39 +72,59 @@ def _es_reciente(actualizado_en) -> bool:
     return datetime.now() - t < timedelta(hours=_TTL_HORAS)
 
 
+def _respaldo(base: str, moneda: str) -> dict:
+    """Valor de último recurso: el DEFAULT si existe, o 0 (sin datos)."""
+    d = _DEFAULTS.get((base, moneda))
+    if d:
+        return {"tasa": float(d), "fuente": "default", "actualizado_en": None}
+    return {"tasa": 0.0, "fuente": "sin_datos", "actualizado_en": None}
+
+
 def tasa(base: str, moneda: str) -> dict:
     """Devuelve {'tasa', 'fuente', 'actualizado_en'} para (base, moneda).
-    Nunca lanza: siempre cae a caché o al DEFAULT."""
+    Nunca lanza: ante CUALQUIER fallo (sin tabla, sin BD, sin internet) cae a
+    caché o al DEFAULT. Un problema de tipo de cambio jamás debe dar 500."""
     base = (base or "PEN").upper()
     moneda = (moneda or "USD").upper()
     if base == moneda:
         return {"tasa": 1.0, "fuente": "identidad", "actualizado_en": None}
 
-    conn = get_connection()
+    try:
+        conn = get_connection()
+    except Exception:
+        return _respaldo(base, moneda)
+
     try:
         cursor = conn.cursor()
-        cache = _leer_cache(cursor, base, moneda)
-        # Caché fresco → devolver.
+        # La lectura del caché puede fallar si la tabla aún no existe → tratar
+        # como "sin caché" y seguir (no romper).
+        try:
+            cache = _leer_cache(cursor, base, moneda)
+        except Exception:
+            cache = None
         if cache and _es_reciente(cache["actualizado_en"]):
             return {"tasa": float(cache["tasa"]), "fuente": "cache", "actualizado_en": cache["actualizado_en"]}
         # Refrescar desde la API; si falla, respaldo.
         try:
             nueva = _fetch_api(base, moneda)
-            _guardar_cache(cursor, base, moneda, nueva, "open.er-api.com")
-            conn.commit()
-            return {"tasa": nueva, "fuente": "api", "actualizado_en": datetime.now().isoformat(timespec="seconds")}
         except Exception:
             if cache:
                 return {"tasa": float(cache["tasa"]), "fuente": "cache_viejo", "actualizado_en": cache["actualizado_en"]}
-            default = _DEFAULTS.get((base, moneda))
-            if default:
-                # Sembrar el default para que exista un valor de respaldo.
-                _guardar_cache(cursor, base, moneda, default, "default")
-                conn.commit()
-                return {"tasa": float(default), "fuente": "default", "actualizado_en": None}
-            return {"tasa": 0.0, "fuente": "sin_datos", "actualizado_en": None}
+            return _respaldo(base, moneda)
+        # Tenemos tasa nueva; intentar cachearla (si falla, igual la devolvemos).
+        try:
+            _guardar_cache(cursor, base, moneda, nueva, "open.er-api.com")
+            conn.commit()
+        except Exception:
+            pass
+        return {"tasa": nueva, "fuente": "api", "actualizado_en": datetime.now().isoformat(timespec="seconds")}
+    except Exception:
+        return _respaldo(base, moneda)
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def tasa_efectiva(base: str, moneda: str, margen_pct: float = 0) -> dict:

@@ -866,18 +866,25 @@ def tipo_cambio_actual(
     """Tipo de cambio EFECTIVO (con el margen del hospedaje) entre su moneda base y
     `moneda`. Devuelve {tasa, fuente, actualizado_en, margen_pct}. La usan la
     Configuración (mostrar el vigente) y el cobro en recepción."""
-    conn = get_connection()
+    base, margen = "PEN", 0
     try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COALESCE(moneda,'PEN') AS base, COALESCE(margen_cambio,0) AS margen FROM hospedajes WHERE id = ?",
-            (hid,),
-        )
-        row = cursor.fetchone()
-    finally:
-        conn.close()
-    base = row["base"] if row else "PEN"
-    margen = row["margen"] if row else 0
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COALESCE(moneda,'PEN') AS base, COALESCE(margen_cambio,0) AS margen FROM hospedajes WHERE id = ?",
+                (hid,),
+            )
+            row = cursor.fetchone()
+            if row:
+                base = row["base"] or "PEN"
+                margen = row["margen"] or 0
+        finally:
+            conn.close()
+    except Exception:
+        # Ante cualquier problema leyendo el hospedaje, usar base PEN / margen 0
+        # (el tipo de cambio es una comodidad, no debe tumbar la petición).
+        pass
     return tipo_cambio.tasa_efectiva(base, (moneda or "USD").upper(), margen)
 
 
