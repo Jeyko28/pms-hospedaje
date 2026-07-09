@@ -286,6 +286,18 @@ class CheckoutPublico(BaseModel):
     reserva_id: int
 
 
+class HabitacionDetalles(BaseModel):
+    """Detalles referenciales de una habitación (para el motor público)."""
+    descripcion: str = Field("", max_length=2000)
+    capacidad: int = Field(0, ge=0, le=99)
+    amenidades: str = Field("", max_length=600)  # CSV de etiquetas (WiFi, TV, ...)
+
+
+class FotoNueva(BaseModel):
+    """Foto de habitación como data URL base64 (comprimida en el cliente)."""
+    imagen: str = Field(..., max_length=1_200_000)
+
+
 class CierreTurnoDatos(BaseModel):
     fecha: str = Field("", max_length=10)
     efectivo_contado: float | None = None
@@ -1514,7 +1526,10 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
         # de la reserva (evita ofrecer una habitación realmente ocupada).
         cursor.execute(
             """
-            SELECT id, numero, tipo, precio_base
+            SELECT id, numero, tipo, precio_base,
+                   COALESCE(descripcion, '') AS descripcion,
+                   COALESCE(capacidad, 0) AS capacidad,
+                   COALESCE(amenidades, '') AS amenidades
             FROM habitaciones
             WHERE hospedaje_id = ? AND activa = 1
             AND id NOT IN (
@@ -1543,6 +1558,18 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
                 _calcular_adelanto(cfg["tipo"], cfg["valor"], r["total"], noches)
                 if cfg["activo"] else 0
             )
+            # Foto principal (la de menor orden) + cuántas hay, para la tarjeta.
+            cursor.execute(
+                "SELECT imagen FROM habitacion_fotos WHERE habitacion_id = ? ORDER BY orden, id LIMIT 1",
+                (r["id"],),
+            )
+            fp = cursor.fetchone()
+            r["foto_principal"] = fp["imagen"] if fp else None
+            cursor.execute(
+                "SELECT COUNT(*) AS n FROM habitacion_fotos WHERE habitacion_id = ?",
+                (r["id"],),
+            )
+            r["fotos_count"] = int(cursor.fetchone()["n"])
         return {"noches": noches, "habitaciones": libres}
     finally:
         conn.close()
@@ -2641,6 +2668,136 @@ def estado_pago_publico(external_id: str):
         "external_id": external_id, "estado": row["estado"],
         "monto": float(row["monto"]), "moneda": row["moneda"], "tipo": row["tipo"],
     }
+
+
+# --------------------------------------------------------------------------- #
+#  Habitaciones: detalles + fotos referenciales (para el motor público)
+#  Las fotos se guardan como data URL base64 (comprimidas en el cliente). MVP sin
+#  cuentas externas; evolucionable a object storage. Límites para no inflar la BD.
+# --------------------------------------------------------------------------- #
+_MAX_FOTOS_HAB = 6
+_MAX_FOTO_LEN = 1_000_000  # ~1 MB de data URL (~700 KB de imagen tras compresión)
+
+
+def _habitacion_de_admin(cursor, habitacion_id, hid):
+    cursor.execute(
+        "SELECT id FROM habitaciones WHERE id = ? AND hospedaje_id = ?",
+        (habitacion_id, hid),
+    )
+    return cursor.fetchone()
+
+
+@app.put("/api/habitaciones/{habitacion_id}/detalles")
+def guardar_detalles_habitacion(
+    habitacion_id: int, datos: HabitacionDetalles, admin: dict = Depends(auth.solo_admin)
+):
+    """Guarda descripción, capacidad y amenidades de una habitación (admin)."""
+    hid = admin["hospedaje_id"]
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        if not _habitacion_de_admin(cursor, habitacion_id, hid):
+            raise HTTPException(status_code=404, detail="Habitación no encontrada.")
+        cursor.execute(
+            "UPDATE habitaciones SET descripcion = ?, capacidad = ?, amenidades = ? "
+            "WHERE id = ? AND hospedaje_id = ?",
+            (datos.descripcion.strip(), int(datos.capacidad or 0),
+             datos.amenidades.strip(), habitacion_id, hid),
+        )
+        conn.commit()
+        return {"ok": True, "habitacion_id": habitacion_id}
+    finally:
+        conn.close()
+
+
+@app.get("/api/habitaciones/{habitacion_id}/fotos")
+def listar_fotos_habitacion(habitacion_id: int, admin: dict = Depends(auth.solo_admin)):
+    """Fotos de una habitación (admin)."""
+    hid = admin["hospedaje_id"]
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        if not _habitacion_de_admin(cursor, habitacion_id, hid):
+            raise HTTPException(status_code=404, detail="Habitación no encontrada.")
+        cursor.execute(
+            "SELECT id, imagen, orden FROM habitacion_fotos "
+            "WHERE habitacion_id = ? AND hospedaje_id = ? ORDER BY orden, id",
+            (habitacion_id, hid),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+@app.post("/api/habitaciones/{habitacion_id}/fotos", status_code=201)
+def agregar_foto_habitacion(
+    habitacion_id: int, datos: FotoNueva, admin: dict = Depends(auth.solo_admin)
+):
+    """Agrega una foto (data URL base64) a una habitación. Con límites de tamaño y
+    cantidad para no inflar la base de datos."""
+    hid = admin["hospedaje_id"]
+    img = (datos.imagen or "").strip()
+    if not img.startswith("data:image/"):
+        raise HTTPException(status_code=422, detail="La imagen debe ser un data URL de imagen.")
+    if len(img) > _MAX_FOTO_LEN:
+        raise HTTPException(status_code=413, detail="Imagen muy pesada; comprímela más.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        if not _habitacion_de_admin(cursor, habitacion_id, hid):
+            raise HTTPException(status_code=404, detail="Habitación no encontrada.")
+        cursor.execute(
+            "SELECT COUNT(*) AS n, COALESCE(MAX(orden), 0) AS mo FROM habitacion_fotos "
+            "WHERE habitacion_id = ? AND hospedaje_id = ?",
+            (habitacion_id, hid),
+        )
+        row = cursor.fetchone()
+        if int(row["n"]) >= _MAX_FOTOS_HAB:
+            raise HTTPException(status_code=409, detail=f"Máximo {_MAX_FOTOS_HAB} fotos por habitación.")
+        orden = int(row["mo"]) + 1
+        cursor.execute(
+            "INSERT INTO habitacion_fotos (habitacion_id, hospedaje_id, imagen, orden, creado_en) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (habitacion_id, hid, img, orden, datetime.now().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return {"id": cursor.lastrowid, "orden": orden}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/habitaciones/{habitacion_id}/fotos/{foto_id}")
+def eliminar_foto_habitacion(
+    habitacion_id: int, foto_id: int, admin: dict = Depends(auth.solo_admin)
+):
+    """Elimina una foto de una habitación (admin)."""
+    hid = admin["hospedaje_id"]
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM habitacion_fotos WHERE id = ? AND habitacion_id = ? AND hospedaje_id = ?",
+            (foto_id, habitacion_id, hid),
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@app.get("/api/publico/habitacion/{habitacion_id}/fotos")
+def fotos_publicas_habitacion(habitacion_id: int):
+    """PÚBLICO: galería completa de una habitación (para el motor de reservas)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, imagen, orden FROM habitacion_fotos WHERE habitacion_id = ? ORDER BY orden, id",
+            (habitacion_id,),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
 
 
 @app.get("/api/reservas/calendario")

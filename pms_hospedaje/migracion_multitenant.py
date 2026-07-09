@@ -555,6 +555,36 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 31. Habitaciones: detalles para el motor público -----
+    # Descripción, capacidad (nº huéspedes) y amenidades (CSV de etiquetas), para
+    # que el huésped vea qué reserva. Aditivo: existentes quedan con valores vacíos.
+    if _tabla_existe(cursor, "habitaciones"):
+        cols_hab = _columnas_de(cursor, "habitaciones")
+        if "descripcion" not in cols_hab:
+            cursor.execute("ALTER TABLE habitaciones ADD COLUMN descripcion TEXT DEFAULT ''")
+        if "capacidad" not in cols_hab:
+            cursor.execute("ALTER TABLE habitaciones ADD COLUMN capacidad INTEGER DEFAULT 0")
+        if "amenidades" not in cols_hab:
+            cursor.execute("ALTER TABLE habitaciones ADD COLUMN amenidades TEXT DEFAULT ''")
+        conn.commit()
+
+    # ----- 32. Fotos referenciales de habitación -----
+    # Imagen guardada como data URL base64 (comprimida en el cliente). Storage MVP
+    # sin cuentas externas; evolucionable a object storage (Cloudinary/Blob) luego.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS habitacion_fotos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            habitacion_id INTEGER NOT NULL,
+            hospedaje_id INTEGER NOT NULL,
+            imagen TEXT NOT NULL,
+            orden INTEGER DEFAULT 0,
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -600,6 +630,7 @@ _INDICES = [
     ("idx_inv_mov_item", "inventario_movimientos", "item_id"),
     ("idx_pagos_online_hosp", "pagos_online", "hospedaje_id"),
     ("idx_pagos_online_ext", "pagos_online", "external_id"),
+    ("idx_hab_fotos_hab", "habitacion_fotos", "habitacion_id"),
 ]
 
 
