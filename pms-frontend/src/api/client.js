@@ -129,6 +129,11 @@ export const api = {
   agendaDashboard: () => get("/api/dashboard/agenda"),
   dashboardOverview: () => get("/api/dashboard/overview"),
   habitaciones: () => get("/api/habitaciones"),
+  // Habitaciones — detalles y fotos referenciales (motor público)
+  guardarDetallesHabitacion: (id, datos) => put(`/api/habitaciones/${id}/detalles`, datos),
+  fotosHabitacion: (id) => get(`/api/habitaciones/${id}/fotos`),
+  agregarFotoHabitacion: (id, imagen) => post(`/api/habitaciones/${id}/fotos`, { imagen }),
+  eliminarFotoHabitacion: (id, fotoId) => del(`/api/habitaciones/${id}/fotos/${fotoId}`),
   huespedes: (incluirArchivados = false) =>
     get(`/api/huespedes${incluirArchivados ? "?incluir_archivados=1" : ""}`),
   reservas: () => get("/api/reservas"),

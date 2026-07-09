@@ -14,9 +14,10 @@
   color: var(--color-danger-600);
 }
 
-/* Estilo compartido por inputs, selects y el date input nativo. */
+/* Estilo compartido por inputs, selects, textareas y el date input nativo. */
 .field__control input,
-.field__control select {
+.field__control select,
+.field__control textarea {
   width: 100%;
   min-height: var(--tap-target-min);
   padding: 0 var(--space-3);
@@ -29,13 +30,23 @@
     box-shadow var(--transition-fast);
 }
 
+/* El textarea necesita padding vertical y poder crecer en alto. */
+.field__control textarea {
+  min-height: unset;
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .field__control input:hover,
-.field__control select:hover {
+.field__control select:hover,
+.field__control textarea:hover {
   border-color: var(--color-neutral-400);
 }
 
 .field__control input:focus,
-.field__control select:focus {
+.field__control select:focus,
+.field__control textarea:focus {
   outline: none;
   border-color: var(--focus-ring);
   box-shadow: 0 0 0 3px var(--color-brand-100);
@@ -43,7 +54,8 @@
 
 /* Campo con error: borde rojo (ademas del mensaje, no solo color). */
 .field__control input[aria-invalid="true"],
-.field__control select[aria-invalid="true"] {
+.field__control select[aria-invalid="true"],
+.field__control textarea[aria-invalid="true"] {
   border-color: var(--color-danger-600);
 }
 

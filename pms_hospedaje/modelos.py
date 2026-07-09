@@ -10,7 +10,7 @@ from datetime import datetime
 class Habitacion:
     def __init__(self, id=None, numero="", tipo="", precio_base=0.0,
                  estado_limpieza="Limpia", estado="disponible", activa=True,
-                 hospedaje_id=None, **_):
+                 hospedaje_id=None, descripcion="", capacidad=0, amenidades="", **_):
         self.id = id
         self.numero = numero
         self.tipo = tipo
@@ -19,6 +19,10 @@ class Habitacion:
         self.estado = estado          # 'disponible', 'ocupada', 'mantenimiento'
         self.activa = activa
         self.hospedaje_id = hospedaje_id
+        # Detalles referenciales para el motor público (opcionales).
+        self.descripcion = descripcion
+        self.capacidad = capacidad
+        self.amenidades = amenidades
 
     @staticmethod
     def obtener_todas(solo_activas=True, hospedaje_id=None):
@@ -50,6 +54,9 @@ class Habitacion:
                 estado=row["estado"],
                 activa=bool(row["activa"]),
                 hospedaje_id=row["hospedaje_id"] if "hospedaje_id" in row.keys() else None,
+                descripcion=row["descripcion"] if "descripcion" in row.keys() else "",
+                capacidad=row["capacidad"] if "capacidad" in row.keys() else 0,
+                amenidades=row["amenidades"] if "amenidades" in row.keys() else "",
             ))
         return habitaciones
 

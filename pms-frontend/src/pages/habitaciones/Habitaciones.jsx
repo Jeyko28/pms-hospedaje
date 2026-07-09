@@ -14,6 +14,7 @@ import {
   presentar,
 } from "../../config/estados";
 import HabitacionForm from "./HabitacionForm";
+import HabitacionFotos from "./HabitacionFotos";
 import "../entidades.css";
 
 const formatoMoneda = nfMoneda({
@@ -26,6 +27,7 @@ export default function Habitaciones() {
   const toast = useToast();
   const [modal, setModal] = useState(null); // null | {modo, habitacion}
   const [borrandoId, setBorrandoId] = useState(null);
+  const [fotosDe, setFotosDe] = useState(null); // habitación en edición de fotos/detalles
 
   function abrirCrear() {
     setModal({ modo: "crear", habitacion: null });
@@ -132,6 +134,9 @@ export default function Habitaciones() {
                   <Button size="sm" variant="secondary" onClick={() => abrirEditar(h)}>
                     Editar
                   </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setFotosDe(h)}>
+                    Fotos
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -157,6 +162,22 @@ export default function Habitaciones() {
             habitacion={modal.habitacion}
             onGuardada={alGuardar}
             onCancelar={() => setModal(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        open={!!fotosDe}
+        title={fotosDe ? `Fotos y detalles · Hab. ${fotosDe.numero}` : ""}
+        onClose={() => setFotosDe(null)}
+      >
+        {fotosDe && (
+          <HabitacionFotos
+            habitacion={fotosDe}
+            onCerrar={(huboCambio) => {
+              setFotosDe(null);
+              if (huboCambio) habitaciones.recargar();
+            }}
           />
         )}
       </Modal>
