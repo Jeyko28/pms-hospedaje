@@ -84,13 +84,18 @@ class _PgCursor:
     def execute(self, sql, params=()):
         adaptado = _adaptar_sql(sql)
         params = _adaptar_params(params)
+        # psycopg2 intenta interpolar '%' aun con la tupla de params vacía: un
+        # '%' literal en el SQL (comentarios como "IGV 18%", patrones LIKE
+        # '%x%') dispara "IndexError: tuple index out of range". Si no hay
+        # parámetros, pasar None hace que ejecute el SQL tal cual, sin interpolar.
+        args = params if params else None
         if _necesita_returning(sql):
             adaptado = adaptado.rstrip().rstrip(";") + " RETURNING id"
-            self._cur.execute(adaptado, params)
+            self._cur.execute(adaptado, args)
             fila = self._cur.fetchone()
             self.lastrowid = fila[0] if fila else None
             return self
-        self._cur.execute(adaptado, params)
+        self._cur.execute(adaptado, args)
         return self
 
     def executemany(self, sql, seq):
