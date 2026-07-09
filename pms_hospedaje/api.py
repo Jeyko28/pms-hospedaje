@@ -110,6 +110,7 @@ _origenes = [
     "http://127.0.0.1:5174",
     "http://localhost:5190",
     "http://127.0.0.1:5190",
+    "https://vantry-pms.vercel.app",  # producción (frontend en Vercel)
 ]
 _extra = os.environ.get("CORS_ORIGINS", "")
 if _extra:
