@@ -101,12 +101,12 @@ const AREAS = [
 // Cada área tiene un mockup COHERENTE con su mensaje (no un dashboard genérico
 // repetido). El url del "navegador" también refuerza la sección.
 const MOCKUPS = {
-  reserva: { url: "stanza.pe/reservar/tu-hospedaje", Comp: ReservaMockup },
-  calendar: { url: "stanza.pe/calendario", Comp: CalendarMockup },
-  recepcion: { url: "stanza.pe/recepcion", Comp: RecepcionMockup },
-  comprobante: { url: "stanza.pe/comprobantes", Comp: ComprobanteMockup },
-  dashboard: { url: "stanza.pe/reportes", Comp: DashboardMockup },
-  equipo: { url: "stanza.pe/usuarios", Comp: EquipoMockup },
+  reserva: { url: "vantry.pe/reservar/tu-hospedaje", Comp: ReservaMockup },
+  calendar: { url: "vantry.pe/calendario", Comp: CalendarMockup },
+  recepcion: { url: "vantry.pe/recepcion", Comp: RecepcionMockup },
+  comprobante: { url: "vantry.pe/comprobantes", Comp: ComprobanteMockup },
+  dashboard: { url: "vantry.pe/reportes", Comp: DashboardMockup },
+  equipo: { url: "vantry.pe/usuarios", Comp: EquipoMockup },
 };
 
 function MockupDe({ tipo }) {

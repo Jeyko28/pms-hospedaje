@@ -1,7 +1,7 @@
 # Mejoras del PMS — programa de trabajo (brief "Autonomous Product Team v2")
 
 > Documento vivo. Registra las decisiones (UX/UI/arquitectura) de cada fase de mejora del
-> PMS Stanza, con su fundamento. Se actualiza al cerrar cada fase.
+> PMS Vantry, con su fundamento. Se actualiza al cerrar cada fase.
 
 El brief es un programa grande (11 frentes + auditoría + loop). Se ejecuta **por fases
 priorizadas por impacto/esfuerzo**, cada una verificada y desplegada, en vez de todo a la

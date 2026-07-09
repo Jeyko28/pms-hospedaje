@@ -46,7 +46,7 @@ export default function Login({ onIrARegistro, onIrARecuperar }) {
           <span className="login__brand-mark" aria-hidden="true">
             <Hotel size={32} strokeWidth={2} />
           </span>
-          <h1 className="login__title">Stanza</h1>
+          <h1 className="login__title">Vantry</h1>
           <p className="login__subtitle">Inicia sesión para continuar</p>
         </div>
 

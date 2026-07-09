@@ -1,6 +1,6 @@
 # Análisis y arquitectura — Soporte multi-moneda (PEN / USD / …)
 
-> Auditoría del manejo de moneda en Stanza y propuesta de arquitectura por fases para
+> Auditoría del manejo de moneda en Vantry y propuesta de arquitectura por fases para
 > soportar múltiples monedas **sin grandes cambios futuros**. Documento previo a implementar;
 > el alcance a construir se decide con el dueño.
 

@@ -1,4 +1,4 @@
-# Auditoría "Cliente Crítico" — Stanza (2026-07-03)
+# Auditoría "Cliente Crítico" — Vantry (2026-07-03)
 
 > Simulación de un **dueño de hostal (15 hab, provincia, hoy usa Excel + cuaderno + WhatsApp)**
 > evaluando si pagaría el SaaS. Ejecutada con el subagente `cliente-critico`, que además revisó
@@ -36,7 +36,7 @@ fundador sin pensarlo.** Si no → se queda en Excel.
 3. Sin Channel Manager, ¿cómo evito sobrevender entre Booking y mi link?
 4. Si me atraso un mes en el Yape de la suscripción, ¿me cortan? ¿pierdo mis datos?
 5. ¿Cuántos hospedajes lo usan HOY? (no vio ni un testimonio)
-6. Si Stanza cierra, ¿cómo exporto mis reservas y huéspedes?
+6. Si Vantry cierra, ¿cómo exporto mis reservas y huéspedes?
 7. ¿Quién nos capacita? "5 minutos" suena optimista.
 
 ## 🟢 Lo que lo haría comprar YA (acciones)

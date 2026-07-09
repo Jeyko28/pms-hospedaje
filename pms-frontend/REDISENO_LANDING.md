@@ -1,6 +1,6 @@
-# Rediseño premium de la landing — Stanza
+# Rediseño premium de la landing — Vantry
 
-> Documento de diseño (2026-07-02). Transformación de la web pública de Stanza a un
+> Documento de diseño (2026-07-02). Transformación de la web pública de Vantry a un
 > estándar SaaS premium (referencia de calidad: Stripe / Linear / Vercel / Notion).
 > Alcance: **solo la landing** (`src/publico/sitio/`); la app del PMS logueado no se tocó.
 
@@ -159,10 +159,10 @@ Requisito: no exponer número ni correo.
 
 ## 13. Riesgos / pendientes / recomendaciones futuras
 
-- Verificar dominio/marca "Stanza" antes de comprar (stanza.pe / getstanza).
+- Verificar dominio/marca "Vantry" antes de comprar (vantry.pe / getvantry).
 - Reemplazar mockups SVG por **capturas reales** del PMS cuando haya datos de demo.
 - Contacto: añadir reenvío por email (Resend) cuando haya API key + dominio.
 - Prueba social real (testimonios/logos) cuando existan clientes — hoy, honestamente, no.
 - Si se quiere unificar el look premium con la app logueada, migrar los `--s-*` a `tokens.css`.
-- `d644e02` (Stanza + Opción B) y este rediseño siguen **sin pushear**: desplegar cuando el
+- `d644e02` (Vantry + Opción B) y este rediseño siguen **sin pushear**: desplegar cuando el
   usuario confirme (push a main → Vercel/Render; migraciones additivas corren solas en Neon).

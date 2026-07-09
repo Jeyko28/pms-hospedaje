@@ -29,7 +29,7 @@ def _fetch_api(base: str, moneda: str) -> float:
     """Trae la tasa (unidades de `base` por 1 de `moneda`) de una API pública.
     open.er-api.com/v6/latest/<moneda> devuelve rates[<base>] = base por 1 moneda."""
     url = f"https://open.er-api.com/v6/latest/{moneda}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Stanza-PMS"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Vantry-PMS"})
     with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
         data = json.loads(resp.read().decode())
     tasa = (data.get("rates") or {}).get(base)

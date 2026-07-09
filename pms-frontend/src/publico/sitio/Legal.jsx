@@ -18,15 +18,15 @@ const DOCS = {
   terminos: {
     titulo: "Términos y Condiciones",
     intro:
-      "Estas condiciones regulan el uso de Stanza, el software de gestión para hospedajes. Al crear una cuenta o usar el servicio, las aceptas.",
+      "Estas condiciones regulan el uso de Vantry, el software de gestión para hospedajes. Al crear una cuenta o usar el servicio, las aceptas.",
     secciones: [
       {
         h: "1. El servicio",
-        p: "Stanza es un software como servicio (SaaS) en la nube para la gestión de hospedajes: reservas, calendario, recepción, cobros, comprobantes y reportes. El servicio se ofrece de forma continua y con mejoras periódicas.",
+        p: "Vantry es un software como servicio (SaaS) en la nube para la gestión de hospedajes: reservas, calendario, recepción, cobros, comprobantes y reportes. El servicio se ofrece de forma continua y con mejoras periódicas.",
       },
       {
         h: "2. Cuenta y registro",
-        p: "Para usar Stanza debes crear una cuenta con datos veraces. Eres responsable de mantener la confidencialidad de tus credenciales y de la actividad realizada con tu cuenta y las de tu equipo (recepción).",
+        p: "Para usar Vantry debes crear una cuenta con datos veraces. Eres responsable de mantener la confidencialidad de tus credenciales y de la actividad realizada con tu cuenta y las de tu equipo (recepción).",
       },
       {
         h: "3. Prueba, planes y pagos",
@@ -40,7 +40,7 @@ const DOCS = {
       },
       {
         h: "4. Uso aceptable",
-        p: "No puedes usar Stanza para fines ilícitos, vulnerar su seguridad, ni cargar datos de terceros sin contar con derecho o autorización para ello. Podemos suspender cuentas que incumplan estas condiciones.",
+        p: "No puedes usar Vantry para fines ilícitos, vulnerar su seguridad, ni cargar datos de terceros sin contar con derecho o autorización para ello. Podemos suspender cuentas que incumplan estas condiciones.",
       },
       {
         h: "5. Tus datos y los de tus huéspedes",
@@ -56,11 +56,11 @@ const DOCS = {
       },
       {
         h: "8. Propiedad intelectual",
-        p: "El software, la marca Stanza y sus contenidos son de su titular. Estas condiciones no te transfieren derechos de propiedad intelectual, solo el derecho a usar el servicio según tu plan.",
+        p: "El software, la marca Vantry y sus contenidos son de su titular. Estas condiciones no te transfieren derechos de propiedad intelectual, solo el derecho a usar el servicio según tu plan.",
       },
       {
         h: "9. Limitación de responsabilidad",
-        p: "En la medida permitida por la ley, Stanza no será responsable por lucro cesante ni por daños indirectos derivados del uso o la imposibilidad de uso del servicio. Nuestra responsabilidad se limita, como máximo, a lo pagado por el servicio en los últimos meses.",
+        p: "En la medida permitida por la ley, Vantry no será responsable por lucro cesante ni por daños indirectos derivados del uso o la imposibilidad de uso del servicio. Nuestra responsabilidad se limita, como máximo, a lo pagado por el servicio en los últimos meses.",
       },
       {
         h: "10. Modificaciones",
@@ -80,7 +80,7 @@ const DOCS = {
     secciones: [
       {
         h: "1. Responsable del tratamiento",
-        p: "El responsable es el titular del servicio Stanza. Puedes contactarnos por los canales indicados al final de esta política para cualquier asunto sobre tus datos.",
+        p: "El responsable es el titular del servicio Vantry. Puedes contactarnos por los canales indicados al final de esta política para cualquier asunto sobre tus datos.",
       },
       {
         h: "2. Qué datos tratamos",
@@ -100,7 +100,7 @@ const DOCS = {
       },
       {
         h: "5. Datos de tus huéspedes",
-        p: "Respecto de los datos de tus huéspedes que registras en Stanza, tú actúas como responsable y Stanza como encargado del tratamiento: los procesamos solo siguiendo tus instrucciones y para operar el sistema. Eres responsable de contar con la base legal para tratarlos y de informar a tus huéspedes.",
+        p: "Respecto de los datos de tus huéspedes que registras en Vantry, tú actúas como responsable y Vantry como encargado del tratamiento: los procesamos solo siguiendo tus instrucciones y para operar el sistema. Eres responsable de contar con la base legal para tratarlos y de informar a tus huéspedes.",
       },
       {
         h: "6. Conservación",
@@ -132,7 +132,7 @@ const DOCS = {
   cookies: {
     titulo: "Política de Cookies",
     intro:
-      "Stanza es sobrio con tu privacidad: no usamos cookies de publicidad ni de rastreo de terceros. Solo empleamos almacenamiento esencial para que el sistema funcione.",
+      "Vantry es sobrio con tu privacidad: no usamos cookies de publicidad ni de rastreo de terceros. Solo empleamos almacenamiento esencial para que el sistema funcione.",
     secciones: [
       {
         h: "1. Qué usamos",
@@ -186,7 +186,7 @@ export default function Legal({ doc }) {
           <h2>Contacto</h2>
           <p>
             Para consultas legales, sobre tus datos o el ejercicio de tus derechos, escríbenos por{" "}
-            <a href={waLink("Hola, tengo una consulta legal / sobre mis datos en Stanza.")} target="_blank" rel="noopener noreferrer">
+            <a href={waLink("Hola, tengo una consulta legal / sobre mis datos en Vantry.")} target="_blank" rel="noopener noreferrer">
               WhatsApp
             </a>{" "}
             o desde la sección de <a href="#/contacto">Contacto</a>.

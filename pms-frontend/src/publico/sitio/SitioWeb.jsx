@@ -18,7 +18,7 @@ const LEGALES = [
 ];
 
 /**
- * SitioWeb — cascarón del sitio de marketing PÚBLICO de Stanza (sin login).
+ * SitioWeb — cascarón del sitio de marketing PÚBLICO de Vantry (sin login).
  * "Front door": el visitante sin sesión que llega a la raíz ve esta web.
  * Aporta nav + footer compartidos y enruta secciones por hash.
  */
@@ -110,11 +110,11 @@ export default function SitioWeb() {
     <div className="sitio">
       {/* ---------------- Nav ---------------- */}
       <header className={`sitio__nav ${scrolled ? "sitio__nav--scrolled" : ""}`}>
-        <a className="sitio__brand" href="#/inicio" aria-label="Stanza — inicio">
+        <a className="sitio__brand" href="#/inicio" aria-label="Vantry — inicio">
           <span className="sitio__brand-mark" aria-hidden="true">
             <Hotel size={20} strokeWidth={2.2} />
           </span>
-          <span className="sitio__brand-name">Stanza</span>
+          <span className="sitio__brand-name">Vantry</span>
         </a>
 
         <nav className="sitio__links" aria-label="Secciones">
@@ -192,7 +192,7 @@ export default function SitioWeb() {
               <span className="sitio__brand-mark" aria-hidden="true">
                 <Hotel size={18} strokeWidth={2.2} />
               </span>
-              <span className="sitio__brand-name">Stanza</span>
+              <span className="sitio__brand-name">Vantry</span>
             </a>
             <p className="sitio__footer-tag">
               El PMS profesional, en soles, para el hospedaje peruano. Reservas directas
@@ -207,7 +207,7 @@ export default function SitioWeb() {
             ))}
             <a href="#/login">Iniciar sesión</a>
             <a
-              href={waLink("Hola, quiero más información sobre Stanza para mi hospedaje.")}
+              href={waLink("Hola, quiero más información sobre Vantry para mi hospedaje.")}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -224,7 +224,7 @@ export default function SitioWeb() {
         </nav>
 
         <div className="sitio__footer-copy">
-          <span>© {new Date().getFullYear()} Stanza · Hecho en Perú para hospedajes del Perú</span>
+          <span>© {new Date().getFullYear()} Vantry · Hecho en Perú para hospedajes del Perú</span>
           {/* Disparador discreto y accesible del easter egg del fundador */}
           <button
             type="button"

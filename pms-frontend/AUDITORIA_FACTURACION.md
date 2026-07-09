@@ -1,4 +1,4 @@
-# Auditoría y rediseño del módulo de Facturación — Stanza (2026-07-03)
+# Auditoría y rediseño del módulo de Facturación — Vantry (2026-07-03)
 
 > Análisis multidisciplinar **previo a implementar** (por pedido del dueño: "no implementes
 > hasta terminar el análisis"). Tres miradas, todas fundamentadas en el código real:

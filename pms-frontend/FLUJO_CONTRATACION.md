@@ -1,6 +1,6 @@
-# Flujo de contratación del SaaS + onboarding — Stanza
+# Flujo de contratación del SaaS + onboarding — Vantry
 
-> Diseño del flujo completo para que un cliente contrate Stanza, con lo que YA
+> Diseño del flujo completo para que un cliente contrate Vantry, con lo que YA
 > existía y lo implementado en #7. Objetivo: registro profesional (legal + email +
 > recuperación) sin fricción.
 

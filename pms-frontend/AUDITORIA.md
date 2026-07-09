@@ -1,4 +1,4 @@
-# Auditoría del sistema — Stanza PMS (2026-07-03)
+# Auditoría del sistema — Vantry PMS (2026-07-03)
 
 > Auditoría crítica tras las fases de mejora (Fase 5 del brief "Autonomous Product Team").
 > Metodología: revisión automatizada (modelos vs. esquema, barrido de errores de consola/API

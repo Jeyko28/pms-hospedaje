@@ -6,7 +6,7 @@
  */
 
 /* Marco tipo "navegador" reutilizable. */
-export function Frame({ url = "stanza.pe/app", children }) {
+export function Frame({ url = "vantry.pe/app", children }) {
   return (
     <div className="s-frame">
       <div className="s-frame__bar" aria-hidden="true">
@@ -22,7 +22,7 @@ export function Frame({ url = "stanza.pe/app", children }) {
 
 /**
  * CalendarMockup — timeline habitación × día con barras de reserva. Es el
- * "héroe visual": comunica de un vistazo que Stanza es un PMS de verdad.
+ * "héroe visual": comunica de un vistazo que Vantry es un PMS de verdad.
  */
 export function CalendarMockup() {
   const habitaciones = ["101", "102", "103", "201", "202"];

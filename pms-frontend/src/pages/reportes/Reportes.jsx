@@ -146,7 +146,7 @@ export default function Reportes() {
 
       {/* Encabezado solo visible al imprimir */}
       <div className="reportes__print-head" aria-hidden="true">
-        <span className="reportes__print-marca">Stanza</span>
+        <span className="reportes__print-marca">Vantry</span>
         <h1>Reporte · {MESES[mes - 1]} {anio}</h1>
         <span className="reportes__print-fecha">
           Emitido el {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}

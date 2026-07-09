@@ -8,8 +8,8 @@ import { useEffect, useState } from "react";
  * Persistimos en sessionStorage: una vez descubierto en la sesión, sigue
  * visible (no se vuelve a "esconder" al navegar), pero no queda para siempre.
  */
-const CLAVE = "stanza-founder-unlocked";
-const EVENTO = "stanza-founder-unlock";
+const CLAVE = "vantry-founder-unlocked";
+const EVENTO = "vantry-founder-unlock";
 
 export function isFounderUnlocked() {
   try {

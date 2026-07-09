@@ -42,7 +42,7 @@ const PASOS = [
 const FAQS = [
   {
     q: "¿Necesito instalar algo?",
-    a: "No. Stanza funciona 100% en la nube, desde el navegador. Entras desde tu celular, tablet o computadora sin descargar ni instalar nada.",
+    a: "No. Vantry funciona 100% en la nube, desde el navegador. Entras desde tu celular, tablet o computadora sin descargar ni instalar nada.",
   },
   {
     q: "¿Funciona desde cualquier dispositivo?",
@@ -113,7 +113,7 @@ export default function Inicio() {
           </a>
           <a
             className="s-btn s-btn--ghost s-btn--lg"
-            href={waLink("Hola, quiero una demo de Stanza para mi hospedaje.")}
+            href={waLink("Hola, quiero una demo de Vantry para mi hospedaje.")}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -127,7 +127,7 @@ export default function Inicio() {
         </ul>
 
         <Reveal className="hero__mockup" delay={80}>
-          <Frame url="stanza.pe/calendario">
+          <Frame url="vantry.pe/calendario">
             <CalendarMockup />
           </Frame>
         </Reveal>
@@ -153,7 +153,7 @@ export default function Inicio() {
                 comisión por noche.
               </p>
             </div>
-            <Frame url="stanza.pe/reservar/tu-hospedaje">
+            <Frame url="vantry.pe/reservar/tu-hospedaje">
               <ReservaMockup />
             </Frame>
           </Reveal>
@@ -233,7 +233,7 @@ export default function Inicio() {
       <section className="cta-final__wrap">
         <Reveal className="cta-final">
           <h2>¿Listo para dejar el Excel?</h2>
-          <p>Prueba Stanza gratis 14 días o escríbenos y te ayudamos a empezar hoy.</p>
+          <p>Prueba Vantry gratis 14 días o escríbenos y te ayudamos a empezar hoy.</p>
           <div className="cta-final__acciones">
             <a className="s-btn s-btn--primary s-btn--lg" href="#/registro">
               Crear mi cuenta gratis

@@ -1,6 +1,6 @@
 import { nfMoneda } from "../../utils/moneda";
 /**
- * Datos internos del sitio (Stanza) y helpers compartidos.
+ * Datos internos del sitio (Vantry) y helpers compartidos.
  *
  * PRIVACIDAD: el número de WhatsApp y el correo NO se muestran en la web. El
  * WhatsApp se usa solo como deep link (`wa.me`, abre el chat sin exponer el

@@ -3,7 +3,7 @@ correo.py — envío de correos, modular y sin romper si no está configurado.
 
 Proveedor por configuración (variables de entorno):
   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_TLS (1/0)
-  APP_URL  (base para los enlaces, p. ej. https://stanza.pe)
+  APP_URL  (base para los enlaces, p. ej. https://vantry.pe)
 
 Si NO hay SMTP configurado, cae a un proveedor de DESARROLLO que solo registra
 el correo por consola (para probar el flujo sin servidor de correo). `enviar`
@@ -30,7 +30,7 @@ def _smtp_config():
         "port": int(os.environ.get("SMTP_PORT") or 587),
         "user": os.environ.get("SMTP_USER") or "",
         "password": os.environ.get("SMTP_PASS") or "",
-        "from": os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "no-reply@stanza.pe",
+        "from": os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "no-reply@vantry.pe",
         "tls": (os.environ.get("SMTP_TLS", "1") not in ("0", "false", "False")),
     }
 
@@ -68,22 +68,22 @@ def enviar(destinatario: str, asunto: str, html: str, texto: str = "") -> bool:
 def _envolver(titulo: str, cuerpo_html: str) -> str:
     return f"""\
 <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2430">
-  <h2 style="color:#4F46E5">Stanza</h2>
+  <h2 style="color:#4F46E5">Vantry</h2>
   <h3>{titulo}</h3>
   {cuerpo_html}
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-  <p style="font-size:12px;color:#888">Stanza · PMS para hospedajes del Perú</p>
+  <p style="font-size:12px;color:#888">Vantry · PMS para hospedajes del Perú</p>
 </div>"""
 
 
 def bienvenida(email: str, nombre: str, hospedaje: str) -> bool:
-    asunto = "¡Bienvenido a Stanza!"
+    asunto = "¡Bienvenido a Vantry!"
     html = _envolver(
         f"Hola, {nombre}",
         f"<p>Tu hospedaje <strong>{hospedaje}</strong> ya está creado con "
         f"<strong>14 días de prueba gratis</strong>.</p>"
         f'<p><a href="{app_url()}" style="background:#4F46E5;color:#fff;padding:10px 18px;'
-        f'border-radius:8px;text-decoration:none">Entrar a Stanza</a></p>'
+        f'border-radius:8px;text-decoration:none">Entrar a Vantry</a></p>'
         f"<p>Cualquier duda, escríbenos por WhatsApp. ¡A dejar el Excel!</p>",
     )
     texto = (f"Hola {nombre}. Tu hospedaje {hospedaje} ya está creado con 14 días de prueba. "
@@ -92,7 +92,7 @@ def bienvenida(email: str, nombre: str, hospedaje: str) -> bool:
 
 
 def recuperar_password(email: str, nombre: str, enlace: str) -> bool:
-    asunto = "Restablece tu contraseña de Stanza"
+    asunto = "Restablece tu contraseña de Vantry"
     html = _envolver(
         f"Hola, {nombre}",
         f"<p>Recibimos una solicitud para restablecer tu contraseña.</p>"
@@ -105,7 +105,7 @@ def recuperar_password(email: str, nombre: str, enlace: str) -> bool:
 
 
 def verificar_email(email: str, nombre: str, enlace: str) -> bool:
-    asunto = "Confirma tu correo en Stanza"
+    asunto = "Confirma tu correo en Vantry"
     html = _envolver(
         f"Hola, {nombre}",
         f"<p>Confirma tu correo para asegurar tu cuenta.</p>"

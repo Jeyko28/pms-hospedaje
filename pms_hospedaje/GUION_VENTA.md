@@ -1,6 +1,6 @@
-# Guion de venta — Stanza (PMS para hospedajes)
+# Guion de venta — Vantry (PMS para hospedajes)
 
-> Documento operativo (2026-07-01). Para vender Stanza a hospedajes pequeños/medianos
+> Documento operativo (2026-07-01). Para vender Vantry a hospedajes pequeños/medianos
 > del Perú (5–40 habitaciones) que hoy usan Excel, cuaderno o WhatsApp.
 > Complementa `ANALISIS_COMPETITIVO.md`. Posicionamiento base:
 > **"El PMS simple y en soles para el hospedaje peruano. Tan fácil que lo usas el
@@ -21,7 +21,7 @@ Cloudbeds feliz. No perder tiempo ahí.
 
 ## 1. Pitch de 30 segundos (ascensor)
 
-> "Stanza es un sistema simple, en soles, para manejar tu hospedaje: reservas,
+> "Vantry es un sistema simple, en soles, para manejar tu hospedaje: reservas,
 > calendario, check-in y boletas en un solo lugar. Además te damos **tu propia página
 > de reservas** para que recibas reservas directas por WhatsApp o Instagram **sin pagar
 > la comisión de Booking**. Cuesta desde S/79 al mes y lo pruebas gratis 14 días."
@@ -32,7 +32,7 @@ Cloudbeds feliz. No perder tiempo ahí.
    pasado vender dos veces la misma habitación, o perder una reserva por no anotarla?"
 2. **El costo oculto:** "Y cuando llega una reserva por Booking, te descuentan 15–18%.
    En una habitación de S/100 la noche, regalas S/15–18 cada vez."
-3. **La solución:** "Stanza junta todo: calendario visual para no sobrevender, check-in
+3. **La solución:** "Vantry junta todo: calendario visual para no sobrevender, check-in
    y cobros en segundos, boleta electrónica, y **tu propio link de reservas** que
    compartes en tus redes — el huésped reserva solo y tú **no pagas comisión**."
 4. **La facilidad:** "Está pensado para que lo entiendas el primer día, desde el celular
@@ -65,7 +65,7 @@ Cerrar la demo volviendo al dolor: "Todo esto que hoy haces en el cuaderno, aqu�
 
 **"Ya uso Excel / WhatsApp y me funciona."**
 > "Perfecto que tengas orden. La diferencia es que Excel no evita la sobreventa, no te
-> da un link de reservas, no emite boleta ni te dice cuánto ganaste. Stanza hace todo
+> da un link de reservas, no emite boleta ni te dice cuánto ganaste. Vantry hace todo
 > eso solo. No reemplazas tu esfuerzo: lo automatizas."
 
 **"No tengo tiempo de aprender un sistema nuevo."**
@@ -78,9 +78,9 @@ Cerrar la demo volviendo al dolor: "Todo esto que hoy haces en el cuaderno, aqu�
 > malograr. Entras desde cualquier dispositivo. Es más seguro que el cuaderno."
 
 **"Booking igual me trae clientes, ¿para qué otra web?"**
-> "No te pedimos dejar Booking. Stanza es para que las reservas que YA llegan por tu
+> "No te pedimos dejar Booking. Vantry es para que las reservas que YA llegan por tu
 > WhatsApp o Instagram las cobres **sin comisión**, con tu propio link. Lo que hoy
-> anotas a mano, ahí entra solo. Booking para captar, Stanza para lo directo."
+> anotas a mano, ahí entra solo. Booking para captar, Vantry para lo directo."
 
 **"Déjame pensarlo."**
 > "Claro. Para pensarlo mejor, actívalo gratis 14 días sin tarjeta y lo pruebas con tus

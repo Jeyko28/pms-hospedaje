@@ -144,7 +144,7 @@ export default function AppShell({ children }) {
         >
           <Menu {...ICON_PROPS} />
         </button>
-        <span className="shell__topbar-title">Stanza</span>
+        <span className="shell__topbar-title">Vantry</span>
         <button
           type="button"
           className="shell__icon-btn"
@@ -169,7 +169,7 @@ export default function AppShell({ children }) {
           <span className="shell__brand-mark" aria-hidden="true">
             <Hotel size={26} strokeWidth={2} />
           </span>
-          <span className="shell__brand-name">Stanza</span>
+          <span className="shell__brand-name">Vantry</span>
           <button
             type="button"
             className="shell__collapse-btn"

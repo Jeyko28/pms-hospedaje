@@ -309,7 +309,7 @@ export default function ReservaPublica({ slug }) {
           </form>
         )}
 
-        <footer className="pub__footer">Reservas con Stanza</footer>
+        <footer className="pub__footer">Reservas con Vantry</footer>
       </div>
     </div>
   );

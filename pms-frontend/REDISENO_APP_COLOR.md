@@ -1,4 +1,4 @@
-# Unificación de colorimetría — App PMS ↔ Landing (Stanza)
+# Unificación de colorimetría — App PMS ↔ Landing (Vantry)
 
 > Documento de diseño (2026-07-02). La app del PMS adopta la misma paleta premium que la
 > landing pública, para que "se sientan la misma marca". Alcance elegido por el usuario:

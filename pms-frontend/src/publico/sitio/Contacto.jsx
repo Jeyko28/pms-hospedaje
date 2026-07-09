@@ -54,7 +54,7 @@ export default function Contacto() {
         {/* WhatsApp: deep link, sin mostrar el número */}
         <a
           className="contacto-card contacto-card--wa"
-          href={waLink("Hola, quiero información sobre Stanza para mi hospedaje.")}
+          href={waLink("Hola, quiero información sobre Vantry para mi hospedaje.")}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -111,7 +111,7 @@ export default function Contacto() {
       <section className="cta-final__wrap">
         <Reveal className="cta-final">
           <h2>¿Prefieres probarlo tú mismo?</h2>
-          <p>Crea tu cuenta y explora Stanza 14 días gratis, sin tarjeta.</p>
+          <p>Crea tu cuenta y explora Vantry 14 días gratis, sin tarjeta.</p>
           <div className="cta-final__acciones">
             <a className="s-btn s-btn--primary s-btn--lg" href="#/registro">Empieza gratis</a>
             <a className="s-btn s-btn--ghost s-btn--lg" href="#/precios">Ver precios</a>

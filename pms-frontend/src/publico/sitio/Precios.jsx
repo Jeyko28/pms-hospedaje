@@ -182,7 +182,7 @@ export default function Precios() {
             </a>
             <a
               className="s-btn s-btn--ghost s-btn--lg"
-              href={waLink("Hola, quiero más información sobre Stanza para mi hospedaje.")}
+              href={waLink("Hola, quiero más información sobre Vantry para mi hospedaje.")}
               target="_blank"
               rel="noopener noreferrer"
             >
