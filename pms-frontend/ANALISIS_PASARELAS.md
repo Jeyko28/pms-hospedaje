@@ -190,3 +190,36 @@ cuando quieras dejar el "enchufe" listo.
 Cuando quieras: **Fase 1 en sandbox** (adaptador `pasarela.py` + Mercado Pago de prueba + flujo de
 adelanto online), 100% sin DNI, para dejar todo listo y solo "enchufar" credenciales reales cuando
 tu cuenta esté verificada.
+
+---
+
+## 13. Fase 1 — IMPLEMENTADA (backend, sandbox) ✅
+
+> Estado: **backend hecho y verificado E2E en local (SQLite)**. Falta el **frontend**
+> (incremento 2) y la conexión real de Mercado Pago (Fase 2, requiere DNI/cuenta).
+
+**Adaptador** `pms_hospedaje/pasarela.py`: `PasarelaBase` → `PasarelaSandbox`
+(simulada) + `PasarelaMercadoPago` (stub Fase 2) + `obtener_pasarela(config)`
+(default seguro = sandbox). Mismo patrón que `sunat.py`.
+
+**Base de datos** (migración 29-30, aditiva/idempotente):
+- `pasarela_config` (por hospedaje): `proveedor, modo, activo, public_key, access_token`.
+- `pagos_online` (intentos): `tipo, referencia_id, proveedor, external_id, monto, moneda,
+  estado, payload…`. + índices por `hospedaje_id` y `external_id`.
+
+**API:**
+- `GET/PUT /api/mi-hospedaje/pasarela` (admin) — habilitar/config (no expone el token).
+- `POST /api/publico/pagos/checkout` — crea el pago del **adelanto** de una reserva → URL de checkout.
+- `POST /api/pagos/webhook/{proveedor}` — notificación **idempotente** por `external_id`;
+  si aprueba y es de reserva → **marca `reservas.adelanto_estado='verificado'` automáticamente**.
+- `GET /api/publico/pagos/{external_id}/estado` — para la página de retorno.
+
+**Verificado E2E (local):** login → habilitar sandbox → checkout (S/50 sobre reserva) →
+estado `pendiente` → webhook `aprobado` → estado `aprobado` → **adelanto `verificado`** →
+webhook repetido = idempotente → id inexistente = 404. `py_compile` OK.
+
+**Pendiente:**
+- **Incremento 2 (frontend):** sección "Pagos online" en Configuración + botón "Pagar adelanto
+  online" en el motor público (`ReservaPublica.jsx`) + página de retorno `#/pago`.
+- **Fase 2:** `PasarelaMercadoPago` real (SDK + credenciales + verificación de firma) — DNI/cuenta.
+- **Endurecimiento:** rate-limit en checkout/webhook, cifrado del `access_token`, conciliación.

@@ -515,6 +515,46 @@ def migrar(conn):
             cursor.execute("ALTER TABLE hospedajes ADD COLUMN plan_deseado TEXT DEFAULT ''")
             conn.commit()
 
+    # ----- 29. Pagos online: config de pasarela por hospedaje -----
+    # Proveedor de pagos por hospedaje (sandbox por defecto; credenciales aquí).
+    # En Fase 1 solo se usa 'sandbox' (sin cuenta real ni DNI).
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pasarela_config (
+            hospedaje_id INTEGER PRIMARY KEY,
+            proveedor TEXT DEFAULT 'sandbox',
+            modo TEXT DEFAULT 'sandbox',
+            activo INTEGER DEFAULT 0,
+            public_key TEXT DEFAULT '',
+            access_token TEXT DEFAULT '',
+            actualizado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    # ----- 30. Pagos online: intentos / transacciones -----
+    # Cada intento de pago online. El pago CONFIRMADO se refleja además en las tablas
+    # de negocio (reservas.adelanto_estado, pagos, pagos_suscripcion).
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pagos_online (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hospedaje_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'reserva',
+            referencia_id INTEGER,
+            proveedor TEXT DEFAULT 'sandbox',
+            external_id TEXT,
+            monto REAL DEFAULT 0,
+            moneda TEXT DEFAULT 'PEN',
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            descripcion TEXT DEFAULT '',
+            payload TEXT DEFAULT '',
+            creado_en TEXT DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan
@@ -558,6 +598,8 @@ _INDICES = [
     ("idx_pagos_susc_hosp", "pagos_suscripcion", "hospedaje_id"),
     ("idx_inv_items_hosp", "inventario_items", "hospedaje_id"),
     ("idx_inv_mov_item", "inventario_movimientos", "item_id"),
+    ("idx_pagos_online_hosp", "pagos_online", "hospedaje_id"),
+    ("idx_pagos_online_ext", "pagos_online", "external_id"),
 ]
 
 

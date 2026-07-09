@@ -58,6 +58,7 @@ import auth
 import sunat
 import tarifas
 import tipo_cambio
+import pasarela
 from database import get_connection
 from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago, ServicioHabitacion, Consumo
 from utils import generar_factura_pdf
@@ -269,6 +270,20 @@ class PagoNuevo(BaseModel):
     moneda_recibida: str = Field("", max_length=8)   # moneda física recibida (p. ej. USD)
     monto_recibido: float | None = None              # cuánto se recibió en esa moneda
     tipo_cambio: float = Field(1, gt=0)              # tipo usado (base por 1 de moneda_recibida)
+
+
+class PasarelaConfigDatos(BaseModel):
+    """Config de pagos online del hospedaje (para Configuración)."""
+    proveedor: str = Field("sandbox", max_length=20)
+    modo: str = Field("sandbox", max_length=20)
+    activo: bool = False
+    public_key: str = Field("", max_length=200)
+    access_token: str = Field("", max_length=300)
+
+
+class CheckoutPublico(BaseModel):
+    """Pedido de checkout online del adelanto, desde el motor público de reservas."""
+    reserva_id: int
 
 
 class CierreTurnoDatos(BaseModel):
@@ -2430,6 +2445,202 @@ def verificar_adelanto(
         return {"reserva_id": reserva_id, "adelanto_estado": estado, "adelanto_monto": row["am"]}
     finally:
         conn.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Pagos online (pasarela) — Fase 1 SANDBOX
+#  Patrón adaptador en pasarela.py (obtener_pasarela). En sandbox no mueve dinero
+#  real: sirve para tener listo el flujo (checkout -> webhook -> confirmación) sin
+#  cuenta ni DNI. El pago aprobado auto-verifica el adelanto de la reserva.
+# --------------------------------------------------------------------------- #
+def _pasarela_config_de(cursor, hid: int) -> dict:
+    """Config de pasarela del hospedaje, con defaults seguros (sandbox, inactivo)."""
+    cursor.execute(
+        "SELECT COALESCE(proveedor,'sandbox') AS proveedor, COALESCE(modo,'sandbox') AS modo, "
+        "COALESCE(activo,0) AS activo, COALESCE(public_key,'') AS public_key, "
+        "COALESCE(access_token,'') AS access_token FROM pasarela_config WHERE hospedaje_id = ?",
+        (hid,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return {"proveedor": "sandbox", "modo": "sandbox", "activo": 0, "public_key": "", "access_token": ""}
+    return {
+        "proveedor": row["proveedor"], "modo": row["modo"], "activo": int(row["activo"]),
+        "public_key": row["public_key"], "access_token": row["access_token"],
+    }
+
+
+@app.get("/api/mi-hospedaje/pasarela")
+def obtener_pasarela_config(admin: dict = Depends(auth.solo_admin)):
+    """Config de pagos online del hospedaje (para Configuración). No expone el token."""
+    conn = get_connection()
+    try:
+        cfg = _pasarela_config_de(conn.cursor(), admin["hospedaje_id"])
+    finally:
+        conn.close()
+    cfg["access_token_set"] = bool(cfg.pop("access_token", ""))
+    return cfg
+
+
+@app.put("/api/mi-hospedaje/pasarela")
+def guardar_pasarela_config(datos: PasarelaConfigDatos, admin: dict = Depends(auth.solo_admin)):
+    """Guarda la config de pagos online. En Fase 1 solo 'sandbox'; 'mercadopago' en
+    producción se habilitará en la Fase 2 (requiere credenciales y cuenta verificada)."""
+    proveedor = (datos.proveedor or "sandbox").strip().lower()
+    modo = (datos.modo or "sandbox").strip().lower()
+    if proveedor not in ("sandbox", "mercadopago"):
+        raise HTTPException(status_code=422, detail="Proveedor no soportado.")
+    if modo not in ("sandbox", "produccion"):
+        raise HTTPException(status_code=422, detail="Modo inválido.")
+    if proveedor == "mercadopago" and modo == "produccion":
+        raise HTTPException(status_code=422, detail="Mercado Pago en producción llega en la Fase 2.")
+    hid = admin["hospedaje_id"]
+    ahora = datetime.now().isoformat(timespec="seconds")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM pasarela_config WHERE hospedaje_id = ?", (hid,))
+        existe = cursor.fetchone()
+        vals = (proveedor, modo, 1 if datos.activo else 0,
+                datos.public_key.strip(), datos.access_token.strip(), ahora)
+        if existe:
+            cursor.execute(
+                "UPDATE pasarela_config SET proveedor=?, modo=?, activo=?, public_key=?, "
+                "access_token=?, actualizado_en=? WHERE hospedaje_id=?",
+                vals + (hid,),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO pasarela_config (proveedor, modo, activo, public_key, access_token, "
+                "actualizado_en, hospedaje_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                vals + (hid,),
+            )
+        conn.commit()
+        cfg = _pasarela_config_de(cursor, hid)
+    finally:
+        conn.close()
+    cfg["access_token_set"] = bool(cfg.pop("access_token", ""))
+    return cfg
+
+
+@app.post("/api/publico/pagos/checkout", status_code=201)
+def crear_checkout_publico(datos: CheckoutPublico):
+    """PÚBLICO: crea un pago online para el ADELANTO de una reserva y devuelve la URL
+    de checkout. Al pagar, el webhook confirma el adelanto automáticamente."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT r.hospedaje_id AS hospedaje_id, COALESCE(r.adelanto_monto,0) AS am, "
+            "COALESCE(r.adelanto_estado,'') AS ae, COALESCE(h.moneda,'PEN') AS moneda "
+            "FROM reservas r JOIN hospedajes h ON h.id = r.hospedaje_id WHERE r.id = ?",
+            (datos.reserva_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+        if float(row["am"]) <= 0:
+            raise HTTPException(status_code=409, detail="Esta reserva no requiere adelanto.")
+        if row["ae"] == "verificado":
+            raise HTTPException(status_code=409, detail="El adelanto de esta reserva ya está verificado.")
+        hid = row["hospedaje_id"]
+        cfg = _pasarela_config_de(cursor, hid)
+        if not cfg["activo"]:
+            raise HTTPException(status_code=409, detail="Pagos online no habilitados para este hospedaje.")
+        pas = pasarela.obtener_pasarela(cfg)
+        descripcion = f"Adelanto reserva #{datos.reserva_id}"
+        try:
+            res = pas.crear_pago(float(row["am"]), row["moneda"], datos.reserva_id, descripcion=descripcion)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        ahora = datetime.now().isoformat(timespec="seconds")
+        cursor.execute(
+            "INSERT INTO pagos_online (hospedaje_id, tipo, referencia_id, proveedor, external_id, "
+            "monto, moneda, estado, descripcion, creado_en, actualizado_en) "
+            "VALUES (?, 'reserva', ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?)",
+            (hid, datos.reserva_id, cfg["proveedor"], res["external_id"], float(row["am"]),
+             row["moneda"], descripcion, ahora, ahora),
+        )
+        conn.commit()
+        pago_id = cursor.lastrowid
+        return {
+            "pago_id": pago_id, "external_id": res["external_id"],
+            "url_checkout": res["url_checkout"], "estado": "pendiente",
+            "monto": float(row["am"]), "moneda": row["moneda"],
+        }
+    finally:
+        conn.close()
+
+
+@app.post("/api/pagos/webhook/{proveedor}")
+async def pagos_webhook(proveedor: str, request: Request):
+    """PÚBLICO: notificación del proveedor. Verifica (firma en producción), es
+    IDEMPOTENTE por external_id y aplica el efecto (adelanto de reserva verificado)."""
+    raw = await request.body()
+    params = dict(request.query_params)
+    headers = dict(request.headers)
+    pas = pasarela.obtener_pasarela({"proveedor": proveedor, "modo": "sandbox"})
+    try:
+        veri = pas.verificar_webhook(headers, raw, params)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if not veri.get("valido"):
+        raise HTTPException(status_code=400, detail="Webhook no válido.")
+    external_id = veri.get("external_id")
+    if not external_id:
+        raise HTTPException(status_code=400, detail="Falta external_id.")
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, hospedaje_id, tipo, referencia_id, estado FROM pagos_online WHERE external_id = ?",
+            (external_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Pago no encontrado.")
+        if row["estado"] == "aprobado":
+            return {"ok": True, "estado": "aprobado", "idempotente": True}
+        estado_prov = (veri.get("estado") or "").lower()
+        nuevo = "aprobado" if estado_prov in ("aprobado", "approved", "success", "paid") else "rechazado"
+        payload_txt = (raw.decode("utf-8", "ignore") if isinstance(raw, (bytes, bytearray)) else str(raw))[:2000]
+        ahora = datetime.now().isoformat(timespec="seconds")
+        cursor.execute(
+            "UPDATE pagos_online SET estado=?, payload=?, actualizado_en=? WHERE id=?",
+            (nuevo, payload_txt, ahora, row["id"]),
+        )
+        # Efecto de negocio: adelanto de reserva aprobado → verificado (auto).
+        if nuevo == "aprobado" and row["tipo"] == "reserva" and row["referencia_id"]:
+            cursor.execute(
+                "UPDATE reservas SET adelanto_estado='verificado' WHERE id=? AND hospedaje_id=?",
+                (row["referencia_id"], row["hospedaje_id"]),
+            )
+        conn.commit()
+        return {"ok": True, "estado": nuevo}
+    finally:
+        conn.close()
+
+
+@app.get("/api/publico/pagos/{external_id}/estado")
+def estado_pago_publico(external_id: str):
+    """PÚBLICO: estado de un pago online (para que la página de retorno lo consulte)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT estado, COALESCE(monto,0) AS monto, COALESCE(moneda,'PEN') AS moneda, tipo "
+            "FROM pagos_online WHERE external_id = ?",
+            (external_id,),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Pago no encontrado.")
+    return {
+        "external_id": external_id, "estado": row["estado"],
+        "monto": float(row["monto"]), "moneda": row["moneda"], "tipo": row["tipo"],
+    }
 
 
 @app.get("/api/reservas/calendario")
