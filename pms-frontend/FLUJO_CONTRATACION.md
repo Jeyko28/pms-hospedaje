@@ -61,8 +61,32 @@ Registro sin términos → 422; con términos → 201 + entra; plan "Crece" lleg
 registro; recuperar → 200 genérico; reset con token real → 200 (token de un solo
 uso; reúso → 400); pantallas de auth renderizan. Build + `py_compile` OK.
 
+## Correo en producción (Brevo) — configurado 2026-07-09
+Proveedor SMTP: **Brevo** (plan Free, 300 correos/día, sin dominio propio). Remitente verificado:
+**"Vantry PMS" `<en.cuadre1612@gmail.com>`** (cuenta Brevo creada con el Gmail de ENCUADRE).
+
+**Variables en Render** (`Environment`):
+```
+SMTP_HOST = smtp-relay.brevo.com
+SMTP_PORT = 587
+SMTP_USER = <login que da Brevo, p. ej. bxxxxxxxx@smtp-brevo.com>
+SMTP_PASS = <clave SMTP generada en Brevo · SMTP & API · SMTP>
+SMTP_FROM = en.cuadre1612@gmail.com
+SMTP_TLS  = 1
+APP_URL   = https://vantry-pms.vercel.app
+CORS_ORIGINS = https://vantry-pms.vercel.app   # imprescindible: sin esto el front no habla con la API
+```
+`SMTP_FROM_NAME` es opcional (por defecto `correo.py` ya pone "Vantry PMS").
+**No** activar el "bloqueo de IP" de las claves SMTP en Brevo (Render envía desde IPs variables).
+
+> ⚠️ **PENDIENTE — dominio propio (~US$10/año):** con un remitente `@gmail.com` la entregabilidad
+> es **regular** (Gmail/Outlook pueden mandar el correo a **spam**) porque no se puede alinear
+> DKIM/DMARC a `gmail.com`. La solución real: comprar un dominio barato (`.com` en Cloudflare/
+> Porkbun/Namecheap), **autenticarlo en Brevo** (2-3 registros DNS) y usar `noreply@tudominio` →
+> bandeja de entrada. Al hacerlo, solo cambia `SMTP_FROM`/`APP_URL`. Primer gasto recomendado.
+
 ## Limitaciones / evolución
-- **Email en producción requiere configurar SMTP** (hoy en dev solo loguea el correo).
+- **Entregabilidad regular** mientras el remitente sea `@gmail.com` (ver nota de dominio arriba).
 - **Verificación de email** está preparada pero no forzada.
 - **Dominio/subdominio propio**: no aplica (un solo dominio; el link público usa el
   slug del hospedaje). Evolucionable a subdominios si se requiere.

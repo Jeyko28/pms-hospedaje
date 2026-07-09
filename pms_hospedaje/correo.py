@@ -3,7 +3,8 @@ correo.py — envío de correos, modular y sin romper si no está configurado.
 
 Proveedor por configuración (variables de entorno):
   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_TLS (1/0)
-  APP_URL  (base para los enlaces, p. ej. https://vantry.pe)
+  SMTP_FROM_NAME  (nombre visible del remitente; por defecto "Vantry PMS")
+  APP_URL  (base para los enlaces, p. ej. https://vantry-pms.vercel.app)
 
 Si NO hay SMTP configurado, cae a un proveedor de DESARROLLO que solo registra
 el correo por consola (para probar el flujo sin servidor de correo). `enviar`
@@ -15,6 +16,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 
 
 def app_url() -> str:
@@ -31,6 +33,7 @@ def _smtp_config():
         "user": os.environ.get("SMTP_USER") or "",
         "password": os.environ.get("SMTP_PASS") or "",
         "from": os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "no-reply@vantry.pe",
+        "from_name": os.environ.get("SMTP_FROM_NAME") or "Vantry PMS",
         "tls": (os.environ.get("SMTP_TLS", "1") not in ("0", "false", "False")),
     }
 
@@ -45,7 +48,9 @@ def enviar(destinatario: str, asunto: str, html: str, texto: str = "") -> bool:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = asunto
-        msg["From"] = cfg["from"]
+        # Cabecera con nombre visible ("Vantry PMS <correo>"); el sobre (sendmail)
+        # usa el correo pelado, que es el remitente verificado en Brevo.
+        msg["From"] = formataddr((cfg["from_name"], cfg["from"]))
         msg["To"] = destinatario
         if texto:
             msg.attach(MIMEText(texto, "plain", "utf-8"))
