@@ -8,3 +8,4 @@ PyJWT==2.13.0
 psycopg2-binary==2.9.12
 reportlab==4.5.1
 python-multipart==0.0.20
+slowapi>=0.1.9  # rate limiting (lo importa api.py; su ausencia crasheaba el arranque en Render)
