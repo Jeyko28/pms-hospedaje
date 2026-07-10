@@ -101,6 +101,7 @@ export default function Configuracion() {
   const adel = useApi(api.adelantoConfig);
   const [adForm, setAdForm] = useState({
     activo: false, tipo: "noche", valor: 0, yape_numero: "", yape_titular: "",
+    cuenta_banco: "", cuenta_numero: "", cuenta_cci: "",
   });
   const [adGuardando, setAdGuardando] = useState(false);
   const [adError, setAdError] = useState(null);
@@ -114,6 +115,9 @@ export default function Configuracion() {
         valor: adel.data.valor || 0,
         yape_numero: adel.data.yape_numero || "",
         yape_titular: adel.data.yape_titular || "",
+        cuenta_banco: adel.data.cuenta_banco || "",
+        cuenta_numero: adel.data.cuenta_numero || "",
+        cuenta_cci: adel.data.cuenta_cci || "",
       });
     }
   }, [adel.data]);
@@ -147,6 +151,9 @@ export default function Configuracion() {
         valor: Number(adForm.valor) || 0,
         yape_numero: adForm.yape_numero.trim(),
         yape_titular: adForm.yape_titular.trim(),
+        cuenta_banco: adForm.cuenta_banco.trim(),
+        cuenta_numero: adForm.cuenta_numero.trim(),
+        cuenta_cci: adForm.cuenta_cci.trim(),
       });
       setAdOk(true);
       adel.recargar();
@@ -399,6 +406,25 @@ export default function Configuracion() {
                       onChange={setAd("yape_titular")} placeholder="Nombre que ve el huésped" />
                   </Field>
                 </div>
+
+                <p className="cfg__sub">
+                  Transferencia bancaria (opcional): si la agregas, el huésped también podrá
+                  transferirte a tu cuenta.
+                </p>
+                <div className="cfg__fila">
+                  <Field id="ad-banco" label="Banco (opcional)">
+                    <input id="ad-banco" type="text" value={adForm.cuenta_banco}
+                      onChange={setAd("cuenta_banco")} placeholder="Ej. BCP, Interbank…" />
+                  </Field>
+                  <Field id="ad-cuenta" label="Número de cuenta (opcional)">
+                    <input id="ad-cuenta" type="text" value={adForm.cuenta_numero}
+                      onChange={setAd("cuenta_numero")} placeholder="Ej. 191-1234567-0-12" />
+                  </Field>
+                </div>
+                <Field id="ad-cci" label="CCI (opcional)" hint="Código interbancario, para transferencias desde otros bancos.">
+                  <input id="ad-cci" type="text" value={adForm.cuenta_cci}
+                    onChange={setAd("cuenta_cci")} placeholder="20 dígitos" />
+                </Field>
               </>
             )}
 

@@ -434,6 +434,13 @@ def migrar(conn):
             cursor.execute("ALTER TABLE hospedajes ADD COLUMN yape_numero TEXT DEFAULT ''")
         if "yape_titular" not in cols_h_ad:
             cursor.execute("ALTER TABLE hospedajes ADD COLUMN yape_titular TEXT DEFAULT ''")
+        # Transferencia bancaria (opcional): banco + número de cuenta + CCI.
+        if "cuenta_banco" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN cuenta_banco TEXT DEFAULT ''")
+        if "cuenta_numero" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN cuenta_numero TEXT DEFAULT ''")
+        if "cuenta_cci" not in cols_h_ad:
+            cursor.execute("ALTER TABLE hospedajes ADD COLUMN cuenta_cci TEXT DEFAULT ''")
         conn.commit()
     if _tabla_existe(cursor, "reservas"):
         cols_r_ad = _columnas_de(cursor, "reservas")

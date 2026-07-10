@@ -363,10 +363,24 @@ export default function ReservaPublica({ slug }) {
                   <strong>{fmt(seleccion.adelanto)}</strong>
                 </p>
                 <p className="pub__adelanto-yape">
-                  Yapea o transfiere a{" "}
+                  Yapea a{" "}
                   <strong>{hospedaje.adelanto.yape_numero}</strong>
                   {hospedaje.adelanto.yape_titular && <> · {hospedaje.adelanto.yape_titular}</>}
                 </p>
+                {(hospedaje.adelanto.cuenta_numero || hospedaje.adelanto.cuenta_cci) && (
+                  <div className="pub__adelanto-banco">
+                    <span className="pub__adelanto-banco-tit">O transfiere a la cuenta:</span>
+                    {hospedaje.adelanto.cuenta_banco && (
+                      <span>Banco: <strong>{hospedaje.adelanto.cuenta_banco}</strong></span>
+                    )}
+                    {hospedaje.adelanto.cuenta_numero && (
+                      <span>Cuenta: <strong>{hospedaje.adelanto.cuenta_numero}</strong></span>
+                    )}
+                    {hospedaje.adelanto.cuenta_cci && (
+                      <span>CCI: <strong>{hospedaje.adelanto.cuenta_cci}</strong></span>
+                    )}
+                  </div>
+                )}
                 <Field id="cod-op" label="Código de operación (Yape/transferencia)">
                   <input
                     id="cod-op"

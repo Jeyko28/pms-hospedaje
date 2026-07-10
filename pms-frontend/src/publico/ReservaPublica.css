@@ -309,6 +309,17 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+.pub__adelanto-banco {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.pub__adelanto-banco-tit {
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
 .pub__adelanto-nota {
   font-size: var(--text-xs);
   color: var(--text-muted);

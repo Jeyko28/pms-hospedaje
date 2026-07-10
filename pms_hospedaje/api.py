@@ -209,6 +209,9 @@ class AdelantoConfig(BaseModel):
     valor: float = Field(0, ge=0)                     # % (si porcentaje) o soles (si monto)
     yape_numero: str = Field("", max_length=40)
     yape_titular: str = Field("", max_length=120)
+    cuenta_banco: str = Field("", max_length=60)      # banco (opcional)
+    cuenta_numero: str = Field("", max_length=40)     # número de cuenta (opcional)
+    cuenta_cci: str = Field("", max_length=40)        # CCI interbancario (opcional)
 
 
 class AdelantoVerificacion(BaseModel):
@@ -938,13 +941,17 @@ def _adelanto_config_de(cursor, hid: int) -> dict:
     cursor.execute(
         """SELECT COALESCE(adelanto_activo,0) AS activo, COALESCE(adelanto_tipo,'noche') AS tipo,
                   COALESCE(adelanto_valor,0) AS valor, COALESCE(yape_numero,'') AS yape_numero,
-                  COALESCE(yape_titular,'') AS yape_titular
+                  COALESCE(yape_titular,'') AS yape_titular,
+                  COALESCE(cuenta_banco,'') AS cuenta_banco,
+                  COALESCE(cuenta_numero,'') AS cuenta_numero,
+                  COALESCE(cuenta_cci,'') AS cuenta_cci
            FROM hospedajes WHERE id = ?""",
         (hid,),
     )
     row = cursor.fetchone()
     if not row:
-        return {"activo": False, "tipo": "noche", "valor": 0, "yape_numero": "", "yape_titular": ""}
+        return {"activo": False, "tipo": "noche", "valor": 0, "yape_numero": "", "yape_titular": "",
+                "cuenta_banco": "", "cuenta_numero": "", "cuenta_cci": ""}
     d = dict(row)
     d["activo"] = bool(d["activo"])
     return d
@@ -971,6 +978,9 @@ def guardar_adelanto_config(datos: AdelantoConfig, admin: dict = Depends(auth.so
         raise HTTPException(status_code=422, detail="Tipo de adelanto inválido.")
     yape_numero = (datos.yape_numero or "").strip()
     yape_titular = (datos.yape_titular or "").strip()
+    cuenta_banco = (datos.cuenta_banco or "").strip()
+    cuenta_numero = (datos.cuenta_numero or "").strip()
+    cuenta_cci = (datos.cuenta_cci or "").strip()
     valor = float(datos.valor or 0)
     if datos.activo:
         if not yape_numero:
@@ -984,8 +994,10 @@ def guardar_adelanto_config(datos: AdelantoConfig, admin: dict = Depends(auth.so
         cursor = conn.cursor()
         cursor.execute(
             """UPDATE hospedajes SET adelanto_activo=?, adelanto_tipo=?, adelanto_valor=?,
-                      yape_numero=?, yape_titular=? WHERE id=?""",
-            (1 if datos.activo else 0, tipo, valor, yape_numero, yape_titular, hid),
+                      yape_numero=?, yape_titular=?, cuenta_banco=?, cuenta_numero=?,
+                      cuenta_cci=? WHERE id=?""",
+            (1 if datos.activo else 0, tipo, valor, yape_numero, yape_titular,
+             cuenta_banco, cuenta_numero, cuenta_cci, hid),
         )
         conn.commit()
         return _adelanto_config_de(cursor, hid)
@@ -1476,6 +1488,9 @@ def hospedaje_publico(slug: str):
         if cfg["activo"]:
             adelanto["yape_numero"] = cfg["yape_numero"]
             adelanto["yape_titular"] = cfg["yape_titular"]
+            adelanto["cuenta_banco"] = cfg["cuenta_banco"]
+            adelanto["cuenta_numero"] = cfg["cuenta_numero"]
+            adelanto["cuenta_cci"] = cfg["cuenta_cci"]
 
         # Multi-moneda: moneda base + equivalente REFERENCIAL en USD si el
         # hospedaje lo acepta (para que el huésped extranjero se ubique). El cobro
