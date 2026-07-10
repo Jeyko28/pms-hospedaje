@@ -10,6 +10,7 @@ import "./styles/global.css";
 // y la app interna no carga el sitio público de marketing.
 const App = lazy(() => import("./App"));
 const ReservaPublica = lazy(() => import("./publico/ReservaPublica"));
+const Pago = lazy(() => import("./publico/Pago"));
 const SitioWeb = lazy(() => import("./publico/sitio/SitioWeb"));
 
 // Fallback mínimo mientras se descarga el chunk de la vista.
@@ -43,6 +44,7 @@ function leerRutaPublica() {
   const hash = window.location.hash;
   const m = hash.match(/^#\/reservar\/([^/?]+)/);
   if (m) return { tipo: "reservar", slug: decodeURIComponent(m[1]) };
+  if (/^#\/pago\b/.test(hash)) return { tipo: "pago" };
   const esMarketing =
     hash === "" ||
     hash === "#" ||
@@ -65,6 +67,13 @@ function Raiz() {
     return (
       <Suspense fallback={<Cargando />}>
         <ReservaPublica slug={publica.slug} />
+      </Suspense>
+    );
+  }
+  if (publica?.tipo === "pago") {
+    return (
+      <Suspense fallback={<Cargando />}>
+        <Pago />
       </Suspense>
     );
   }

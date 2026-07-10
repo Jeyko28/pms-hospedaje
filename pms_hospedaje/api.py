@@ -1488,11 +1488,15 @@ def hospedaje_publico(slug: str):
             if r["tasa"] and r["tasa"] > 0:
                 cambio["referencia"] = {"moneda": "USD", "tasa": r["tasa"]}
 
+        # ¿Pagos online habilitados? (para ofrecer "pagar adelanto online").
+        pcfg = _pasarela_config_de(cursor, h["id"])
+
         return {
             "hospedaje": {"nombre": h["nombre"], "slug": h["slug"]},
             "habitaciones": habitaciones,
             "adelanto": adelanto,
             "cambio": cambio,
+            "pagos_online": {"activo": bool(pcfg["activo"])},
         }
     finally:
         conn.close()

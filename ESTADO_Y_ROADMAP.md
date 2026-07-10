@@ -81,9 +81,11 @@ Commits relevantes (de más nuevo a más viejo):
 - ✅ **Fotos de habitación — incremento 3 (vista del huésped) HECHO:** `ReservaPublica.jsx` ya
   muestra cada habitación como **tarjeta con foto + descripción + capacidad + chips de amenidades**,
   con **galería** (modal) al hacer clic. Verificado en preview.
-- **Pasarela Fase 1 — frontend (lo que sigue):** sección "Pagos online" en Configuración (activar sandbox) +
-  botón "Pagar adelanto online" en el motor público + página de retorno `#/pago` (el backend
-  sandbox ya funciona: `crear_checkout` → `webhook` → auto-verifica el adelanto).
+- ✅ **Pasarela Fase 1 — frontend HECHO:** sección "Pagos online" en Configuración (activar
+  sandbox), botón "Pagar adelanto online" en el motor público, y página `#/pago` (checkout
+  sandbox que simula aprobado/rechazado). Verificado E2E en preview: pago aprobado →
+  `reserva.adelanto_estado='verificado'` automático. **Falta solo la Fase 2 (Mercado Pago real,
+  bloqueada por DNI).**
 
 ### 6.2 Bloqueado por el DNI del dueño (KYC) — hacer cuando lo actualice
 - **Pasarela producción:** implementar `PasarelaMercadoPago` real (SDK + credenciales + firma de

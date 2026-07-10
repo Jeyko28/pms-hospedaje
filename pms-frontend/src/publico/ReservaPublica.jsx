@@ -42,6 +42,8 @@ export default function ReservaPublica({ slug }) {
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [exito, setExito] = useState(null); // {reserva_id, total}
   const [galeria, setGaleria] = useState(null); // {numero, fotos, index, cargando}
+  const [pagando, setPagando] = useState(false);
+  const [pagoError, setPagoError] = useState(null);
 
   // Cargar info del hospedaje por slug.
   useEffect(() => {
@@ -119,6 +121,22 @@ export default function ReservaPublica({ slug }) {
     }
   }
 
+  // Pago online del adelanto: crea el checkout y va a la página de pago (#/pago).
+  async function pagarOnline() {
+    setPagoError(null);
+    setPagando(true);
+    try {
+      const res = await api.publicoCheckout(exito.reserva_id);
+      const url = res.url_checkout || "";
+      const i = url.indexOf("#");
+      if (i >= 0) window.location.hash = url.slice(i + 1);
+      else window.location.href = url;
+    } catch (e) {
+      setPagoError(e.message);
+      setPagando(false);
+    }
+  }
+
   const set = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
 
   // Formateo en la MONEDA BASE del hospedaje (la página pública no tiene sesión,
@@ -166,6 +184,17 @@ export default function ReservaPublica({ slug }) {
             <p className="pub__nota">
               El hospedaje confirmará tu reserva. Te contactarán por los datos que dejaste.
             </p>
+          )}
+          {exito.adelanto_monto > 0 && hospedaje.pagos_online?.activo && (
+            <div className="pub__pago-online">
+              <Button type="button" onClick={pagarOnline} disabled={pagando}>
+                {pagando
+                  ? "Redirigiendo…"
+                  : `Pagar adelanto online · ${fmt(exito.adelanto_monto)}`}
+              </Button>
+              {pagoError && <p className="pub__error" role="alert">{pagoError}</p>}
+              <p className="pub__nota">Rápido y seguro. Tu reserva se confirma al instante.</p>
+            </div>
           )}
         </div>
       </div>

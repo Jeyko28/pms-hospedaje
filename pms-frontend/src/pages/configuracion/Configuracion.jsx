@@ -158,6 +158,34 @@ export default function Configuracion() {
     }
   }
 
+  // --- Pagos online (pasarela) ---
+  const pas = useApi(api.pasarelaConfig);
+  const [pasActivo, setPasActivo] = useState(false);
+  const [pasGuardando, setPasGuardando] = useState(false);
+  const [pasError, setPasError] = useState(null);
+  const [pasOk, setPasOk] = useState(false);
+
+  useEffect(() => {
+    if (pas.data) setPasActivo(!!pas.data.activo);
+  }, [pas.data]);
+
+  async function guardarPasarela(ev) {
+    ev.preventDefault();
+    setPasError(null);
+    setPasOk(false);
+    setPasGuardando(true);
+    try {
+      await api.guardarPasarelaConfig({ proveedor: "sandbox", modo: "sandbox", activo: pasActivo });
+      setPasOk(true);
+      pas.recargar();
+      setTimeout(() => setPasOk(false), 3000);
+    } catch (e) {
+      setPasError(e.message);
+    } finally {
+      setPasGuardando(false);
+    }
+  }
+
   // --- Estado de la suscripción ---
   const plan = info.data?.plan || "—";
   const estado = info.data?.estado || "—";
@@ -380,6 +408,38 @@ export default function Configuracion() {
             <div className="cfg__acciones">
               <Button type="submit" disabled={adGuardando}>
                 {adGuardando ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Card>
+
+      {/* ---------- Pagos online (pasarela) ---------- */}
+      <Card>
+        <h2 className="cfg__card-title">Pagos online (beta)</h2>
+        <p className="cfg__sub">
+          Deja que el huésped pague el adelanto <strong>en línea</strong> al reservar por tu link,
+          y la reserva se confirma sola. Hoy en <strong>modo prueba (sandbox)</strong>: simula el
+          pago sin cobrar de verdad. La pasarela real (Mercado Pago) se conecta cuando tu cuenta
+          esté lista.
+        </p>
+        {pas.loading && !pas.data ? (
+          <StateMessage variant="loading" title="Cargando…" />
+        ) : (
+          <form className="cfg__form" onSubmit={guardarPasarela} noValidate>
+            <label className="cfg__check">
+              <input
+                type="checkbox"
+                checked={pasActivo}
+                onChange={(e) => setPasActivo(e.target.checked)}
+              />
+              Activar pagos online en el link de reservas (modo prueba)
+            </label>
+            {pasError && <p className="cfg__error" role="alert">{pasError}</p>}
+            {pasOk && <p className="cfg__ok">Configuración guardada.</p>}
+            <div className="cfg__acciones">
+              <Button type="submit" disabled={pasGuardando}>
+                {pasGuardando ? "Guardando…" : "Guardar"}
               </Button>
             </div>
           </form>

@@ -134,6 +134,9 @@ export const api = {
   fotosHabitacion: (id) => get(`/api/habitaciones/${id}/fotos`),
   agregarFotoHabitacion: (id, imagen) => post(`/api/habitaciones/${id}/fotos`, { imagen }),
   eliminarFotoHabitacion: (id, fotoId) => del(`/api/habitaciones/${id}/fotos/${fotoId}`),
+  // Pagos online (pasarela) — config del hospedaje (admin)
+  pasarelaConfig: () => get("/api/mi-hospedaje/pasarela"),
+  guardarPasarelaConfig: (datos) => put("/api/mi-hospedaje/pasarela", datos),
   huespedes: (incluirArchivados = false) =>
     get(`/api/huespedes${incluirArchivados ? "?incluir_archivados=1" : ""}`),
   reservas: () => get("/api/reservas"),
@@ -304,4 +307,10 @@ export const api = {
     get(`/api/publico/disponibilidad/${slug}?fecha_entrada=${entrada}&fecha_salida=${salida}`),
   publicoReservar: (slug, datos) => post(`/api/publico/reservar/${slug}`, datos),
   publicoFotosHabitacion: (id) => get(`/api/publico/habitacion/${id}/fotos`),
+  publicoCheckout: (reservaId) =>
+    post("/api/publico/pagos/checkout", { reserva_id: reservaId }),
+  publicoEstadoPago: (ext) => get(`/api/publico/pagos/${ext}/estado`),
+  // Solo SANDBOX: la página #/pago simula la notificación del proveedor.
+  publicoWebhookSandbox: (ext, estado) =>
+    post("/api/pagos/webhook/sandbox", { external_id: ext, estado }),
 };
