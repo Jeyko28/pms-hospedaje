@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Hotel, BedDouble, CheckCircle2 } from "lucide-react";
+import { Hotel, BedDouble, CheckCircle2, Users, X } from "lucide-react";
 import Field from "../components/Field";
 import Button from "../components/Button";
 import { api } from "../api/client";
@@ -7,6 +7,10 @@ import { useTheme } from "../hooks/useTheme";
 import { ymdLocal } from "../utils/fechas";
 import { formatoMoneda, convertirDesdeBase } from "../utils/moneda";
 import "./ReservaPublica.css";
+
+// Amenidades vienen como CSV ("WiFi,TV,Baño privado") → lista de etiquetas.
+const amenidadesLista = (csv) =>
+  (csv || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 /**
  * ReservaPublica — pagina PUBLICA de reservas (motor de reservas).
@@ -37,6 +41,7 @@ export default function ReservaPublica({ slug }) {
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [exito, setExito] = useState(null); // {reserva_id, total}
+  const [galeria, setGaleria] = useState(null); // {numero, fotos, index, cargando}
 
   // Cargar info del hospedaje por slug.
   useEffect(() => {
@@ -101,6 +106,16 @@ export default function ReservaPublica({ slug }) {
       setErrorEnvio(err.message);
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function abrirGaleria(h) {
+    setGaleria({ numero: h.numero, fotos: [], index: 0, cargando: true });
+    try {
+      const fotos = await api.publicoFotosHabitacion(h.id);
+      setGaleria({ numero: h.numero, fotos: fotos || [], index: 0, cargando: false });
+    } catch {
+      setGaleria({ numero: h.numero, fotos: [], index: 0, cargando: false });
     }
   }
 
@@ -202,28 +217,73 @@ export default function ReservaPublica({ slug }) {
         {disponibles && disponibles.length > 0 && !seleccion && (
           <div className="pub__habs">
             <p className="pub__habs-titulo">{noches} noche(s) · elige una habitación:</p>
-            {disponibles.map((h) => (
-              <button
-                key={h.id}
-                type="button"
-                className="pub__hab"
-                onClick={() => setSeleccion(h)}
-              >
-                <span className="pub__hab-icono" aria-hidden="true">
-                  <BedDouble size={22} />
-                </span>
-                <span className="pub__hab-info">
-                  <strong>Hab. {h.numero}</strong> · {h.tipo}
-                  <span className="pub__hab-precio">
-                    {fmt(h.precio_base)}/noche
-                  </span>
-                </span>
-                <span className="pub__hab-total">
-                  {fmt(h.total)}
-                  {refUSD(h.total) && <span className="pub__hab-ref">{refUSD(h.total)}</span>}
-                </span>
-              </button>
-            ))}
+            {disponibles.map((h) => {
+              const chips = amenidadesLista(h.amenidades);
+              const conFoto = !!h.foto_principal;
+              return (
+                <article key={h.id} className="pub__hab">
+                  <div
+                    className={`pub__hab-foto ${conFoto ? "is-clicable" : ""}`}
+                    onClick={() => conFoto && abrirGaleria(h)}
+                    role={conFoto ? "button" : undefined}
+                    tabIndex={conFoto ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if (conFoto && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        abrirGaleria(h);
+                      }
+                    }}
+                    aria-label={conFoto ? `Ver fotos de la habitación ${h.numero}` : undefined}
+                  >
+                    {conFoto ? (
+                      <>
+                        <img src={h.foto_principal} alt={`Habitación ${h.numero}`} loading="lazy" />
+                        {h.fotos_count > 1 && (
+                          <span className="pub__hab-fotosbadge">{h.fotos_count} fotos</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="pub__hab-sinfoto" aria-hidden="true">
+                        <BedDouble size={30} />
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pub__hab-cuerpo">
+                    <div className="pub__hab-cab">
+                      <strong>Hab. {h.numero}</strong>
+                      <span className="pub__hab-tipo">{h.tipo}</span>
+                      {h.capacidad > 0 && (
+                        <span className="pub__hab-cap">
+                          <Users size={14} aria-hidden="true" /> {h.capacidad}
+                        </span>
+                      )}
+                    </div>
+
+                    {h.descripcion && <p className="pub__hab-desc">{h.descripcion}</p>}
+
+                    {chips.length > 0 && (
+                      <div className="pub__hab-chips">
+                        {chips.map((a) => (
+                          <span key={a} className="pub__chip">{a}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pub__hab-pie">
+                      <span className="pub__hab-precios">
+                        <span className="pub__hab-precionoche">{fmt(h.precio_base)}/noche</span>
+                        <span className="pub__hab-total">
+                          {fmt(h.total)} <span className="pub__hab-total-lbl">total</span>
+                          {refUSD(h.total) && <span className="pub__hab-ref">{refUSD(h.total)}</span>}
+                        </span>
+                      </span>
+                      <Button type="button" onClick={() => setSeleccion(h)}>Elegir</Button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 
@@ -311,6 +371,56 @@ export default function ReservaPublica({ slug }) {
 
         <footer className="pub__footer">Reservas con Vantry</footer>
       </div>
+
+      {galeria && (
+        <div
+          className="pub__galeria"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setGaleria(null)}
+        >
+          <div className="pub__galeria-caja" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="pub__galeria-cerrar"
+              onClick={() => setGaleria(null)}
+              aria-label="Cerrar galería"
+            >
+              <X size={20} />
+            </button>
+            <p className="pub__galeria-titulo">Habitación {galeria.numero}</p>
+            {galeria.cargando ? (
+              <p className="pub__galeria-msg">Cargando fotos…</p>
+            ) : galeria.fotos.length > 0 ? (
+              <>
+                <div className="pub__galeria-principal">
+                  <img
+                    src={galeria.fotos[galeria.index]?.imagen}
+                    alt={`Habitación ${galeria.numero}`}
+                  />
+                </div>
+                {galeria.fotos.length > 1 && (
+                  <div className="pub__galeria-tiras">
+                    {galeria.fotos.map((f, i) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className={`pub__galeria-mini ${i === galeria.index ? "is-activa" : ""}`}
+                        onClick={() => setGaleria((g) => ({ ...g, index: i }))}
+                        aria-label={`Foto ${i + 1}`}
+                      >
+                        <img src={f.imagen} alt="" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="pub__galeria-msg">Sin fotos.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

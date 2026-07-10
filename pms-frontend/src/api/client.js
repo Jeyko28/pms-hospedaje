@@ -303,4 +303,5 @@ export const api = {
   publicoDisponibilidad: (slug, entrada, salida) =>
     get(`/api/publico/disponibilidad/${slug}?fecha_entrada=${entrada}&fecha_salida=${salida}`),
   publicoReservar: (slug, datos) => post(`/api/publico/reservar/${slug}`, datos),
+  publicoFotosHabitacion: (id) => get(`/api/publico/habitacion/${id}/fotos`),
 };

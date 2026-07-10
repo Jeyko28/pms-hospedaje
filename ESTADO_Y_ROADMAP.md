@@ -49,6 +49,8 @@ npm run dev -- --host --port 5174 --strictPort
 
 ## 4. Estado actual — hecho en la sesión reciente (2026-07-09)
 Commits relevantes (de más nuevo a más viejo):
+- **Fotos de habitación — vista del huésped** (incr.3): `ReservaPublica.jsx` con tarjetas
+  (foto + descripción + capacidad + chips) + galería modal. Verificado en preview.
 - `a45cf15` **Fotos de habitación — editor admin** (incr.2): modal "Fotos y detalles" en la
   página Habitaciones (subir fotos comprimidas en el navegador, descripción, capacidad,
   amenidades).
@@ -76,12 +78,10 @@ Commits relevantes (de más nuevo a más viejo):
 ## 6. Roadmap / pendientes
 
 ### 6.1 Inmediato (sin bloqueos)
-- **Fotos de habitación — incremento 3 (vista del huésped):** en `pms-frontend/src/publico/
-  ReservaPublica.jsx`, mostrar cada habitación libre como **tarjeta con foto + precio +
-  descripción + chips de amenidades**, con **galería** al hacer clic. El backend ya entrega
-  `foto_principal`, `fotos_count` (en `disponibilidad_publica`) y `GET /api/publico/
-  habitacion/{id}/fotos` (galería). **Este es el siguiente paso natural.**
-- **Pasarela Fase 1 — frontend:** sección "Pagos online" en Configuración (activar sandbox) +
+- ✅ **Fotos de habitación — incremento 3 (vista del huésped) HECHO:** `ReservaPublica.jsx` ya
+  muestra cada habitación como **tarjeta con foto + descripción + capacidad + chips de amenidades**,
+  con **galería** (modal) al hacer clic. Verificado en preview.
+- **Pasarela Fase 1 — frontend (lo que sigue):** sección "Pagos online" en Configuración (activar sandbox) +
   botón "Pagar adelanto online" en el motor público + página de retorno `#/pago` (el backend
   sandbox ya funciona: `crear_checkout` → `webhook` → auto-verifica el adelanto).
 
