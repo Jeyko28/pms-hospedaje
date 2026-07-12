@@ -101,7 +101,9 @@ Commits relevantes (de más nuevo a más viejo):
   del OAuth Client ID en Google Cloud Console (hoy da 403; el login normal sí funciona).
 
 ### 6.4 Brief grande (product team) — restante
-- **#10 Escalabilidad:** auditoría para 100/500/1k/5k hospedajes.
+- ✅ **#10 Escalabilidad HECHO:** auditoría en `pms-frontend/ANALISIS_ESCALABILIDAD.md`. Hallazgos
+  P0: **sin pooling de conexiones** (Neon pooled string) + **Render free spin-down** (pasar a pago).
+  P1: imágenes base64 → object storage, rate-limits en endpoints públicos. Quick-wins listados.
 - **#11 Auditoría final integral.**
 - **#12 Documentación consolidada.**
 
