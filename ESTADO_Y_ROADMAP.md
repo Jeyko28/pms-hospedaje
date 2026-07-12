@@ -133,6 +133,11 @@ Commits relevantes (de más nuevo a más viejo):
 - **Storage de imágenes MVP:** base64 en Postgres (sin cuentas externas, sobrevive los redeploys de
   Render que tienen FS efímero), comprimidas en el cliente. Límite 6 fotos/hab, ~1MB.
 - **El texto "Mi Pequeño Hospedaje"** del PDF de factura (`utils.py`) NO es la marca; queda.
+- **slowapi (rate-limit): el orden de decoradores importa.** Debe ser `@app.<método>` ARRIBA y
+  `@limiter.limit(...)` DEBAJO (encima del `def`). Al revés, FastAPI registra la función sin el
+  límite y **no se aplica** (bug latente que tenía todo el proyecto, incl. login; corregido y
+  verificado con un test de 130 requests → 429 tras el umbral). Los endpoints públicos ya tienen
+  límites (reads 120/min, writes 15/min, webhook 60/min) y `hospedajes.slug` está indexado.
 
 ## 8. Decisiones de producto ya tomadas (no re-litigar sin motivo)
 - **Nunca cobrar comisión** por reserva en el link público (es el posicionamiento de venta).

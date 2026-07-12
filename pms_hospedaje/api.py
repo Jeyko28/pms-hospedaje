@@ -471,8 +471,8 @@ class TarifaNueva(BaseModel):
 # --------------------------------------------------------------------------- #
 #  Autenticacion y gestion de usuarios
 # --------------------------------------------------------------------------- #
-@limiter.limit("5/minute")
 @app.post("/api/auth/login")
+@limiter.limit("5/minute")
 def login(datos: LoginIn, request: Request):
     u = auth.autenticar(datos.usuario.strip(), datos.password)
     if not u:
@@ -483,8 +483,8 @@ def login(datos: LoginIn, request: Request):
     return {"token": token, "usuario": auth.publico(u)}
 
 
-@limiter.limit("3/minute")
 @app.post("/api/auth/registro", status_code=201)
+@limiter.limit("3/minute")
 def registro_publico(datos: RegistroPublico, request: Request):
     """Registro SELF-SERVICE: un cliente nuevo crea su hospedaje + su usuario
     admin con una prueba gratis de 14 dias. Endpoint PUBLICO (sin login).
@@ -553,8 +553,8 @@ def registro_publico(datos: RegistroPublico, request: Request):
     }
 
 
-@limiter.limit("4/minute")
 @app.post("/api/auth/recuperar")
+@limiter.limit("4/minute")
 def recuperar_password(datos: RecuperarIn, request: Request):
     """Solicita el restablecimiento de contraseña. Por seguridad SIEMPRE responde
     igual (no revela si el correo existe). Si existe, guarda un token con
@@ -586,8 +586,8 @@ def recuperar_password(datos: RecuperarIn, request: Request):
     return {"ok": True, "mensaje": "Si el correo existe, te enviamos un enlace para restablecerla."}
 
 
-@limiter.limit("6/minute")
 @app.post("/api/auth/reset")
+@limiter.limit("6/minute")
 def reset_password(datos: ResetIn, request: Request):
     """Fija una nueva contraseña usando el token del correo. Valida el token y su
     vencimiento; al usarlo, lo invalida."""
@@ -621,8 +621,8 @@ def reset_password(datos: ResetIn, request: Request):
     return {"ok": True, "mensaje": "Contraseña actualizada. Ya puedes iniciar sesión."}
 
 
-@limiter.limit("5/minute")
 @app.post("/api/auth/google")
+@limiter.limit("5/minute")
 def login_google(datos: GoogleLoginIn, request: Request):
     """Inicia sesion con Google. Verifica el token, y:
       - Si el correo ya tiene cuenta -> entra (respeta suspension).
@@ -1398,8 +1398,8 @@ def config_publica():
 #  Contacto de la landing (leads) — POST publico, GET solo super admin.
 #  Evita exponer el correo/numero: el mensaje se guarda y el dueno lo revisa.
 # --------------------------------------------------------------------------- #
-@limiter.limit("4/minute")
 @app.post("/api/contacto", status_code=201)
+@limiter.limit("4/minute")
 def crear_contacto(datos: ContactoNuevo, request: Request):
     """Guarda un mensaje del formulario de contacto de la web publica. No expone
     ningun dato del negocio; el super admin lo lee luego en su panel."""
@@ -1439,7 +1439,8 @@ def listar_contactos(_sa: dict = Depends(auth.solo_superadmin)):
 #  El huesped accede por el slug del hospedaje: /reservar/<slug>.
 # --------------------------------------------------------------------------- #
 @app.get("/api/publico/hospedaje/{slug}")
-def hospedaje_publico(slug: str):
+@limiter.limit("120/minute")
+def hospedaje_publico(slug: str, request: Request):
     """Info publica de un hospedaje + sus habitaciones (para la pagina de
     reservas que ve el huesped). Solo si el hospedaje puede operar."""
     conn = get_connection()
@@ -1518,7 +1519,8 @@ def hospedaje_publico(slug: str):
 
 
 @app.get("/api/publico/disponibilidad/{slug}")
-def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
+@limiter.limit("120/minute")
+def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str, request: Request):
     """Devuelve las habitaciones LIBRES del hospedaje en el rango de fechas."""
     try:
         fe = datetime.strptime(fecha_entrada, "%Y-%m-%d")
@@ -1595,7 +1597,8 @@ def disponibilidad_publica(slug: str, fecha_entrada: str, fecha_salida: str):
 
 
 @app.post("/api/publico/reservar/{slug}", status_code=201)
-def crear_reserva_publica(slug: str, datos: ReservaPublica):
+@limiter.limit("15/minute")
+def crear_reserva_publica(slug: str, datos: ReservaPublica, request: Request):
     """Crea una reserva desde la pagina publica. Registra al huesped (si es
     nuevo) y crea la reserva en estado 'Pendiente' (a confirmar/pagar)."""
     try:
@@ -2570,7 +2573,8 @@ def guardar_pasarela_config(datos: PasarelaConfigDatos, admin: dict = Depends(au
 
 
 @app.post("/api/publico/pagos/checkout", status_code=201)
-def crear_checkout_publico(datos: CheckoutPublico):
+@limiter.limit("15/minute")
+def crear_checkout_publico(datos: CheckoutPublico, request: Request):
     """PÚBLICO: crea un pago online para el ADELANTO de una reserva y devuelve la URL
     de checkout. Al pagar, el webhook confirma el adelanto automáticamente."""
     conn = get_connection()
@@ -2619,6 +2623,7 @@ def crear_checkout_publico(datos: CheckoutPublico):
 
 
 @app.post("/api/pagos/webhook/{proveedor}")
+@limiter.limit("60/minute")
 async def pagos_webhook(proveedor: str, request: Request):
     """PÚBLICO: notificación del proveedor. Verifica (firma en producción), es
     IDEMPOTENTE por external_id y aplica el efecto (adelanto de reserva verificado)."""
@@ -2668,7 +2673,8 @@ async def pagos_webhook(proveedor: str, request: Request):
 
 
 @app.get("/api/publico/pagos/{external_id}/estado")
-def estado_pago_publico(external_id: str):
+@limiter.limit("120/minute")
+def estado_pago_publico(external_id: str, request: Request):
     """PÚBLICO: estado de un pago online (para que la página de retorno lo consulte)."""
     conn = get_connection()
     try:
@@ -2805,7 +2811,8 @@ def eliminar_foto_habitacion(
 
 
 @app.get("/api/publico/habitacion/{habitacion_id}/fotos")
-def fotos_publicas_habitacion(habitacion_id: int):
+@limiter.limit("120/minute")
+def fotos_publicas_habitacion(habitacion_id: int, request: Request):
     """PÚBLICO: galería completa de una habitación (para el motor de reservas)."""
     conn = get_connection()
     try:

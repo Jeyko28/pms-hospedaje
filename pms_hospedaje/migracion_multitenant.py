@@ -638,6 +638,7 @@ _INDICES = [
     ("idx_pagos_online_hosp", "pagos_online", "hospedaje_id"),
     ("idx_pagos_online_ext", "pagos_online", "external_id"),
     ("idx_hab_fotos_hab", "habitacion_fotos", "habitacion_id"),
+    ("idx_hospedajes_slug", "hospedajes", "slug"),
 ]
 
 
