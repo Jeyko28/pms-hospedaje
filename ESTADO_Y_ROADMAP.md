@@ -95,10 +95,15 @@ Commits relevantes (de más nuevo a más viejo):
   cuenta OSE/PSE (ej. Nubefact). Implementar `EmisorNubefact` (el adaptador ya existe en `sunat.py`).
 
 ### 6.3 Configuración pendiente del usuario (no es código)
+- ✅ **Google login HECHO:** se agregó `https://vantry-pms.vercel.app` a los "Authorized JavaScript
+  origins" del OAuth Client ID.
+- **Backups de la BD:** Supabase Free NO hace backups automáticos. Interino (gratis):
+  `pms_hospedaje/backup_bd.py` exporta TODA la base a `backups/*.json` (correr con `DATABASE_URL`
+  apuntando a Supabase; sin instalar nada). Real (cuando haya clientes): **Supabase Pro (~US$25/mes)**
+  = backups diarios automáticos + PITR.
 - **Dominio propio (~US$10/año):** para que los correos no caigan en spam (hoy remitente `@gmail`
   → DKIM/DMARC no alineables). Al comprarlo: autenticarlo en Brevo y cambiar `SMTP_FROM`/`APP_URL`.
-- **Google login:** agregar `https://vantry-pms.vercel.app` a los "Authorized JavaScript origins"
-  del OAuth Client ID en Google Cloud Console (hoy da 403; el login normal sí funciona).
+- **Render de pago (~US$7/mes):** Settings → Instance Type → Starter (quita el spin-down de 50s).
 
 ### 6.4 Brief grande (product team) — restante
 - ✅ **#10 Escalabilidad HECHO:** auditoría en `pms-frontend/ANALISIS_ESCALABILIDAD.md`. Hallazgos
