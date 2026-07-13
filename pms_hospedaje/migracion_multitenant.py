@@ -592,6 +592,13 @@ def migrar(conn):
     )
     conn.commit()
 
+    # ----- 33. Fotos en Supabase Storage: ruta del objeto (para poder borrarlo).
+    # '' = la imagen está en base64 en la columna `imagen` (fallback / legado).
+    if _tabla_existe(cursor, "habitacion_fotos"):
+        if "storage_path" not in _columnas_de(cursor, "habitacion_fotos"):
+            cursor.execute("ALTER TABLE habitacion_fotos ADD COLUMN storage_path TEXT DEFAULT ''")
+            conn.commit()
+
     # ----- 12. Índices para rendimiento multi-tenant -----
     # Casi todas las consultas filtran por hospedaje_id y por las FK de relación
     # (habitacion_id, factura_id, etc.). Sin índices, cada lectura es un full-scan

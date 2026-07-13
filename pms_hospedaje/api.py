@@ -59,6 +59,7 @@ import sunat
 import tarifas
 import tipo_cambio
 import pasarela
+import storage
 from database import get_connection
 from modelos import Habitacion, Huesped, Reserva, Estancia, Factura, Pago, ServicioHabitacion, Consumo
 from utils import generar_factura_pdf
@@ -2780,13 +2781,18 @@ def agregar_foto_habitacion(
         if int(row["n"]) >= _MAX_FOTOS_HAB:
             raise HTTPException(status_code=409, detail=f"Máximo {_MAX_FOTOS_HAB} fotos por habitación.")
         orden = int(row["mo"]) + 1
+        # Subir a Supabase Storage si está configurado; si no, guardar base64 (fallback).
+        subido = storage.subir_imagen(img, f"{hid}/{habitacion_id}")
+        valor_imagen = subido["url"] if subido else img
+        storage_path = subido["path"] if subido else ""
         cursor.execute(
-            "INSERT INTO habitacion_fotos (habitacion_id, hospedaje_id, imagen, orden, creado_en) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (habitacion_id, hid, img, orden, datetime.now().isoformat(timespec="seconds")),
+            "INSERT INTO habitacion_fotos (habitacion_id, hospedaje_id, imagen, storage_path, orden, creado_en) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (habitacion_id, hid, valor_imagen, storage_path, orden,
+             datetime.now().isoformat(timespec="seconds")),
         )
         conn.commit()
-        return {"id": cursor.lastrowid, "orden": orden}
+        return {"id": cursor.lastrowid, "orden": orden, "en_storage": bool(subido)}
     finally:
         conn.close()
 
@@ -2801,13 +2807,22 @@ def eliminar_foto_habitacion(
     try:
         cursor = conn.cursor()
         cursor.execute(
+            "SELECT COALESCE(storage_path,'') AS sp FROM habitacion_fotos "
+            "WHERE id = ? AND habitacion_id = ? AND hospedaje_id = ?",
+            (foto_id, habitacion_id, hid),
+        )
+        row = cursor.fetchone()
+        cursor.execute(
             "DELETE FROM habitacion_fotos WHERE id = ? AND habitacion_id = ? AND hospedaje_id = ?",
             (foto_id, habitacion_id, hid),
         )
         conn.commit()
-        return {"ok": True}
     finally:
         conn.close()
+    # Borrar el objeto de Storage (best-effort) si la foto estaba allí.
+    if row and row["sp"]:
+        storage.borrar_objeto(row["sp"])
+    return {"ok": True}
 
 
 @app.get("/api/publico/habitacion/{habitacion_id}/fotos")
