@@ -83,6 +83,18 @@ def main():
     with open(ruta, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
+    # Retención: conservar solo los últimos N respaldos (evita acumular sin fin).
+    _MAX = 30
+    existentes = sorted(
+        f for f in os.listdir(carpeta)
+        if f.startswith("vantry-backup-") and f.endswith(".json")
+    )
+    for viejo in existentes[:-_MAX]:
+        try:
+            os.remove(os.path.join(carpeta, viejo))
+        except OSError:
+            pass
+
     mb = os.path.getsize(ruta) / (1024 * 1024)
     print(f"\nOK -> {ruta}")
     print(f"{len(tablas)} tablas, {total} filas, {mb:.2f} MB")
