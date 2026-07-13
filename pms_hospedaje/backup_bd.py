@@ -20,6 +20,7 @@ armo el import; el archivo tiene TODOS los datos.
 """
 import json
 import os
+import shutil
 from datetime import datetime, date
 
 import dbengine
@@ -98,6 +99,18 @@ def main():
     mb = os.path.getsize(ruta) / (1024 * 1024)
     print(f"\nOK -> {ruta}")
     print(f"{len(tablas)} tablas, {total} filas, {mb:.2f} MB")
+
+    # Copia adicional a un disco externo / otra carpeta, si BACKUP_DIR está definido.
+    destino = os.environ.get("BACKUP_DIR", "").strip()
+    if destino:
+        try:
+            os.makedirs(destino, exist_ok=True)
+            shutil.copy2(ruta, os.path.join(destino, nombre))
+            print(f"Copia adicional -> {os.path.join(destino, nombre)}")
+        except OSError as e:
+            print(f"\n[AVISO] No se pudo copiar a BACKUP_DIR ({destino}).")
+            print(f"        ¿El disco externo está conectado? Detalle: {e}")
+            print("        El respaldo local SÍ se guardó; conecta el disco y vuelve a correr.")
 
 
 if __name__ == "__main__":

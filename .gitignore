@@ -36,8 +36,9 @@ dist-ssr/
 /pms_hospedaje/comprobantes/
 # --- Respaldos de la base (contienen datos, NO subir) ---
 /pms_hospedaje/backups/
-# --- Lanzador de respaldo (contiene la contrasena de la BD) ---
+# --- Lanzadores de respaldo (contienen la contrasena de la BD) ---
 /pms_hospedaje/respaldar.ps1
+/pms_hospedaje/Respaldar-Vantry.bat
 
 # --- Temporales de pruebas ---
 _test_*.py
