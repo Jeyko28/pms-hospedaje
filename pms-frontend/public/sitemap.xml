@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- El sitio de marketing usa hash-router (#/inicio, #/precios...), asi que la
+     URL indexable es la raiz. Al conectar un dominio propio, actualiza <loc>. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://vantry-pms.vercel.app/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

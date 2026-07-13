@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { AuthProvider } from "./auth/AuthContext";
 import { tokenStore } from "./api/client";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./styles/global.css";
 
 // Code-splitting: cada vista grande se carga bajo demanda. Así un huésped que
@@ -98,5 +100,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ErrorBoundary>
       <Raiz />
     </ErrorBoundary>
+    <Analytics />
+    <SpeedInsights />
   </React.StrictMode>
 );
