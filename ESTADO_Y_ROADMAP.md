@@ -107,7 +107,8 @@ Commits relevantes (de más nuevo a más viejo):
 - ✅ **#11 Auditoría final integral HECHA:** `AUDITORIA_FINAL.md`. Veredicto: núcleo sólido y
   vendible en piloto; sin defectos críticos. Trabajo real = ops (backups + Render pago) y desbloquear
   DNI. Hallazgo corregido en la sesión: rate-limits que no se aplicaban. Checklist priorizado dentro.
-- **#12 Documentación consolidada** (parcial: ESTADO_Y_ROADMAP.md + los ANALISIS_*/AUDITORIA_* ya cubren mucho).
+- ✅ **#12 Documentación consolidada HECHA:** `README.md` (raíz) es ahora el front-door con un
+  **índice completo** de toda la doc (estado, análisis, backend/ops) + "léeme primero" → este archivo.
 
 ### 6.5 Ideas futuras / a definir con el usuario
 - **Reservas/pagos en USD:** el usuario tiene una "lista de pendientes" por pasar. Decisión ya
