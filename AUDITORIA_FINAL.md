@@ -81,7 +81,9 @@ idempotentes; backend stateless; front con code-splitting.
 1. 🔴 **Estrategia de backups** de la BD (Supabase con PITR o export programado).
 2. 🟡 **Render de pago** (quitar spin-down).
 3. 🟡 **Dominio propio** para el correo (salir de spam).
-4. 🟢 **Test de aislamiento multi-tenant** (2 hospedajes) — defensa anti-regresión.
+4. ✅ **Test de aislamiento multi-tenant HECHO** (`pms_hospedaje/test_aislamiento.py`): verifica que
+   un admin no ve ni toca datos de otro hospedaje (listado filtrado + 404 en habitación/reserva
+   ajena). Pasó. Correr en local con el backend arriba.
 5. 🟢 Object storage para fotos (Supabase Storage) cuando crezcan.
 6. ⛔ Bloqueado por DNI: pagos reales (MP) + SUNAT producción.
 
